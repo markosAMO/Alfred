@@ -39,6 +39,17 @@ git:
   stage: files_changed_by_alfred
   push_after_commit: true
 
+tracker:
+  backend: none
+  adapter: tracker/adapters/none.md
+  required: false
+
+workspace:
+  enabled: auto_detect
+  protocol: skills/_shared/workspace-protocol.md
+  repository_docs: distributed
+  cross_repo_dependencies: enforced
+
 testing:
   strategy: strict_tdd
   coverage_protocol: skills/_shared/testing-protocol.md
@@ -52,9 +63,9 @@ phases:
 
   explore:
     mode: auto
-    runs: once_per_project
     runs_when: repository_has_existing_code
-    produces: [architecture, conventions]
+    scope: area_under_change
+    produces: [architecture, conventions, master_specs]
 
   refine:
     mode: interactive

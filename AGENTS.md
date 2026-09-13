@@ -31,6 +31,7 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |
 | `memory/` | Backend-agnostic memory layer | Swap backends without touching any skill |
 | `notify/` | Backend-agnostic notification layer | Same pattern, for talking to the user |
+| `tracker/` | Backend-agnostic task tracker layer | Mirrors tasks to Jira, GitHub Issues, Linear or nothing |
 | `templates/docs/` | Templates for `spec.md`, `design.md`, … | The shape of the output, separate from the reasoning |
 | `templates/agent-pointers/` | `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, … | Three-line files redirecting to `AGENTS.md` |
 | `defaults/` | The author's default architecture | What makes Alfred personal rather than generic |
@@ -99,6 +100,12 @@ Every mode is overridable in `alfred.config.yaml`.
    underspecified. Key and value names must stand on their own; explanations belong in
    `docs/`.
 8. **English only**, across every file in this repository.
+9. **Alfred runs at two levels.** A change spanning several repositories is planned once at
+   workspace level and executed independently in each repository, which keeps its own copy
+   of its slice. See `skills/_shared/workspace-protocol.md`.
+10. **Existing repositories are documented on demand.** `explore` derives specifications
+   for the area a change touches, never for the whole repository. A codebase documents
+   itself as it is worked on.
 
 ## Commit conventions
 
