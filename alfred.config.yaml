@@ -1,0 +1,110 @@
+version: 0.1.0
+
+paths:
+  architecture: docs/architecture.md
+  conventions: docs/code_conventions.md
+  master_specs: docs/specs/
+  changes: docs/changes/
+  pipeline_state: .alfred/state/
+  skill_registry: .alfred/skill-registry.md
+
+memory:
+  backend: engram
+  adapter: memory/adapters/engram.md
+  index_documents_on_write: true
+  required: false
+
+notify:
+  default_channel: terminal
+  skip_unavailable_channels: true
+  channels:
+    terminal:
+      adapter: notify/adapters/terminal.md
+      required: true
+    openclaw:
+      adapter: notify/adapters/openclaw.md
+      required: false
+  routing:
+    needs_input: [terminal, openclaw]
+    needs_confirmation: [terminal, openclaw]
+    phase_completed: [terminal]
+    feature_completed: [terminal, openclaw]
+    error: [terminal, openclaw]
+
+git:
+  commit: true
+  granularity: per_feature
+  message_format: conventional_commits
+  ai_attribution: false
+  stage: files_changed_by_alfred
+  push_after_commit: true
+
+testing:
+  strategy: strict_tdd
+  coverage_protocol: skills/_shared/testing-protocol.md
+  runner_defined_in: docs/code_conventions.md
+
+phases:
+  init:
+    mode: interactive
+    runs: once_per_project
+    produces: [architecture, conventions]
+
+  explore:
+    mode: auto
+    runs: once_per_project
+    runs_when: repository_has_existing_code
+    produces: [architecture, conventions]
+
+  refine:
+    mode: interactive
+    entry_point: new_feature
+    skippable: true
+    produces: [proposal]
+
+  research:
+    mode: auto
+    skippable: true
+    produces: [research]
+
+  spec:
+    mode: auto
+    produces: [delta_spec]
+
+  diagnose:
+    mode: interactive
+    entry_point: bug
+    produces: [diagnosis]
+    routes_to:
+      behaviour_changed: spec
+      default: design
+
+  design:
+    mode: interactive
+    produces: [design]
+
+  tasks:
+    mode: auto
+    produces: [task_list]
+    declares_dependencies: true
+
+  apply:
+    mode: confirm
+    produces: [code]
+    execution: one_subagent_per_task
+    ordering: sequential
+
+  verify:
+    mode: auto
+    checks: spec_compliance
+    produces: [verify_report]
+
+  review:
+    mode: auto
+    checks: code_quality
+    agent: separate_from_author
+    produces: [review_report]
+
+  archive:
+    mode: auto
+    produces: [master_specs, postmortem]

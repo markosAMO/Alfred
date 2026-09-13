@@ -1,0 +1,120 @@
+# AGENTS.md — operating the Alfred repository
+
+This file is for agents that **modify Alfred itself**. It is not the `AGENTS.md` that
+Alfred installs into a target project: that one tells an agent working on that project
+that the pipeline is in use there.
+
+## What Alfred is
+
+An **installable package**, not a program. Alfred does not run the agent loop — Claude
+Code, OpenCode, OpenClaw or any compatible agent does. Alfred provides the manual those
+agents follow.
+
+Practical consequence: almost everything here is Markdown. The only code is the installer.
+
+```
+ALFRED REPOSITORY (the mould)        TARGET PROJECT (where the parts come out)
+skills/, templates/, defaults/   ──▶ .alfred/, docs/changes/, AGENTS.md
+```
+
+Feature specs never live in Alfred. Alfred only knows how to create them.
+
+## Repository map
+
+| Path | Contents | Why it exists |
+|---|---|---|
+| `AGENTS.md` | This file | Entry point for agents modifying Alfred |
+| `README.md` | Project presentation | For humans |
+| `install.sh` | Installer | Copies what is needed into the target project |
+| `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
+| `skills/` | One directory per pipeline phase | The manual for each phase |
+| `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |
+| `memory/` | Backend-agnostic memory layer | Swap backends without touching any skill |
+| `notify/` | Backend-agnostic notification layer | Same pattern, for talking to the user |
+| `templates/docs/` | Templates for `spec.md`, `design.md`, … | The shape of the output, separate from the reasoning |
+| `templates/agent-pointers/` | `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, … | Three-line files redirecting to `AGENTS.md` |
+| `defaults/` | The author's default architecture | What makes Alfred personal rather than generic |
+| `triggers/` | How the flow starts in each environment | OpenClaw, terminal, future entry points |
+| `docs/` | Project documentation | For humans; agents do not read it |
+
+## The pipeline
+
+```
+SETUP (once per project)
+  init        structure + project architecture
+  explore     existing repositories only: derives the architecture from the code
+
+ENTRY A — new feature                ENTRY B — bug
+  refine      interview                 diagnose   root cause + memory lookup
+  research    investigate                          ├─ behaviour changes? → spec
+  spec        formal requirement                   └─ otherwise         → design
+
+COMMON TRUNK
+  design      architecture of this feature
+  tasks       breakdown into small tasks
+  apply       code (one subagent per task)
+  verify      does it satisfy the spec?
+  review      is the code well written?
+  archive     feature → delta merged into master specs
+              bug     → postmortem written to memory
+
+NAVIGATION
+  continue · ff · status
+```
+
+## Phase modes
+
+Two independent axes: *does it start on its own?* and *does it talk while working?*
+
+| Mode | Starts on its own | Interacts | Phases |
+|---|---|---|---|
+| `auto` | yes | no | `research`, `spec`, `tasks`, `verify`, `review`, `archive` |
+| `interactive` | yes | yes, and **waits** for an answer | `refine`, `design`, `diagnose` |
+| `confirm` | no, asks first | no | `apply` |
+
+Every mode is overridable in `alfred.config.yaml`.
+
+## Hard rules
+
+1. **No skill names a concrete tool.** Skills say `memory.recall(...)`, never `mem_search`.
+   Translation lives in `memory/adapters/`. The same applies to `notify/`.
+2. **Files are the source of truth; the database is an index.** Specs and pipeline state
+   are files under version control. The memory backend holds a searchable copy that is
+   disposable and rebuildable through `reindex`.
+3. **Alfred runs without memory.** With no backend configured the pipeline still works:
+   subagents read the Markdown files directly. More expensive in tokens, never broken.
+   The same applies to notification channels: an unavailable channel is skipped, never
+   fatal.
+4. **Subagents receive paths, not content.** A subagent starts with an empty context and
+   fetches what it needs. Pasting a four-thousand-token spec into every subagent defeats
+   the purpose of a clean context.
+5. **User-authored content is never overwritten.** The installer only touches what sits
+   between `<!-- ALFRED:BEGIN -->` and `<!-- ALFRED:END -->`, or appends. `.alfred/state.json`
+   stores the sha256 of every managed file: if it changed, the installer reports a diff
+   instead of overwriting.
+6. **Alfred is stack-agnostic.** Code conventions live in the target project's
+   `docs/code_conventions.md`, never here. Alfred defines *what* deserves a test;
+   the project defines *how* tests are run.
+7. **Configuration files carry no comments.** A document that needs inline explanation is
+   underspecified. Key and value names must stand on their own; explanations belong in
+   `docs/`.
+8. **English only**, across every file in this repository.
+
+## Commit conventions
+
+Applies to this repository and to every project Alfred manages.
+
+- Conventional commits: `type(scope): description`
+- **No AI attribution**: never `Co-Authored-By`, `Generated with`, or any mention of a
+  model. Commits are authored by the human.
+- **One commit per feature**, not per task: committed once `verify` and `review` pass.
+- **Never `git add .`**: only the files belonging to the feature are staged, so unrelated
+  work in progress is never swept in.
+
+## Adding a skill
+
+1. Create `skills/<name>/SKILL.md` with frontmatter: `name`, `mode`, `skippable`,
+   `inputs`, `outputs`.
+2. Reference shared rules from `skills/_shared/` rather than repeating them.
+3. If the skill produces a document, its template belongs in `templates/docs/`.
+4. Register it in `alfred.config.yaml` when it is a pipeline phase.
