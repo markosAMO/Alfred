@@ -91,8 +91,7 @@ itself. See [docs/installation.md](docs/installation.md).
 ## Acknowledgements
 
 The spec-driven approach, delta specifications and the phase structure are inspired by
-[agent-teams-lite](https://github.com/Gentleman-Programming/agent-teams-lite) and
-[gentle-ai](https://github.com/Gentleman-Programming/gentle-ai) by Gentleman Programming.
+[agent-teams-lite](https://github.com/Gentleman-Programming/agent-teams-lite)
 
 ## License
 
