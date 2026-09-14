@@ -10,6 +10,34 @@ adapter is `none`, and a project with no tracker uses the pipeline unchanged.
 
 ## Operations
 
+### fetch_task
+
+```
+fetch_task(external_id) -> { title, description, type, labels, parent }
+```
+
+Pulls an existing card so it can enter the pipeline as raw input. What comes back is a
+request, not a task list: the orchestrator decides which phases it needs.
+
+```
+card fetched -> vague description   -> refine
+             -> clear requirement   -> spec
+             -> defect report       -> diagnose
+             -> epic                -> several changes, several child cards
+```
+
+A card is never executed directly. Work that skips `spec` has no scenarios, so `verify`
+has nothing to check and `archive` has nothing to merge.
+
+### create_subtask
+
+```
+create_subtask(parent_external_id, title, description) -> external_id
+```
+
+Creates a child card under the one that entered the pipeline. Used when analysis shows the
+original card covers more than one change.
+
 ### create_task
 
 ```
@@ -60,9 +88,13 @@ exist.
 
 ## Direction of truth
 
-Alfred writes to the tracker and does not read work back from it. A card created by hand
-on the board is not picked up as a task: work enters the pipeline through `refine` or
-`diagnose`, so that every task traces back to a requirement.
+The board is never polled. A card enters the pipeline only when it is handed to the
+orchestrator explicitly, through `fetch_task`, and enters as input rather than as work to
+execute.
+
+Everything after that flows outward: Alfred writes cards, updates and closes them. The
+file remains authoritative, so a board that is unreachable costs visibility, never
+progress.
 
 ## Failure
 

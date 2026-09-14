@@ -36,6 +36,8 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `templates/agent-pointers/` | `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, … | Three-line files redirecting to `AGENTS.md` |
 | `defaults/` | The author's default architecture | What makes Alfred personal rather than generic |
 | `triggers/` | How the flow starts in each environment | OpenClaw, terminal, future entry points |
+| `docs/installation.md` | The two installation levels | Machine-level setup versus repository setup |
+| `docs/models.md` | Model assignment and profiles | Why phases run on different models |
 | `docs/` | Project documentation | For humans; agents do not read it |
 
 ## The pipeline
@@ -103,7 +105,16 @@ Every mode is overridable in `alfred.config.yaml`.
 9. **Alfred runs at two levels.** A change spanning several repositories is planned once at
    workspace level and executed independently in each repository, which keeps its own copy
    of its slice. See `skills/_shared/workspace-protocol.md`.
-10. **Existing repositories are documented on demand.** `explore` derives specifications
+10. **No skill names a model.** A skill describes the work; `models.profiles` in the
+   configuration decides what executes it. See `docs/models.md`.
+11. **Alfred is installed at two levels.** The orchestrator and the skills are installed
+   once per machine; `init` sets up each repository from wherever it is run. An installer
+   that must be copied into a repository cannot create that repository. See
+   `docs/installation.md`.
+12. **Skills resolve local over global.** A repository may override one skill without
+   forking the rest. Resolution is recorded in the skill registry, including which source
+   each skill came from. See `skills/_shared/skill-resolver.md`.
+13. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
 
