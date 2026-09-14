@@ -78,12 +78,18 @@ turns out to be excluded.
 The failure path is not optional. A round that produces only the happy path is not
 finished, because `testing-protocol.md` requires both and the scenarios come from here.
 
-### Round 3 — Integration and data
+### Round 3 — Integration and direction
 
 - Which parts of the system does this touch?
 - Which external services are involved?
 - What data is read, written or stored?
-- Does anything existing change shape or behaviour?
+- Is there an approach you already want, or one you want ruled out?
+
+The last question is the only one that collects a technical decision, and it collects the
+user's, never the model's. An answer to it is a constraint on `design`, not a design.
+
+Leave it unanswered rather than filling it in. A direction the user did not state is a
+decision `design` should be making with the specification in front of it.
 
 For multi-repository work, this round determines which repositories are affected and is
 the input to workspace `design`.
@@ -122,11 +128,24 @@ open question and carried into `spec`.
 ### Components affected
 ### External services
 ### Data
+## Architectural direction
 ## Constraints
 ## Acceptance
 ## Open questions
 ## Assumptions
 ```
+
+`Architectural direction` holds only what the user decided, each line with the reason they
+gave. It is empty when they decided nothing, and an empty section is the normal case.
+
+```markdown
+## Architectural direction
+- Events, not polling. The consumer cannot be blocked by the producer.
+- Reuse the existing notification service rather than adding a second one.
+```
+
+These are constraints `design` inherits, not a design. They name a direction and a reason;
+they name no interface, no schema and no library.
 
 `Assumptions` records what was taken from `architecture.md` or memory rather than asked.
 `spec` treats those as inherited, not as decided, and a wrong one surfaces there instead of

@@ -20,6 +20,7 @@ writes no code.
 
 ```
 fetch alfred/{change}/spec
+fetch alfred/{change}/proposal        for Architectural direction, when refine ran
 fetch alfred/project/architecture
 fetch alfred/project/conventions
 recall this area, for decisions already made
@@ -28,6 +29,24 @@ recall this area, for decisions already made
 The architecture document constrains this phase. A design that contradicts it is either
 wrong or is proposing to change the architecture, and those are different conversations.
 Proposing the second one is legitimate; doing it without saying so is not.
+
+## Inherited direction
+
+`Architectural direction` in the proposal is what the user already decided during `refine`.
+It enters this phase the same way `architecture.md` does: as given.
+
+It is not reopened. A user who settled an approach in the interview and is asked about it
+again learns that answering carefully changes nothing, and starts answering carelessly.
+
+Where an inherited direction turns out to conflict with the specification or with
+`architecture.md`, say so and ask. Stating the conflict is the job; resolving it silently in
+either direction is not.
+
+```
+ask("You chose events over polling during refine, but the spec requires a
+     synchronous confirmation to the caller. Which one gives?",
+    ["keep events, confirm asynchronously", "synchronous call", "other"])
+```
 
 ## Two scopes
 
