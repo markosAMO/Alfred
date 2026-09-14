@@ -114,7 +114,14 @@ Every mode is overridable in `alfred.config.yaml`.
 12. **Skills resolve local over global.** A repository may override one skill without
    forking the rest. Resolution is recorded in the skill registry, including which source
    each skill came from. See `skills/_shared/skill-resolver.md`.
-13. **Existing repositories are documented on demand.** `explore` derives specifications
+13. **The orchestrator does no work inline and reads almost nothing.** Its working set is
+   the request, the configuration, the pipeline state and the skill registry. It is the
+   only participant that lives for the whole run, so everything it reads it carries to the
+   end. See `skills/_shared/orchestrator-protocol.md`.
+14. **A route is proposed, never applied silently.** The orchestrator states which signals
+   it matched and waits. The user can always shorten a route; the orchestrator never
+   lengthens one without saying so. See `skills/_shared/routing.md`.
+15. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
 

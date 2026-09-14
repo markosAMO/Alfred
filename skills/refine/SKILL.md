@@ -33,6 +33,9 @@ it wastes their time.
 
 When the request arrives as a tracker card, the same criteria apply to the card body.
 
+The decision is proposed and confirmed, never applied silently. The orchestrator names the
+signals it matched and offers to skip straight to `spec`. See `skills/_shared/routing.md`.
+
 ## Before asking anything
 
 Read what is already known, and never ask for it.

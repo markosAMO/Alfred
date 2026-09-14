@@ -68,6 +68,20 @@ testing:
   coverage_protocol: skills/_shared/testing-protocol.md
   runner_defined_in: docs/code_conventions.md
 
+routing:
+  decided_by: observable_behaviour_change
+  protocol: skills/_shared/routing.md
+  proposed_to_user: always
+  routes:
+    direct: [apply, verify, review]
+    pipeline: [spec, design, tasks, apply, verify, review, archive]
+    full: [refine, research, spec, design, tasks, apply, verify, review, archive]
+
+orchestrator:
+  protocol: skills/_shared/orchestrator-protocol.md
+  reads: [config, pipeline_state, skill_registry]
+  inline_work: false
+
 phases:
   init:
     mode: interactive
