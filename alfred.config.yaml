@@ -40,38 +40,10 @@ git:
   push_after_commit: true
 
 models:
-  active_profile: frontier
-  profiles:
-    frontier:
-      orchestrator: anthropic/claude-opus-5
-      phases:
-        init: anthropic/claude-sonnet-5
-        explore: anthropic/claude-sonnet-5
-        refine: anthropic/claude-opus-5
-        research: anthropic/claude-sonnet-5
-        spec: anthropic/claude-opus-5
-        diagnose: anthropic/claude-opus-5
-        design: anthropic/claude-opus-5
-        tasks: anthropic/claude-sonnet-5
-        apply: anthropic/claude-sonnet-5
-        verify: anthropic/claude-sonnet-5
-        review: anthropic/claude-opus-5
-        archive: anthropic/claude-haiku-4-5
-    local:
-      orchestrator: anthropic/claude-opus-5
-      phases:
-        init: ollama/qwen3.8-alfred
-        explore: ollama/qwen3.8-alfred
-        refine: anthropic/claude-opus-5
-        research: ollama/qwen3.8-alfred
-        spec: anthropic/claude-opus-5
-        diagnose: anthropic/claude-opus-5
-        design: anthropic/claude-opus-5
-        tasks: ollama/qwen3.8-alfred
-        apply: ollama/qwen3.8-exec
-        verify: ollama/qwen3.8-exec
-        review: anthropic/claude-opus-5
-        archive: ollama/qwen3.8-alfred
+  active_profile: null
+  profiles: {}
+  assigned_during: install
+  run_without_profile: false
 
 skills:
   global_root: ~/.config/alfred/skills/
