@@ -36,11 +36,26 @@ When the request arrives as a tracker card, the same criteria apply to the card 
 The decision is proposed and confirmed, never applied silently. The orchestrator names the
 signals it matched and offers to skip straight to `spec`. See `skills/_shared/routing.md`.
 
+## Materialise the inputs first
+
+Before anything else, bring in whatever arrived as a reference: tracker cards, URLs,
+documents in other systems.
+
+```
+read each source once
+write it in full to docs/changes/{change}/inputs/
+index it under alfred/{change}/input/{slug}
+```
+
+Follow `skills/_shared/external-inputs.md`. Nothing after this phase fetches anything: the
+interview, `spec`, `design` and every subagent read the materialised text.
+
 ## Before asking anything
 
 Read what is already known, and never ask for it.
 
 ```
+fetch alfred/{change}/input/*        the material just materialised
 fetch alfred/project/architecture
 fetch alfred/project/conventions
 recall the feature area, for prior decisions and related changes

@@ -123,7 +123,11 @@ Every mode is overridable in `alfred.config.yaml`.
 14. **A route is proposed, never applied silently.** The orchestrator states which signals
    it matched and waits. The user can always shorten a route; the orchestrator never
    lengthens one without saying so. See `skills/_shared/routing.md`.
-15. **Existing repositories are documented on demand.** `explore` derives specifications
+15. **External material is fetched once and materialised as text.** A tracker card, a URL
+   or a document from another system is read by the phase that receives it, written to
+   `docs/changes/{change}/inputs/` in full, and never fetched again. No later phase and no
+   subagent reaches the network for it. See `skills/_shared/external-inputs.md`.
+16. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
 

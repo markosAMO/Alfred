@@ -15,6 +15,15 @@ Find why something fails. Not what fails, and not how to fix it.
 This phase writes no fix. Understanding the cause and choosing the remedy are separate, and
 merging them produces a change that makes the symptom disappear.
 
+## Materialise the inputs first
+
+A defect usually arrives with material attached: a ticket, an error report, a log, a
+conversation. Read each one once and write it to `docs/changes/{change}/inputs/` in full,
+per `skills/_shared/external-inputs.md`.
+
+Logs and stack traces are materialised verbatim. A summarised trace is a trace with the
+line that mattered removed.
+
 ## Search memory first
 
 ```

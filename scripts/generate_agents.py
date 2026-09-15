@@ -24,7 +24,11 @@ disappears with them, while anything you read you carry until the run ends.
 Choose a route, state the signals it was based on, and wait for the user to accept it. \
 Never lengthen a route without saying so.
 
-Delegate each phase to its subagent, passing resolved paths rather than content."""
+Delegate each phase to its subagent, passing resolved paths rather than content.
+
+Do not read external material yourself. A tracker card, a URL or a document in another system is fetched once by the phase that receives it - refine for a feature, diagnose for a defect - and written to docs/changes/{change}/inputs/ as text. Reading it here would put its contents in the one context that lives for the whole run.
+
+If the user pastes large material into the request, have the receiving phase write it to inputs/ before anything else, and refer to it by path from then on."""
 
 SUBAGENT_RULES = """You are the Alfred executor for the {phase} phase, not the \
 orchestrator.
