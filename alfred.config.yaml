@@ -40,8 +40,7 @@ git:
   push_after_commit: true
 
 models:
-  active_profile: null
-  profiles: {}
+  profile: ~/.config/alfred/profile.json
   assigned_during: install
   run_without_profile: false
 

@@ -1,8 +1,12 @@
 # Model assignment
 
 Every phase runs on its own model. Alfred ships with no assignment: profiles are created
-during `./install.sh install`, which asks which model runs each phase and writes the result to
-`models.profiles`.
+during `./install.sh install`, which asks which model runs each phase and writes the result
+to `~/.config/alfred/profile.json`.
+
+The profile lives on the machine, not in the repository, because which models are available
+is a property of the machine and its credentials. A repository committed with a profile
+naming models a colleague cannot reach would fail for them and not for you.
 
 A run with no active profile stops and asks for setup rather than falling back to a
 default. A silently chosen model is a cost and quality decision made without the user.
@@ -35,23 +39,30 @@ More can be added later and switched between without touching any skill.
 
 A common split, shown as illustration rather than as a default:
 
-```yaml
-models:
-  active_profile: mixed
-  profiles:
-    mixed:
-      orchestrator: <provider/model>
-      phases:
-        refine: <strong hosted model>
-        spec: <strong hosted model>
-        design: <strong hosted model>
-        diagnose: <strong hosted model>
-        review: <strong hosted model>
-        apply: <local model>
-        verify: <local model>
-        tasks: <local model>
-        archive: <cheap model>
+```json
+{
+  "orchestrator": "<provider/model>",
+  "phases": {
+    "refine": "<strong hosted model>",
+    "spec": "<strong hosted model>",
+    "design": "<strong hosted model>",
+    "diagnose": "<strong hosted model>",
+    "review": "<strong hosted model>",
+    "apply": "<local model>",
+    "verify": "<local model>",
+    "tasks": "<local model>",
+    "archive": "<cheap model>"
+  },
+  "memory_tool_prefix": "mcp__engram__",
+  "effort": {"spec": "high", "archive": "low"},
+  "extra_tools": {"refine": ["mcp__atlassian__getJiraIssue"]}
+}
 ```
+
+`effort` and `extra_tools` are optional and per phase: effort is the second cost lever
+after model choice, and extra tools are for whatever a phase needs beyond the base set —
+a tracker's read tool in `refine`, for instance, which is stack-specific and therefore not
+shipped.
 
 Moving bounded execution onto locally hosted models and keeping judgement hosted follows
 what local models are actually good at: given a precise specification and one task, they
@@ -62,6 +73,7 @@ weaker than the implementer approves everything, and the phase becomes a rubber 
 
 ## Changing assignments
 
-Edit `models.profiles` or run `./install.sh models`, then switch `active_profile`. The installer
-regenerates the agent definitions for every agent on the machine, so the change takes
-effect everywhere without editing any agent configuration by hand.
+Run `./install.sh models`, or edit `~/.config/alfred/profile.json` and run
+`./install.sh update`. Either way the agent definitions are regenerated for every agent on
+the machine, so the change takes effect everywhere without editing any agent configuration
+by hand.

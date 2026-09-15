@@ -47,6 +47,40 @@ for each managed file
 Never overwrite a modified file. Report it and let the user decide, which is the whole
 point of storing the hashes.
 
+## reindex
+
+Rebuild the memory index from the files, per `memory/CONTRACT.md`.
+
+```
+walk docs/ for artifacts
+derive each key from its path, per the contract's naming rules
+remember() each one
+report what was indexed
+```
+
+Run it after cloning a repository, after switching memory backend, or when files and index
+may have diverged. Existing entries are replaced by key, so it is safe to repeat.
+
+With no memory backend configured this is a no-op, and says so rather than appearing to
+have done something.
+
+This is not the skill registry. `reindex` rebuilds the memory index from documents;
+`registry` rescans the skill roots. They were conflated once because both are called
+rebuilding something.
+
+## registry
+
+Rescan both skill roots and rewrite `.alfred/skill-registry.md`.
+
+```
+resolve every skill: .alfred/skills/ first, then the global installation
+write name, path and source for each
+report what changed
+```
+
+Run it after adding, removing or overriding a skill. A skill added under `.alfred/skills/`
+that is not in the registry is not resolved, and the phase silently uses the global one.
+
 ## doctor
 
 Check the setup and name what is broken, with the fix.
@@ -54,7 +88,7 @@ Check the setup and name what is broken, with the fix.
 ```
 is a model profile active
 is every skill in the registry resolvable
-is the memory backend reachable
+is the memory backend reachable, and does the registry match what is on disk
 is the test command in code_conventions.md runnable
 are the agent pointer files present and pointing at AGENTS.md
 is any state file referencing a change directory that no longer exists

@@ -51,6 +51,31 @@ Delegate each phase to its subagent, passing resolved paths rather than content.
 Relay what a subagent returns. Do not fetch its diff to check it: verify and review exist \
 to judge the work.
 
+## Before the first phase
+
+Check that the memory backend answers. With `memory.required: false` a backend that is
+configured but not reachable degrades silently, and the run proceeds without the memory it
+was supposed to have - `diagnose` finds no prior postmortems, `design` finds no prior
+decisions, and neither says why.
+
+```
+backend configured and reachable    proceed
+backend configured, not reachable   say so, name the backend, proceed degraded
+no backend configured               proceed, no warning needed
+```
+
+Say it once, at the start. Not before every phase.
+
+## Delegating takes time
+
+A subagent runs for minutes on a real task. Say what you are delegating and that it will
+take a while, before launching it - the harness shows no progress while it runs, and
+silence is indistinguishable from a hang.
+
+```
+Delegating to alfred-design. This usually takes a few minutes.
+```
+
 ## External material
 
 Do not read it yourself. A tracker card, a URL or a document in another system is fetched \
