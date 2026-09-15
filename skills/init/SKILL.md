@@ -24,6 +24,25 @@ An existing repository has architecture and conventions already, expressed in it
 Interviewing the user about them when `explore` can derive them and ask for confirmation
 wastes their time and gets worse answers.
 
+## Before exploring a large repository
+
+Deriving architecture costs tokens in proportion to what is read. Report the size and let
+the user choose, rather than spending it and reporting afterwards.
+
+```
+ask("This repository has ~{n} source files. Deriving the architecture now will read
+     manifests, configuration and a sample of the code.",
+    ["derive it now", "only the area I am about to work on", "skip, I will write it"],
+    "derive it now")
+```
+
+Setting up the structure is cheap and always finishes. Deriving the architecture is the
+expensive half, and it is the half that can wait: anything skipped is derived on demand,
+scoped to one area, the first time a change depends on it.
+
+Skipping leaves `docs/architecture.md` as the template from `defaults/`, which `init` then
+offers to fill in by interview as it would for a new project.
+
 ## What it creates
 
 ```
