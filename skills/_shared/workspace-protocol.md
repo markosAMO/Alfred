@@ -13,6 +13,19 @@ workspace/            .alfred/     system-level planning
 A repository with `.alfred/` does not need to know whether a workspace exists above it.
 Single-repository work is the same pipeline with the workspace level absent.
 
+## Prerequisite
+
+Every repository in a workspace is initialised before the workspace is. The workspace
+neither initialises nor explores them: it reads the `docs/architecture.md` and
+`docs/code_conventions.md` that each repository's own `init` already produced.
+
+That information was derived once and confirmed by the user. Deriving it again at workspace
+level would cost more, produce a second description of the same system, and put the two out
+of step the first time one changed.
+
+A repository added later is initialised on its own and then listed in the workspace
+configuration.
+
 ## Division of responsibility
 
 | Level | Phases | Question answered |

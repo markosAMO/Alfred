@@ -24,6 +24,68 @@ An existing repository has architecture and conventions already, expressed in it
 Interviewing the user about them when `explore` can derive them and ask for confirmation
 wastes their time and gets worse answers.
 
+## Workspace setup
+
+A directory holding repositories rather than code is initialised as a workspace. It plans
+changes that span repositories; it does not contain code of its own.
+
+**Every repository below it must already be initialised.** Workspace setup does not
+initialise them, and does not explore them.
+
+```
+for each directory below with a .git and no .alfred/
+  report it as not initialised
+```
+
+Repositories that are not initialised are listed, and the workspace is set up without
+them. Each one is initialised by running `init` inside it, which is also where the user
+decides what its exploration costs.
+
+This is what keeps the workspace cheap. Five repositories of work code would otherwise
+mean five explorations in a row, triggered by a command that looked like it was only
+creating directories.
+
+### What it reads instead of exploring
+
+Each initialised repository already states what it is, in the document its own `init`
+produced.
+
+```
+<repo>/docs/architecture.md     stack, layers, persistence, external services
+<repo>/docs/code_conventions.md how it is built and tested
+```
+
+Workspace `design` reads those to decide which repository does what. The information was
+already derived once and confirmed by the user; deriving it again from the code would cost
+more and be less accurate.
+
+### What it creates
+
+```
+AGENTS.md
+.gitignore              from templates/workspace/gitignore
+docs/specs/
+docs/changes/
+.alfred/config.yaml     with the repository list
+.alfred/state/
+```
+
+The workspace is versioned, because the system-level specifications it writes are
+specifications like any other: reviewed, diffed, and shared. The `.gitignore` is an
+allowlist — everything is ignored except what Alfred writes — so the child repositories
+stay out of it and keep their own history.
+
+```gitignore
+/*
+!.gitignore
+!.alfred/
+!docs/
+!AGENTS.md
+```
+
+Nesting a repository inside another without this produces a parent that either swallows the
+children or reports them as untracked forever.
+
 ## Before exploring a large repository
 
 Deriving architecture costs tokens in proportion to what is read. Report the size and let
