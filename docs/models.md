@@ -1,7 +1,7 @@
 # Model assignment
 
 Every phase runs on its own model. Alfred ships with no assignment: profiles are created
-during `alfred install`, which asks which model runs each phase and writes the result to
+during `./install.sh install`, which asks which model runs each phase and writes the result to
 `models.profiles`.
 
 A run with no active profile stops and asks for setup rather than falling back to a
@@ -62,6 +62,6 @@ weaker than the implementer approves everything, and the phase becomes a rubber 
 
 ## Changing assignments
 
-Edit `models.profiles` or rerun setup, then switch `active_profile`. The installer
+Edit `models.profiles` or run `./install.sh models`, then switch `active_profile`. The installer
 regenerates the agent definitions for every agent on the machine, so the change takes
 effect everywhere without editing any agent configuration by hand.

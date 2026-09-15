@@ -12,7 +12,7 @@ resolve(spec)
 ```
 
 The first match wins. A repository that defines none of its own uses the global set, and
-`alfred update` keeps every such repository current by updating one place.
+`./install.sh update` keeps every such repository current by updating one place.
 
 An override exists for the cases where one repository genuinely needs different rules.
 A Rails API and a React front end can disagree about what `apply` or `review` should

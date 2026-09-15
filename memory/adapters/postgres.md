@@ -104,5 +104,6 @@ nothing exists in one backend that is not derivable from the repository.
 
 ```
 memory.backend: engram -> postgres
-alfred reindex
 ```
+
+Then ask the orchestrator to `reindex`.

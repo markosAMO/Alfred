@@ -76,8 +76,18 @@ and respected.
 
 ## Installation
 
-Alfred is installed once per machine, and each repository is set up from the orchestrator
-itself. See [docs/installation.md](docs/installation.md).
+```bash
+git clone https://github.com/markosAMO/Alfred.git
+cd Alfred
+./install.sh install
+```
+
+That registers the orchestrator with the agents on the machine and installs the skills
+globally. Each repository is then set up from the orchestrator itself, by asking it to run
+`init` — there is no global `alfred` command and nothing to copy in by hand.
+
+See [docs/installation.md](docs/installation.md) for the installer commands, the pipeline
+commands, and troubleshooting.
 
 ## Documentation
 

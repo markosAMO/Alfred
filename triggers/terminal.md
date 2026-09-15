@@ -10,20 +10,23 @@ registered.
 
 ## Starting
 
+Select the Alfred orchestrator in your agent and describe the work. These are asked of the
+orchestrator, not typed into a shell: there is no global `alfred` command.
+
 ```
-alfred init                     set up this repository
-alfred "add google sign-in"     start a change
-alfred bug "payments time out"  start from a defect
-alfred continue                 resume where it stopped
-alfred status                   what is open and where it is
-alfred ff spec                  skip ahead to a phase
+init                        set up this repository
+add google sign-in          start a change
+bug: payments time out      start from a defect
+continue                    resume where it stopped
+status                      what is open and where it is
+ff spec                     skip ahead to a phase
 ```
 
-`alfred` with a description is the normal entry point. Routing decides which phases run, per
+A plain description is the normal entry point. Routing decides which phases run, per
 `skills/_shared/routing.md`.
 
-In an agent with an agent picker, the same is reached by selecting the Alfred orchestrator
-and describing the work. There is no separate command to learn.
+Installing and updating Alfred itself is separate, and is `./install.sh` from the clone.
+See `docs/installation.md`.
 
 ## Origin channel
 
@@ -32,7 +35,7 @@ here. See `notify/CONTRACT.md`.
 
 ## Resuming
 
-A run interrupted mid-phase leaves state at that phase. `alfred continue` reads it and
+A run interrupted mid-phase leaves state at that phase. asking the orchestrator to `continue` reads it and
 resumes, including a question that was waiting for an answer.
 
 Nothing is lost by closing the terminal. State and documents are files.

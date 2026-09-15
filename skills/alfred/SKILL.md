@@ -31,7 +31,11 @@ always an override nobody remembers making.
 
 ## update
 
-Refresh the installed skills, per the managed-file rules in the package `AGENTS.md`.
+Report whether the installed skills are current, and how to refresh them.
+
+Refreshing is `./install.sh update`, run from the Alfred clone. This skill cannot do it:
+copying files into `~/.config/alfred/` is the installer's job, and a skill is a document,
+not a program.
 
 ```
 for each managed file
@@ -78,8 +82,8 @@ concrete memory or notification tool, and no path that the registry should resol
 
 ## What it does not do
 
-It does not install Alfred on the machine. That is `alfred install`, which has to exist
-before any repository does, per `docs/installation.md`.
+It does not install or update Alfred on the machine. That is `./install.sh`, run from the
+clone, which has to exist before any repository does, per `docs/installation.md`.
 
 It does not edit the package itself. Modifying Alfred happens in the Alfred repository,
 under its own `AGENTS.md`.
