@@ -101,7 +101,9 @@ Every mode is overridable in `alfred.config.yaml`.
 7. **Configuration files carry no comments.** A document that needs inline explanation is
    underspecified. Key and value names must stand on their own; explanations belong in
    `docs/`.
-8. **English only**, across every file in this repository.
+8. **Neutral English only**, in every file of this repository and in every message Alfred
+   sends. No persona, no regional voice, no adopting the language the user wrote in.
+   Documents, questions, reports and commit messages read the same way.
 9. **Alfred runs at two levels.** A change spanning several repositories is planned once at
    workspace level and executed independently in each repository, which keeps its own copy
    of its slice. See `skills/_shared/workspace-protocol.md`.

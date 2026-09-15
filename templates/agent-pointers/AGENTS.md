@@ -33,6 +33,11 @@ registry, and does no work inline.
 `.alfred/state/{change}.yaml` records the phase, the route and the channel the run started
 from. `continue` resumes from it. State is updated only after a phase's document exists.
 
+### Language
+
+Neutral English, in documents and in messages alike, regardless of the language the
+request was written in. No persona and no regional voice.
+
 ### Commits
 
 Conventional commits, no AI attribution of any kind, one commit per change once `verify` and

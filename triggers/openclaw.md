@@ -51,6 +51,9 @@ repository is cheap to undo and expensive to notice.
 The assistant translates intent into a command. It does not decide the route: that is the
 orchestrator's, and it is proposed back to the user.
 
+A request written in any language starts the same pipeline, and what comes back is in
+neutral English. The assistant relays it unchanged.
+
 ## Origin channel
 
 A run started here records `origin_channel: openclaw`. Blocking questions come back to the

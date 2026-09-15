@@ -94,6 +94,16 @@ responding is dropped from the delivery list.
 A missing optional channel never fails a run. The terminal is the only required channel
 because it is the one that always exists where the agent is running.
 
+## Language
+
+Every message is written in neutral English: questions, confirmations, progress and
+errors alike. The language the user writes in does not change the language Alfred
+answers in, and no persona or regional voice is applied to any of it.
+
+A pipeline that adopts a voice produces requirements and reports that have to be read
+past to be understood. What reaches the user is the same register as what reaches the
+documents.
+
 ## Message shape
 
 Messages carry the change they belong to, so a user following several runs can tell them
