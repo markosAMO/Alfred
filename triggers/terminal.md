@@ -10,8 +10,13 @@ registered.
 
 ## Starting
 
-Select the Alfred orchestrator in your agent and describe the work. These are asked of the
+Reach the orchestrator in your agent and describe the work. These are asked of the
 orchestrator, not typed into a shell: there is no global `alfred` command.
+
+| Agent | Orchestrator |
+|---|---|
+| Claude Code | the `/alfred` command |
+| OpenCode | the `alfred` primary agent, on Tab |
 
 ```
 init                        set up this repository

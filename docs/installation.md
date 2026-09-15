@@ -26,15 +26,19 @@ writes:
 ~/.config/alfred/                 the skills, protocols, templates and adapters
 ~/.config/alfred/profile.json     the model assignment
 ~/.config/alfred/state.json       the hash of every installed file
-~/.config/opencode/opencode.json  agent definitions, one per phase
-~/.claude/agents/                 the same definitions for Claude Code
+~/.config/opencode/opencode.json  orchestrator + one subagent per phase
+~/.claude/agents/                 one subagent per phase
+~/.claude/commands/alfred.md      the orchestrator, as a slash command
 ```
 
 Only alfred agents are written into an existing OpenCode configuration; any other agent or
 setting is left as it was.
 
-After this the orchestrator is available in any directory: in OpenCode it appears in the
-agent picker, and in Claude Code as a subagent.
+The orchestrator takes a different shape per agent, because the agents differ. OpenCode has
+primary agents, so it becomes one and appears in the picker. Claude Code has no primary
+agent to select — the files under `~/.claude/agents/` are subagents — so it becomes the
+`/alfred` command. A skill would not do: a skill loads only when the model judges it
+relevant, and an orchestrator has to start when asked.
 
 ### Installer commands
 
@@ -59,8 +63,12 @@ To pull a newer Alfred, `git pull` in the clone and run `./install.sh update`.
 mkdir my-project && cd my-project
 ```
 
-Start your agent there, select the Alfred orchestrator, and ask it to run `init`. Nothing
-is copied in by hand.
+Start your agent there and ask the orchestrator to run `init`. Nothing is copied in by hand.
+
+| Agent | How to reach the orchestrator |
+|---|---|
+| Claude Code | `/alfred init` |
+| OpenCode | press Tab, select `alfred`, then ask for `init` |
 
 `init` creates:
 
@@ -82,6 +90,9 @@ An existing repository keeps whatever `AGENTS.md` already said: only the block b
 ### Pipeline commands
 
 These are given to the orchestrator inside an agent, not typed into a shell.
+
+In Claude Code they follow the command: `/alfred add google sign-in`. In OpenCode you
+describe the work to the selected orchestrator.
 
 | Ask for | What happens |
 |---|---|
@@ -124,6 +135,7 @@ initialised on its own. See `skills/_shared/workspace-protocol.md`.
 | `Permission denied (publickey)` on clone | no SSH key on this machine; clone over HTTPS |
 | `permission denied: ./install.sh` | the executable bit was lost; run `bash install.sh install` |
 | `python3 is required` | the installer uses python3 for JSON and hashes |
-| the orchestrator does not appear in the agent picker | no supported agent was detected; install one and rerun |
+| the orchestrator does not appear in the agent picker | that picker is OpenCode's; in Claude Code use `/alfred` |
+| `/alfred` is not offered in Claude Code | no agent was detected at install time, or the session predates it — restart Claude Code |
 
 `./install.sh doctor` checks all of the above and prints the remedy for each failure.

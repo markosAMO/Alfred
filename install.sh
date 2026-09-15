@@ -108,7 +108,7 @@ generate_agents() {
     [ -n "$agent" ] || continue
     case "$agent" in
       opencode) targets+=("opencode=$HOME/.config/opencode/opencode.json") ;;
-      claude)   targets+=("claude=$HOME/.claude/agents") ;;
+      claude)   targets+=("claude=$HOME/.claude") ;;
     esac
   done < <(detect_agents)
 
@@ -195,7 +195,7 @@ cmd_doctor() {
   check "installed"              "[ -d '$ALFRED_HOME/skills' ]" "run: $0 install"
   check "model profile set"      "[ -s '$ALFRED_HOME/profile.json' ]" "run: $0 models"
   check "state recorded"         "[ -f '$ALFRED_HOME/state.json' ]"   "run: $0 update"
-  check "an agent is registered" "[ -f '$HOME/.config/opencode/opencode.json' ] || [ -d '$HOME/.claude/agents' ]" \
+  check "an agent is registered" "[ -f '$HOME/.config/opencode/opencode.json' ] || [ -f '$HOME/.claude/commands/alfred.md' ]" \
                                  "install opencode or claude code, then run: $0 install"
 
   local phase missing=0

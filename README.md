@@ -83,8 +83,10 @@ cd Alfred
 ```
 
 That registers the orchestrator with the agents on the machine and installs the skills
-globally. Each repository is then set up from the orchestrator itself, by asking it to run
-`init` — there is no global `alfred` command and nothing to copy in by hand.
+globally: the `/alfred` command in Claude Code, a primary agent in OpenCode.
+
+Each repository is then set up from the orchestrator itself — `/alfred init` — with no
+global `alfred` command and nothing to copy in by hand.
 
 See [docs/installation.md](docs/installation.md) for the installer commands, the pipeline
 commands, and troubleshooting.
