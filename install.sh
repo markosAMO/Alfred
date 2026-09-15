@@ -90,7 +90,8 @@ setup_profile() {
 
   local joined
   joined="$(IFS=,; printf '%s' "${phase_models[*]}")"
-  printf '{"orchestrator": "%s", "phases": {%s}}\n' "$orchestrator" "$joined" > "$target"
+  printf '{"orchestrator": "%s", "phases": {%s}, "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}\n' \
+    "$orchestrator" "$joined" > "$target"
 
   require_python
   python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$target" \
@@ -98,6 +99,11 @@ setup_profile() {
 
   info ""
   info "profile written to $target"
+  info ""
+  info "Optional, by editing that file:"
+  info "  effort       per phase, for example {\"spec\": \"high\", \"archive\": \"low\"}"
+  info "  extra_tools  per phase, for tools outside the base set"
+  info "               for example {\"refine\": [\"mcp__atlassian__getJiraIssue\"]}"
 }
 
 generate_agents() {
