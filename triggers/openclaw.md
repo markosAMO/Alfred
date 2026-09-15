@@ -42,10 +42,10 @@ repository is cheap to undo and expensive to notice.
 ## Message shapes
 
 ```
-"alfred, armemos el spec del login con google"      -> refine, in the default repository
-"alfred, en billing: los pagos tiran timeout"       -> diagnose, in billing
-"alfred, implementá"                                -> continue the open change
-"alfred, cómo viene?"                               -> status
+"alfred, let's spec out google sign-in"      -> refine, in the default repository
+"alfred, in billing: payments are timing out"  -> diagnose, in billing
+"alfred, build it"                           -> continue the open change
+"alfred, where is it at?"                    -> status
 ```
 
 The assistant translates intent into a command. It does not decide the route: that is the
