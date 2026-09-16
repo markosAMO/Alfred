@@ -55,9 +55,9 @@ ENTRY A — new feature                ENTRY B — bug
 COMMON TRUNK
   design      architecture of this feature
   tasks       breakdown into small tasks
-  apply       code (one subagent per task)
-  verify      does it satisfy the spec?
-  review      is the code well written?
+  apply       code (one subagent per task, parallel when files are disjoint)
+  verify  ┐   does it satisfy the spec?
+  review  ┘   is the code well written?      dispatched together
   archive     feature → delta merged into master specs
               bug     → postmortem written to memory
 

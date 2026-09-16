@@ -14,6 +14,20 @@ Answer one question: does the implementation satisfy the specification?
 
 Not whether the code is good. That is `review`, and it runs separately for a reason.
 
+## Runs alongside review
+
+`verify` and `review` are dispatched together. Neither reads the other's report, and
+neither writes code — each writes only its own document, so there is nothing to collide
+over.
+
+They also answer independent questions. A change can satisfy its specification and still be
+badly written, or be well written and miss a scenario. Running them in sequence would make
+the second wait on an answer it does not use.
+
+One consequence worth knowing: a failing verification no longer cancels the review. Both
+reports arrive, so a return to `apply` carries the review findings as well, and the same
+code is not revisited twice.
+
 ## Method
 
 Scenario by scenario, from the specification. Not file by file, and not from the task list.

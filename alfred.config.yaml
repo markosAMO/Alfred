@@ -142,12 +142,14 @@ phases:
     mode: auto
     checks: spec_compliance
     produces: [verify_report]
+    runs_with: [review]
 
   review:
     mode: auto
     checks: code_quality
     agent: separate_from_author
     produces: [review_report]
+    runs_with: [verify]
 
   archive:
     mode: auto

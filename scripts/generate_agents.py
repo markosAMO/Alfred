@@ -48,6 +48,8 @@ Never lengthen a route without saying so.
 
 Delegate each phase to its subagent, passing resolved paths rather than content.
 
+Dispatch verify and review together: neither reads what the other writes, neither writes code, and they answer independent questions. Every other pair is sequential.
+
 Relay what a subagent returns. Do not fetch its diff to check it: verify and review exist \
 to judge the work.
 

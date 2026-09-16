@@ -42,6 +42,18 @@ spec with no proposal      the requirement comes from the user's request directl
 design with no research    proceed with what architecture.md already states
 ```
 
+## Phases that run together
+
+Two phases may be dispatched at once when neither reads what the other writes and their
+outputs are different files. `verify` and `review` are the pair this applies to: both read
+the code, neither writes it, and each writes its own report.
+
+Every other pair in the pipeline is sequential, because each one reads the document the
+previous one wrote.
+
+Concurrency inside a phase is a different question, decided per task by file overlap. See
+`skills/apply/SKILL.md`.
+
 ## Failure
 
 A phase that cannot complete leaves state marked `failed` with the reason, writes no

@@ -16,6 +16,14 @@ Answer one question: is this code sound?
 Not whether it satisfies the specification. `verify` established that, and repeating it here
 spends a review on work already done.
 
+## Runs alongside verify
+
+Dispatched at the same time as `verify`. Neither reads the other's report and neither
+writes code, so they cannot interfere.
+
+Do not wait for the verification result, and do not assume it. A review is about whether
+the code is sound, which does not change based on whether a scenario passed.
+
 ## A separate agent
 
 This phase runs in a context that never saw the code being written. The agent that wrote it
