@@ -127,7 +127,10 @@ Every mode is overridable in `alfred.config.yaml`.
    or a document from another system is read by the phase that receives it, written to
    `docs/changes/{change}/inputs/` in full, and never fetched again. No later phase and no
    subagent reaches the network for it. See `skills/_shared/external-inputs.md`.
-16. **Existing repositories are documented on demand.** `explore` derives specifications
+16. **Parallel execution requires disjoint files, not just independent tasks.** Subagents
+   share one checkout with no locking between them, so two writing the same file leave one
+   silent winner. Both conditions are checked before dispatching together.
+17. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
 

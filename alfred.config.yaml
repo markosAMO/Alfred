@@ -129,7 +129,14 @@ phases:
     mode: confirm
     produces: [code]
     execution: one_subagent_per_task
-    ordering: sequential
+    ordering: parallel_when_independent
+    parallel_requires: [no_dependency, no_shared_files]
+    max_parallel: 3
+    exclusive_files:
+      - config/routes.rb
+      - db/schema.rb
+      - Gemfile
+      - package.json
 
   verify:
     mode: auto

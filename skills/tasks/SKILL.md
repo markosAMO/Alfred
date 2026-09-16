@@ -59,8 +59,25 @@ depends_on: [2]
 ```
 
 Dependencies are declared, never implied by order in the list. A subagent is dispatched
-only once its dependencies are `completed`, per `skills/_shared/subagent-protocol.md`, and
-tasks with no dependency between them may run together.
+only once its dependencies are `completed`, per `skills/_shared/subagent-protocol.md`.
+
+## Files decide what can run in parallel
+
+`files` is not documentation: `apply` reads it to decide which tasks can run at the same
+time, so it is stated for every task and stated conservatively.
+
+```markdown
+- [ ] 3. Add the OAuth callback endpoint
+      depends_on: [2]
+      files: app/controllers/auth_controller.rb, config/routes.rb
+```
+
+List every file the task is expected to touch, including the shared ones. A route table, a
+schema dump or a dependency manifest left out of the list is how two parallel subagents end
+up writing the same file, and the second write wins silently.
+
+When the files cannot be predicted — a task that will decide where something belongs while
+doing it — say so rather than guessing. That task runs alone.
 
 Across repositories, the same declaration is made at repository granularity. See
 `skills/_shared/workspace-protocol.md`.

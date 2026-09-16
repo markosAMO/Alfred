@@ -47,6 +47,19 @@ Alfred did, and nothing the user left in progress.
 A task whose dependency failed is marked `blocked`, never attempted. Running it anyway
 produces code written against an interface that does not exist.
 
+## Concurrency
+
+Subagents share one checkout. There is no file locking between them, so two that write the
+same file produce one silent winner rather than a conflict anyone notices.
+
+Running together therefore requires two conditions, not one: no dependency between the
+tasks, and no file in common. `tasks` declares the file list that makes the second
+decidable.
+
+A collision that happens anyway is detected afterwards, from the `files_changed` each
+subagent reports: the same file in two concurrent reports stops the run, even when the
+tests pass.
+
 ## Failure
 
 A failed task stops dispatch of everything that depends on it, leaves the rest untouched,
