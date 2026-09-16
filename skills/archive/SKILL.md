@@ -25,6 +25,48 @@ Neither is inferred from the absence of an error. Both reports are read and thei
 checked. A change archived without them merges a delta describing behaviour nobody
 confirmed exists.
 
+## Final state, not the last snapshot
+
+The reports this phase reads are snapshots. `verify` ran at a moment; commits may have
+landed since. Archiving the snapshot as if it were current records a state that stopped
+being true.
+
+Rank the sources before writing anything:
+
+```
+1  the repository now: the code, the tests, what passes today
+2  facts the orchestrator carries about work done after the reports
+3  verify-report and review-report
+4  the original request
+```
+
+When a higher source says resolved and a lower one says open, **report the final state and
+cite where it was resolved** — the commit, the later run. Do not repeat the stale claim.
+
+When two sources contradict and neither outranks the other, **record the contradiction**:
+both statements, where each came from, and when each was written. Never resolve it
+silently in either direction. A contradiction written down is a question someone can
+answer; one resolved by guessing is an error nobody can find.
+
+Attribute what comes from a snapshot, rather than restating it as a present fact.
+
+```
+per verify-report, at verification time: 47 tests passing
+```
+
+Carry final numbers — test counts, warnings, uncovered lines — from the highest source that
+covers them. Numbers copied from `verify-report` after later work changed them are wrong in
+a document that outlives the change.
+
+## Distinct failures stay distinct
+
+Never merge two defects into one causal story because they appeared together. A cause is
+recorded as confirmed only with evidence; otherwise the failure is recorded as
+undiagnosed.
+
+An invented causal link is worse than an admitted gap: `diagnose` will recall it as a
+precedent, and the next investigation starts from a conclusion nobody proved.
+
 ## Features: merging the delta
 
 The delta in `docs/changes/{change}/spec.md` is folded into `paths.master_specs`.

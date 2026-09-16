@@ -2,10 +2,10 @@
 name: research
 mode: auto
 skippable: true
-reads: [proposal, spec, architecture, memory]
+reads: [proposal, architecture, memory]
 writes: [research]
 document: docs/changes/{change}/research.md
-next: [spec, design]
+next: [spec]
 ---
 
 # research
@@ -15,6 +15,15 @@ consequences. Do not choose.
 
 Choosing is `design`, which reads this document. A research phase that returns one option
 has made the decision and hidden it behind an investigation.
+
+## Where it sits
+
+Between `refine` and `spec`. It investigates against the proposal, and what it finds feeds
+the requirement that `spec` then writes.
+
+It does not read the specification: the specification does not exist yet. A question that
+only appears once the requirement is formal — how to build something already decided —
+belongs to `design`, which does its own reading.
 
 ## When it runs
 

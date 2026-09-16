@@ -86,6 +86,27 @@ finding is a `suggestion` at most.
 
 Rewriting the code is not this phase's job. Findings describe the problem; `apply` fixes it.
 
+## Conventions that were never written
+
+Some findings are real but have no rule behind them: the code works, follows every written
+convention, and still is not how this team writes code.
+
+Report those as a proposed addition to `docs/code_conventions.md`, not as a defect.
+
+```markdown
+### convention · app/services/payment_service.rb:18
+Errors are returned as result objects here, while the rest of the codebase raises.
+Neither is in code_conventions.md.
+Proposed: state which one this repository uses.
+```
+
+They never block. `archive` carries them to memory like any other non-blocking finding, and
+the user decides whether they become a rule.
+
+This is how the conventions file fills in with what was only ever in someone's head. A
+convention that exists only as taste produces the same review finding every time and is
+never fixed, because there is nothing to fix it against.
+
 ## What it does not do
 
 No re-verification of scenarios. No new requirements. No style rewrites that
