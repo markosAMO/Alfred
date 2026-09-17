@@ -49,6 +49,8 @@ skills:
   local_root: .alfred/skills/
   resolution: local_overrides_global
   resolver: skills/_shared/skill-resolver.md
+  registry_tool: ~/.config/alfred/bin/registry.sh
+  registry_hook: sync
 
 tracker:
   backend: none

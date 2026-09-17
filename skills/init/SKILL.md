@@ -81,6 +81,7 @@ stay out of it and keep their own history.
 !.alfred/
 !docs/
 !AGENTS.md
+.alfred/skill-registry.md
 ```
 
 Nesting a repository inside another without this produces a parent that either swallows the
@@ -119,7 +120,8 @@ docs/specs/
 docs/changes/
 .alfred/config.yaml
 .alfred/state/
-.alfred/skill-registry.md
+.alfred/skill-registry.md     generated, ignored by git
+.gitignore                    one line, for the registry
 ```
 
 `AGENTS.md` is the source of truth; the rest are three-line files redirecting to it. Only
@@ -179,8 +181,17 @@ that and stops rather than assigning a default, per `docs/models.md`.
 
 ## Registry
 
-Resolve every skill and write `.alfred/skill-registry.md`, recording whether each came from
-the global installation or a local override. See `skills/_shared/skill-resolver.md`.
+Run the registry tool named in `skills.registry_tool`:
+
+```
+~/.config/alfred/bin/registry.sh write --cwd <repository>
+```
+
+It resolves every skill, writes `.alfred/skill-registry.md` recording whether each came from
+the global installation or a local override, and adds the registry to the repository's
+`.gitignore`. Report what it printed. The table is not written by hand: a session hook will
+rewrite it later with the same tool, and two writers with different ideas of the format
+produce a registry that flips on every session. See `skills/_shared/skill-resolver.md`.
 
 ## Completion
 

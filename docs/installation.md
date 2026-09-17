@@ -24,15 +24,19 @@ writes:
 
 ```
 ~/.config/alfred/                 the skills, protocols, templates and adapters
+~/.config/alfred/bin/registry.sh  the skill registry tool
 ~/.config/alfred/profile.json     the model assignment
 ~/.config/alfred/state.json       the hash of every installed file
-~/.config/opencode/opencode.json  orchestrator + one subagent per phase
-~/.claude/agents/                 one subagent per phase
+~/.config/opencode/opencode.json  orchestrator + one subagent per phase + alfred-manage
+~/.config/opencode/plugins/alfred-registry.ts   runs the registry tool when a project opens
+~/.claude/agents/                 one subagent per phase + alfred-manage
 ~/.claude/commands/alfred.md      the orchestrator, as a slash command
+~/.claude/settings.json           one SessionStart hook, running the registry tool
 ```
 
-Only alfred agents are written into an existing OpenCode configuration; any other agent or
-setting is left as it was.
+Only alfred agents are written into an existing OpenCode configuration, and only one hook
+entry into an existing Claude Code settings file; any other agent, hook or setting is left
+as it was.
 
 The orchestrator takes a different shape per agent, because the agents differ. OpenCode has
 primary agents, so it becomes one and appears in the picker. Claude Code has no primary
@@ -81,7 +85,8 @@ docs/specs/
 docs/changes/
 .alfred/config.yaml
 .alfred/state/
-.alfred/skill-registry.md
+.alfred/skill-registry.md generated, and ignored by git
+.gitignore                one line, for the registry
 ```
 
 An existing repository keeps whatever `AGENTS.md` already said: only the block between
@@ -100,6 +105,8 @@ describe the work to the selected orchestrator.
 | a description of the work | routing decides which phases run |
 | `continue` | resume where the run stopped |
 | `status` | which changes are open and where they are |
+| `registry` | rewrite the skill registry from what is on disk |
+| `doctor` | check the setup and name what is broken |
 | `reindex` | rebuild the memory index from the files |
 
 ## Why the split
@@ -121,6 +128,52 @@ pull requests.
 A skill placed there wins over the global one for that repository only, and is recorded as
 `local` in the skill registry. See `skills/_shared/skill-resolver.md`.
 
+## The skill registry
+
+`.alfred/skill-registry.md` is the table of every skill and the path it resolves to in this
+repository. It is written by `~/.config/alfred/bin/registry.sh`, never by hand, and it is
+ignored by git: it describes where skills live on one machine.
+
+It stays current on its own. Opening a repository in an agent runs `registry.sh sync`
+there, which rewrites the table only when it differs from what is on disk and prints one
+line when it did. Claude Code runs it from the `SessionStart` hook the installer registered;
+OpenCode runs it from the plugin the installer copied. In Claude Code the line appears in
+the conversation, in OpenCode in the log. The hook never commits anything.
+
+```
+~/.config/alfred/bin/registry.sh write            rewrite when stale, report the rows that changed
+~/.config/alfred/bin/registry.sh write --force    rewrite regardless
+~/.config/alfred/bin/registry.sh check            exit 1 and list the stale rows
+~/.config/alfred/bin/registry.sh list             print the table, write nothing
+```
+
+All of them accept `--cwd <repository>`. `write` and `sync` also add the registry to the
+repository's `.gitignore` when the line is missing; `--no-gitignore` prevents that.
+
+Per repository, `skills.registry_hook` in `.alfred/config.yaml` decides what the hook does:
+`sync` (default), `check` (warn only) or `off`.
+
+### A repository set up before the tool existed
+
+Nothing needs re-running. After `./install.sh update` on the machine:
+
+```bash
+cd my-project
+~/.config/alfred/bin/registry.sh write          # or ask the orchestrator for `registry`
+git rm --cached .alfred/skill-registry.md       # only if an old registry was committed
+git add .gitignore
+```
+
+`write` adds the `.gitignore` line. The `git rm --cached` stops tracking the old copy
+without deleting it; commit that together with the `.gitignore` change.
+
+### Removing the hook
+
+Delete the `SessionStart` entry whose command contains `bin/registry.sh sync` from
+`~/.claude/settings.json`, and delete `~/.config/opencode/plugins/alfred-registry.ts`.
+Setting `skills.registry_hook: off` in one repository disables it there without touching
+either.
+
 ## Workspaces
 
 A directory containing several repositories is initialised the same way. `init` detects the
@@ -137,5 +190,8 @@ initialised on its own. See `skills/_shared/workspace-protocol.md`.
 | `python3 is required` | the installer uses python3 for JSON and hashes |
 | the orchestrator does not appear in the agent picker | that picker is OpenCode's; in Claude Code use `/alfred` |
 | `/alfred` is not offered in Claude Code | no agent was detected at install time, or the session predates it — restart Claude Code |
+| `.alfred/skill-registry.md` shows as modified in git | it was committed before the tool existed; see the migration steps above |
+| a phase ignores a skill override in `.alfred/skills/` | the registry is stale; ask the orchestrator for `registry`, or open a new session |
+| `Alfred: skill registry updated` at session start | the hook rewrote the registry because a skill was added, removed or overridden; nothing to do |
 
 `./install.sh doctor` checks all of the above and prints the remedy for each failure.

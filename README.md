@@ -6,7 +6,8 @@ Alfred is not a program. It is a package of instructions that configures the age
 already use — Claude Code, OpenCode, OpenClaw and others — so that software work follows the
 same pipeline every time, in every repository.
 
-Almost all of it is Markdown. The only code is the installer.
+Almost all of it is Markdown. The only code is the installer and the small tool that keeps
+the skill registry current.
 
 ## What it does
 

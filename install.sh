@@ -13,7 +13,7 @@ ALFRED_HOME="${ALFRED_HOME:-$HOME/.config/alfred}"
 VERSION="0.1.0"
 
 PHASES=(init explore refine research spec diagnose design tasks apply verify review archive)
-PAYLOAD=(skills memory notify tracker templates defaults triggers alfred.config.yaml)
+PAYLOAD=(skills memory notify tracker templates defaults triggers bin alfred.config.yaml)
 
 info() { printf '%s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -40,7 +40,20 @@ install_payload() {
     [ -e "$SOURCE/$item" ] || die "missing from package: $item"
     cp -R "$SOURCE/$item" "$ALFRED_HOME/"
   done
+  chmod +x "$ALFRED_HOME/bin/registry.sh"
   info "installed to $ALFRED_HOME"
+}
+
+# OpenCode has no session hook in its configuration; it loads plugins from this directory.
+# The plugin only calls bin/registry.sh, so it is copied rather than generated. Claude Code
+# gets the equivalent SessionStart hook from generate_agents.py.
+OPENCODE_PLUGIN="$HOME/.config/opencode/plugins/alfred-registry.ts"
+
+install_opencode_plugin() {
+  detect_agents | grep -qx opencode || return 0
+  mkdir -p "$(dirname "$OPENCODE_PLUGIN")"
+  cp "$ALFRED_HOME/bin/alfred-registry.ts" "$OPENCODE_PLUGIN"
+  info "opencode: skill registry plugin at $OPENCODE_PLUGIN"
 }
 
 ask_model() {
@@ -138,6 +151,7 @@ cmd_install() {
   install_payload
   setup_profile
   generate_agents
+  install_opencode_plugin
   record_state
   info ""
   info "Done. Open your agent, select the Alfred orchestrator, and run init in a repository."
@@ -179,7 +193,9 @@ for rel in report["new"] + report["updatable"]:
 print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
 ' "$ALFRED_HOME" "$SOURCE"
 
+  chmod +x "$ALFRED_HOME/bin/registry.sh"
   generate_agents
+  install_opencode_plugin
   record_state
 }
 
@@ -210,6 +226,21 @@ cmd_doctor() {
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
 
+  check "registry script installed" "[ -x '$ALFRED_HOME/bin/registry.sh' ]" "run: $0 update"
+  if detect_agents | grep -qx claude; then
+    check "claude code: registry hook registered" \
+          "grep -q 'bin/registry.sh sync' '$HOME/.claude/settings.json'" "run: $0 update"
+  fi
+  if detect_agents | grep -qx opencode; then
+    check "opencode: registry plugin installed" "[ -f '$OPENCODE_PLUGIN' ]" "run: $0 update"
+  fi
+  # Run from inside a repository, doctor also checks that repository's registry.
+  if [ -d "$PWD/.alfred" ]; then
+    check "this repository: skill registry current" \
+          "'$ALFRED_HOME/bin/registry.sh' check --quiet --cwd '$PWD'" \
+          "ask the orchestrator for registry, or run: $ALFRED_HOME/bin/registry.sh write"
+  fi
+
   info ""
   [ $failures -eq 0 ] && info "no problems found" || info "$failures problem(s) found"
   return $failures
@@ -222,6 +253,7 @@ cmd_status() {
   info "skills    $(find "$ALFRED_HOME/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
   info "profile   $(python3 -c 'import json;print(json.load(open("'"$ALFRED_HOME"'/profile.json"))["orchestrator"])' 2>/dev/null || echo 'not set')"
   info "agents    $(detect_agents | tr '\n' ' ')"
+  info "hooks     claude: $( grep -q 'bin/registry.sh sync' "$HOME/.claude/settings.json" 2>/dev/null && echo yes || echo no )  opencode: $( [ -f "$OPENCODE_PLUGIN" ] && echo yes || echo no )"
 }
 
 case "${1:-install}" in

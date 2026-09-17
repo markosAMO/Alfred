@@ -11,7 +11,9 @@ writes: [skills, config, skill_registry]
 Manage Alfred itself: inspect a repository's setup, update it, diagnose it, and author new
 skills.
 
-This is not a pipeline phase. It never appears in a route.
+This is not a pipeline phase. It never appears in a route. Its operations run in the
+`alfred-manage` subagent, which has a shell: the orchestrator delegates them like any phase
+and relays what comes back.
 
 ## status
 
@@ -70,16 +72,21 @@ rebuilding something.
 
 ## registry
 
-Rescan both skill roots and rewrite `.alfred/skill-registry.md`.
+Rescan both skill roots and rewrite `.alfred/skill-registry.md`, with the tool named in
+`skills.registry_tool`:
 
 ```
-resolve every skill: .alfred/skills/ first, then the global installation
-write name, path and source for each
-report what changed
+~/.config/alfred/bin/registry.sh write --cwd <repository>
+~/.config/alfred/bin/registry.sh write --cwd <repository> --force
 ```
 
-Run it after adding, removing or overriding a skill. A skill added under `.alfred/skills/`
-that is not in the registry is not resolved, and the phase silently uses the global one.
+The first rewrites only when the table changed and reports each row added, removed or
+changed. `--force` rewrites regardless, for when the file was edited or corrupted by hand.
+Report what the tool printed, nothing else: the table is never written by hand.
+
+The session hook runs the same tool in `sync` mode every time an agent opens the repository,
+so this operation is for the moment a skill is added or overridden mid-session, or when the
+hook is `off` in this repository. See `skills/_shared/skill-resolver.md`.
 
 ## doctor
 
@@ -87,12 +94,18 @@ Check the setup and name what is broken, with the fix.
 
 ```
 is a model profile active
-is every skill in the registry resolvable
-is the memory backend reachable, and does the registry match what is on disk
+does the registry match what is on disk        registry.sh check --cwd <repository>
+is the registry ignored by git                 .alfred/skill-registry.md in .gitignore
+is the memory backend reachable
 is the test command in code_conventions.md runnable
 are the agent pointer files present and pointing at AGENTS.md
 is any state file referencing a change directory that no longer exists
 ```
+
+`check` exits 1 and lists each stale row when the registry differs from the disk; the
+remedy is `registry`. A registry that is versioned rather than ignored is reported too,
+with the two commands that fix it: add the line to `.gitignore`, then
+`git rm --cached .alfred/skill-registry.md`.
 
 Each failure is reported with its remedy. A diagnostic that says something is wrong without
 saying what to do is a longer way of failing.

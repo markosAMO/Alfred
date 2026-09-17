@@ -10,6 +10,11 @@ becomes one. Claude Code has no primary agents to pick - its agent files are sub
 so it becomes the `/alfred` slash command instead. A skill would not do: a skill loads
 only when the model judges it relevant, and an orchestrator has to start when asked.
 
+One more subagent, alfred-manage, runs the operations of the alfred skill that need a
+shell: status, registry, doctor, reindex. And Claude Code gets a SessionStart hook that
+keeps the skill registry current; OpenCode gets the same through a plugin the installer
+copies into place.
+
 Every agent declares the tools it needs and nothing else. An agent that declares none
 inherits the whole catalogue - every MCP server's full schemas - which is tens of
 thousands of tokens before it reads a line. It is also what makes the orchestrator's
@@ -93,8 +98,27 @@ orchestrator.
 Do this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch \
 subagents.
 
-Read your skill at {skill_path} and follow it exactly. Read the shared protocols it \
-references. Return only what your skill's completion section specifies."""
+Your skill is the row named `{phase}` in `.alfred/skill-registry.md` of the repository you \
+are working in; read the SKILL.md at the path that row gives. A repository may override a \
+skill under `.alfred/skills/`, and the registry is what records that. When the registry \
+does not exist, read {skill_path}.
+
+Follow the skill exactly. Read the shared protocols it references. Return only what your \
+skill's completion section specifies."""
+
+MANAGE_RULES = """You are the Alfred management executor, not the orchestrator.
+
+Do the operation yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch \
+subagents.
+
+Read your skill at {skill_path} and run the operation named in your task: status, \
+registry, doctor or reindex. The skill names the script each operation runs; run it with \
+Bash and report its output. Return only what the skill's completion section specifies."""
+
+# The session hook keeps .alfred/skill-registry.md current. It is installed once per
+# machine and applies to every repository the agent opens; the script itself decides
+# whether the directory is an Alfred repository and does nothing otherwise.
+HOOK_MARKER = "bin/registry.sh sync"
 
 # Tools per phase. A phase that does not write code does not get Edit; a phase that does
 # not run anything does not get Bash.
@@ -111,6 +135,7 @@ PHASE_TOOLS = {
     "verify":   ["Read", "Write", "Glob", "Grep", "Bash"],
     "review":   ["Read", "Write", "Glob", "Grep", "Bash"],
     "archive":  ["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
+    "alfred":   ["Read", "Write", "Glob", "Grep", "Bash"],
 }
 
 # Memory operations per phase, from memory/CONTRACT.md. Only what each phase actually
@@ -128,6 +153,7 @@ PHASE_MEMORY = {
     "verify":   ["mem_search", "mem_get_observation", "mem_save"],
     "review":   ["mem_search", "mem_get_observation", "mem_save"],
     "archive":  ["mem_search", "mem_get_observation", "mem_save", "mem_update"],
+    "alfred":   ["mem_search", "mem_get_observation", "mem_save"],
 }
 
 ORCHESTRATOR_TOOLS = ["Task", "Read"]
@@ -149,6 +175,11 @@ def phase_tools(profile: dict, phase: str) -> list[str]:
 
     tools += profile.get("extra_tools", {}).get(phase, [])
     return tools
+
+
+def manage_model(profile: dict) -> str:
+    """Management operations are bookkeeping: the init model is a sensible default."""
+    return profile.get("manage") or profile["phases"].get("init") or profile["orchestrator"]
 
 
 def effort_line(profile: dict, phase: str) -> str:
@@ -185,6 +216,15 @@ def opencode_config(profile: dict, skills_root: str) -> dict:
             "prompt": SUBAGENT_RULES.format(phase=phase, skill_path=skill_path),
             "tools": as_booleans(phase_tools(profile, phase), allow_task=False),
         }
+
+    agent["alfred-manage"] = {
+        "model": manage_model(profile),
+        "mode": "subagent",
+        "hidden": True,
+        "description": "Alfred management: status, registry, doctor, reindex",
+        "prompt": MANAGE_RULES.format(skill_path=f"{skills_root}/alfred/SKILL.md"),
+        "tools": as_booleans(phase_tools(profile, "alfred"), allow_task=False),
+    }
 
     return {"$schema": "https://opencode.ai/config.json", "agent": agent}
 
@@ -226,6 +266,18 @@ def claude_agents(profile: dict, skills_root: str, claude_home: Path) -> int:
         (agents_dir / f"alfred-{phase}.md").write_text(body)
         written += 1
 
+    (agents_dir / "alfred-manage.md").write_text(
+        "---\n"
+        "name: alfred-manage\n"
+        "description: Alfred management - status, registry, doctor, reindex\n"
+        f"model: {manage_model(profile).split('/', 1)[-1]}\n"
+        f"tools: {', '.join(phase_tools(profile, 'alfred'))}\n"
+        "---\n\n"
+        + MANAGE_RULES.format(skill_path=f"{skills_root}/alfred/SKILL.md")
+        + "\n"
+    )
+    written += 1
+
     commands_dir = claude_home / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
     (commands_dir / "alfred.md").write_text(
@@ -233,6 +285,39 @@ def claude_agents(profile: dict, skills_root: str, claude_home: Path) -> int:
     )
 
     return written + 1
+
+
+def claude_hooks(claude_home: Path, bin_dir: str) -> bool:
+    """Register the registry sync as a SessionStart hook, touching nothing else.
+
+    Any existing entry that runs the registry script is replaced, so a moved installation
+    does not leave a stale command behind; every other hook is kept as it was. Returns
+    whether the settings file changed.
+    """
+    settings_path = claude_home / "settings.json"
+    raw = settings_path.read_text() if settings_path.exists() else ""
+    settings = json.loads(raw) if raw.strip() else {}
+
+    command = f'{bin_dir}/registry.sh sync --quiet --cwd "${{CLAUDE_PROJECT_DIR:-$PWD}}" || true'
+    entry = {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [{"type": "command", "command": command}],
+    }
+
+    hooks = settings.setdefault("hooks", {})
+    session_start = hooks.get("SessionStart") or []
+    kept = [
+        existing for existing in session_start
+        if not any(HOOK_MARKER in hook.get("command", "") for hook in existing.get("hooks", []))
+    ]
+    updated = kept + [entry]
+    if updated == session_start:
+        return False
+
+    hooks["SessionStart"] = updated
+    claude_home.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+    return True
 
 
 def claude_command(profile: dict, skills_root: str, phases: list[str]) -> str:
@@ -259,6 +344,9 @@ Never read a skill by guessing its path, and never paste a skill into a subagent
 
 Each phase runs as a subagent with an empty context: {subagents}.
 
+`status`, `registry`, `doctor` and `reindex` are not phases. They are operations of the
+alfred skill and run in alfred-manage, which has Bash and reports what the scripts print.
+
 Pass paths, never content. A subagent fetches what its task needs; anything pasted into its
 prompt spends the clean context before the work begins.
 
@@ -276,6 +364,7 @@ $ARGUMENTS
 def main() -> int:
     profile = json.loads(Path(sys.argv[1]).read_text())
     skills_root = sys.argv[2]
+    bin_dir = str(Path(skills_root).parent / "bin")
     written = []
 
     for target in sys.argv[3:]:
@@ -286,7 +375,12 @@ def main() -> int:
             written.append(f"opencode: {len(profile['phases']) + 1} agents")
         elif kind == "claude":
             count = claude_agents(profile, skills_root, Path(path))
+            hooked = claude_hooks(Path(path), bin_dir)
             written.append(f"claude code: {count - 1} subagents + /alfred command")
+            written.append(
+                "claude code: SessionStart hook for the skill registry "
+                + ("registered" if hooked else "already registered")
+            )
 
     print("\n".join(written))
     return 0

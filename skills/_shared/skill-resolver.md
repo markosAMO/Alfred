@@ -21,7 +21,7 @@ for the other.
 
 ## The registry
 
-Resolution runs once, at the start of a run, and is written to `paths.skill_registry`.
+Resolution is written to `paths.skill_registry`, one row per skill.
 
 ```markdown
 | skill   | path                                     | source |
@@ -34,8 +34,57 @@ Resolution runs once, at the start of a run, and is written to `paths.skill_regi
 `source` is the column that matters six months later, when a phase behaves differently in
 one repository and nobody remembers that it was overridden.
 
-The registry is regenerated whenever a skill is added, removed or overridden. It is
-committed with the repository, so a collaborator sees the same resolution.
+## Generation
+
+The registry is produced by `skills.registry_tool`, a script installed with Alfred, never
+by hand. It scans both roots, applies the order above, and writes the table.
+
+```
+registry.sh write   resolve and rewrite the registry; --force rewrites even when unchanged
+registry.sh check   compare the registry with the disk; exit 1 when they differ
+registry.sh list    print the table, write nothing
+registry.sh sync    write only when missing or stale; never fails
+```
+
+`write` runs in `init` and in the `registry` operation of the alfred skill. `check` runs in
+`doctor`. `sync` runs from the session hook.
+
+## Kept current by a hook
+
+Every time an agent opens a repository, a session hook runs `registry.sh sync` there.
+Claude Code runs it from a `SessionStart` hook the installer registers; OpenCode runs it
+from a plugin the installer copies into place. The script decides whether the directory is
+an Alfred repository and does nothing otherwise, so the hook applies to every project the
+agent opens without configuring anything per repository.
+
+`sync` rewrites the registry only when the table it computes differs from the file, so a
+session that changed nothing writes nothing. When it does rewrite, it prints one line
+saying what changed. In Claude Code that line reaches the conversation; in OpenCode it
+reaches the log.
+
+`skills.registry_hook` in the repository configuration sets what the hook does there:
+
+| Value | Behaviour |
+|---|---|
+| `sync` | rewrite when stale, say so in one line |
+| `check` | never write; one line when stale |
+| `off` | nothing |
+
+The hook never commits.
+
+## Not committed
+
+The registry is derived from what is on disk, and what is on disk differs per machine:
+the global root is wherever Alfred is installed there. So it is ignored, not versioned.
+`init` adds `.alfred/skill-registry.md` to the repository's `.gitignore`, and the script
+adds the line when it is missing (`--no-gitignore` prevents that).
+
+A clone therefore has no registry until an agent opens it, at which point the hook writes
+one. The orchestrator handles the interval: when the registry does not exist, skills are
+read from the global root.
+
+`.alfred/skills/`, the overrides, remain versioned. They are decisions the team made about
+this repository, and the registry is only a record of where those decisions lead.
 
 ## Dispatching
 
