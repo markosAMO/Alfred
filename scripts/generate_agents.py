@@ -96,6 +96,67 @@ subagents.
 Read your skill at {skill_path} and follow it exactly. Read the shared protocols it \
 references. Return only what your skill's completion section specifies."""
 
+MANAGE_RULES = """You are the Alfred management executor, not the orchestrator.
+
+Do the operation yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch \
+subagents.
+
+Read your skill at {skill_path} and run the operation named in your task: status, \
+registry, doctor, reindex, worktrees, abandon, or a worktree open or close the orchestrator \
+asks for. The skill names the script each operation runs; run it with Bash and return its \
+output as printed, so the orchestrator records fields rather than a paraphrase. Return \
+only what the skill's completion section specifies."""
+
+FLEET_RULES = """## Several changes at once
+
+Every rule above holds. What changes is that there are several changes, each in its own \
+worktree, and you are the orchestrator of all of them. See \
+`skills/_shared/worktree-protocol.md`.
+
+The request is a list, one change per line:
+
+    branch [from base]: request
+
+Every line names a branch. A line without one is reported and skipped, never guessed. \
+Without `from`, the base is the branch the repository is on now. `continue` on its own \
+resumes every worktree that has an open change.
+
+### What you may read
+
+The same three things, in the main checkout and in each worktree:
+
+    .alfred/config.yaml
+    .alfred/state/*.yaml            and <worktree>/.alfred/state/*.yaml
+    .alfred/skill-registry.md
+
+Your working set grows by one state file per change. `git.worktrees.max_parallel` is the \
+number of changes running at once, and it exists to keep that set at two pages.
+
+### Steps
+
+1. Read `.alfred/config.yaml` for `git.worktrees`. Without `.alfred/`, stop: `init` first.
+2. Derive a change name from each request as for any change, and show the list: name, \
+branch, base, request. Wait for the user to confirm it.
+3. Delegate to alfred-manage, once, the opening of every worktree:
+   `<git.worktrees.tool> open --branch <branch> --base <base> --change <name> --cwd <repo>`
+   for each line. It returns one YAML record per worktree. Keep `path`, `branch`, `base`, \
+`main_checkout`. Report `setup: none` as "dependencies were not installed" and \
+`setup: failed` with the log path; neither stops the run.
+4. Propose a route for every request, all in one message, each headed by its change name, \
+with the signals it was based on. Wait once. The user may shorten any of them.
+5. Dispatch. Every delegation for a change carries `Worktree: <path>` as its first address, \
+and the first one for each change also carries the four fields for its state file. Phases \
+of different changes run at the same time, up to `max_parallel` changes; inside one change \
+the ordinary order holds, and only `verify` and `review` run together.
+6. Relay every question and every report with the change name in front. An answer applies \
+to the change it names; when it names none and more than one change is waiting, ask which.
+7. After each batch of returns, one line per change: what finished and what is next.
+8. `archive` closes each worktree as its change completes, per its skill. When every change \
+has completed or failed, delegate `worktree list` to alfred-manage and report what remains.
+
+A change that fails does not stop the others. A question from one change does not block \
+another: dispatch what can run while you wait."""
+
 # Tools per phase. A phase that does not write code does not get Edit; a phase that does
 # not run anything does not get Bash.
 PHASE_TOOLS = {
@@ -111,6 +172,7 @@ PHASE_TOOLS = {
     "verify":   ["Read", "Write", "Glob", "Grep", "Bash"],
     "review":   ["Read", "Write", "Glob", "Grep", "Bash"],
     "archive":  ["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
+    "alfred":   ["Read", "Write", "Glob", "Grep", "Bash"],
 }
 
 # Memory operations per phase, from memory/CONTRACT.md. Only what each phase actually
@@ -128,6 +190,7 @@ PHASE_MEMORY = {
     "verify":   ["mem_search", "mem_get_observation", "mem_save"],
     "review":   ["mem_search", "mem_get_observation", "mem_save"],
     "archive":  ["mem_search", "mem_get_observation", "mem_save", "mem_update"],
+    "alfred":   ["mem_search", "mem_get_observation", "mem_save"],
 }
 
 ORCHESTRATOR_TOOLS = ["Task", "Read"]
@@ -149,6 +212,11 @@ def phase_tools(profile: dict, phase: str) -> list[str]:
 
     tools += profile.get("extra_tools", {}).get(phase, [])
     return tools
+
+
+def manage_model(profile: dict) -> str:
+    """Management operations are bookkeeping: the init model is a sensible default."""
+    return profile.get("manage") or profile["phases"].get("init") or profile["orchestrator"]
 
 
 def effort_line(profile: dict, phase: str) -> str:
@@ -185,6 +253,15 @@ def opencode_config(profile: dict, skills_root: str) -> dict:
             "prompt": SUBAGENT_RULES.format(phase=phase, skill_path=skill_path),
             "tools": as_booleans(phase_tools(profile, phase), allow_task=False),
         }
+
+    agent["alfred-manage"] = {
+        "model": manage_model(profile),
+        "mode": "subagent",
+        "hidden": True,
+        "description": "Alfred management: status, registry, doctor, reindex",
+        "prompt": MANAGE_RULES.format(skill_path=f"{skills_root}/alfred/SKILL.md"),
+        "tools": as_booleans(phase_tools(profile, "alfred"), allow_task=False),
+    }
 
     return {"$schema": "https://opencode.ai/config.json", "agent": agent}
 
@@ -226,13 +303,28 @@ def claude_agents(profile: dict, skills_root: str, claude_home: Path) -> int:
         (agents_dir / f"alfred-{phase}.md").write_text(body)
         written += 1
 
+    (agents_dir / "alfred-manage.md").write_text(
+        "---\n"
+        "name: alfred-manage\n"
+        "description: Alfred management - status, registry, doctor, reindex\n"
+        f"model: {manage_model(profile).split('/', 1)[-1]}\n"
+        f"tools: {', '.join(phase_tools(profile, 'alfred'))}\n"
+        "---\n\n"
+        + MANAGE_RULES.format(skill_path=f"{skills_root}/alfred/SKILL.md")
+        + "\n"
+    )
+    written += 1
+
     commands_dir = claude_home / "commands"
     commands_dir.mkdir(parents=True, exist_ok=True)
     (commands_dir / "alfred.md").write_text(
         claude_command(profile, skills_root, sorted(profile["phases"]))
     )
+    (commands_dir / "alfred-worktree.md").write_text(
+        claude_worktree_command(profile, skills_root, sorted(profile["phases"]))
+    )
 
-    return written + 1
+    return written + 2
 
 
 def claude_command(profile: dict, skills_root: str, phases: list[str]) -> str:
@@ -259,6 +351,13 @@ Never read a skill by guessing its path, and never paste a skill into a subagent
 
 Each phase runs as a subagent with an empty context: {subagents}.
 
+`status`, `registry`, `doctor`, `reindex`, `worktrees` and `abandon` are not phases. They
+are operations of the alfred skill and run in alfred-manage, which has Bash and reports
+what the scripts print.
+
+Several changes at once are started with `/alfred-worktree`, which runs each in its own
+worktree. A single change runs here, in this checkout.
+
 Pass paths, never content. A subagent fetches what its task needs; anything pasted into its
 prompt spends the clean context before the work begins.
 
@@ -266,6 +365,50 @@ prompt spends the clean context before the work begins.
 
 `init` sets up the repository you are in. It is the only phase that runs before
 `.alfred/` exists, so read its skill from `{skills_root}/init/SKILL.md` directly.
+
+## The request
+
+$ARGUMENTS
+"""
+
+
+def claude_worktree_command(profile: dict, skills_root: str, phases: list[str]) -> str:
+    """The same orchestrator, for several changes at once, one worktree each.
+
+    bin/ sits next to skills/ in the installation, so the tool path is derived from the
+    skills root rather than passed separately.
+
+    A separate command rather than a mode of /alfred: the input is a list with a branch per
+    line, the working set is one state file per change, and a user who wants one change in
+    the current checkout should not have to opt out of worktrees to get it.
+    """
+    subagents = ", ".join(f"alfred-{phase}" for phase in phases)
+    tool = Path(skills_root).parent / "bin" / "worktree.sh"
+
+    return f"""---
+description: Alfred orchestrator for several changes at once, one git worktree each
+argument-hint: [branch [from base]: request, one per line, or: continue]
+model: {profile["orchestrator"].split("/", 1)[-1]}
+tools: {", ".join(ORCHESTRATOR_TOOLS)}
+---
+
+{ORCHESTRATOR_RULES}
+
+{FLEET_RULES}
+
+## Resolving skills
+
+Read `.alfred/skill-registry.md` for the path of each skill, in the worktree the phase runs
+in. When the registry does not exist yet, skills are at `{skills_root}/<phase>/SKILL.md`.
+
+Never read a skill by guessing its path, and never paste a skill into a subagent's prompt.
+
+## Delegating
+
+Each phase runs as a subagent with an empty context: {subagents}. Worktrees are opened,
+listed and closed by alfred-manage, which runs `{tool}` and returns what it prints.
+
+Pass paths, never content. `Worktree:` comes first.
 
 ## The request
 
@@ -286,7 +429,7 @@ def main() -> int:
             written.append(f"opencode: {len(profile['phases']) + 1} agents")
         elif kind == "claude":
             count = claude_agents(profile, skills_root, Path(path))
-            written.append(f"claude code: {count - 1} subagents + /alfred command")
+            written.append(f"claude code: {count - 2} subagents + /alfred and /alfred-worktree commands")
 
     print("\n".join(written))
     return 0

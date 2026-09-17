@@ -23,9 +23,14 @@ init                        set up this repository
 add google sign-in          start a change
 bug: payments time out      start from a defect
 continue                    resume where it stopped
-status                      what is open and where it is
+status                      what is open and where it is, across worktrees
 ff spec                     skip ahead to a phase
+abandon feature/login       drop a change running in its own worktree
 ```
+
+Several changes at once are started with `/alfred-worktree` in Claude Code, one change per
+line, each on a named branch: `feature/login-google from main: add google sign-in`. Each
+runs in its own worktree. See `skills/_shared/worktree-protocol.md`.
 
 A plain description is the normal entry point. Routing decides which phases run, per
 `skills/_shared/routing.md`.

@@ -11,12 +11,17 @@ be confused by them, and spends its whole window on the one task it owns.
 Addresses, not content.
 
 ```
+Worktree:   /home/me/.alfred/worktrees/api/feature-login-google
 Task:       3 of alfred/login-google/tasks
 Skill:      .alfred/skills/apply/SKILL.md
 Spec:       alfred/login-google/spec
 Design:     alfred/login-google/design
 Conventions: docs/code_conventions.md
 ```
+
+`Worktree` is present when the change runs in its own checkout, per
+`worktree-protocol.md`. Every relative path in the task and every command the subagent
+runs is inside that directory. Without it, the subagent works where the session is.
 
 The subagent fetches what its task needs. Pasting the full spec into the prompt spends the
 clean context before the work starts, and hands it six thousand tokens to find the one
@@ -49,7 +54,7 @@ produces code written against an interface that does not exist.
 
 ## Concurrency
 
-Subagents share one checkout. There is no file locking between them, so two that write the
+Subagents of one change share one checkout. There is no file locking between them, so two that write the
 same file produce one silent winner rather than a conflict anyone notices.
 
 Running together therefore requires two conditions, not one: no dependency between the
@@ -59,6 +64,9 @@ decidable.
 A collision that happens anyway is detected afterwards, from the `files_changed` each
 subagent reports: the same file in two concurrent reports stops the run, even when the
 tests pass.
+
+Subagents of different changes never share a checkout: each change started alongside
+another runs in its own worktree, and the file rule above does not apply between them.
 
 ## Failure
 

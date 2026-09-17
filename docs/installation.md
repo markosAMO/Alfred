@@ -24,6 +24,7 @@ writes:
 
 ```
 ~/.config/alfred/                 the skills, protocols, templates and adapters
+~/.config/alfred/bin/worktree.sh  creates and removes the worktrees parallel changes run in
 ~/.config/alfred/profile.json     the model assignment
 ~/.config/alfred/state.json       the hash of every installed file
 ~/.config/opencode/opencode.json  orchestrator + one subagent per phase

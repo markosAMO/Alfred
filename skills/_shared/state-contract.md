@@ -41,6 +41,11 @@ tasks:
 
 parent: null
 repos: []
+
+worktree: null
+branch: null
+base: null
+main_checkout: null
 ```
 
 ## Fields
@@ -54,6 +59,14 @@ repos: []
 | `status` | `running`, `waiting_for_input`, `waiting_for_confirmation`, `completed`, `failed` |
 | `parent` | `workspace:<change>` when this repository is part of a multi-repository change |
 | `repos` | at workspace level, the repositories this change was distributed to |
+| `worktree` | the checkout this change runs in, when it runs in its own; `null` otherwise |
+| `branch` | the branch that worktree is on |
+| `base` | the ref the branch was created from |
+| `main_checkout` | the repository the worktree belongs to, where `.alfred/config.yaml` lives |
+
+The four worktree fields are copied from what `worktree.sh open` printed, and are what
+`archive` needs to close the worktree once the change is committed. See
+`skills/_shared/worktree-protocol.md`.
 
 ## Phase status
 

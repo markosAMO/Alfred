@@ -128,12 +128,36 @@ push
 Staging everything present would sweep in whatever the user left in progress. The file list
 comes from the subagent reports, which is why `apply` requires it.
 
+State is staged with the change, so a collaborator who clones mid-change can continue. The
+skill registry is not: it is ignored, per `skills/_shared/skill-resolver.md`.
+
 ```
 feat(auth): sign in with Google
 
 Implements docs/changes/login-google.
 3 requirements, 7 scenarios, 47 tests.
 ```
+
+## Changes in their own worktree
+
+When state carries a `worktree`, this phase runs inside it, and the commit lands on
+`branch`. After the push:
+
+```
+git.worktrees.pull_request: true    open a pull request from branch to base, if the
+                                    tool for it is available; report and continue if not
+git.worktrees.remove_on_archive     run worktree.sh close --branch <branch> --cwd <main_checkout>
+```
+
+`close` refuses a worktree with uncommitted changes, which after a correct commit means a
+file `apply` did not report. Stop and say which files, rather than forcing: a file changed
+and not committed is the collision `apply` is designed to detect. The branch is deleted
+only when already merged into `base`; otherwise it stays for the pull request. Run `close`
+from `main_checkout`, never from inside the worktree being removed.
+
+The pull request is off by default because opening one is a decision about the team's
+review flow, and because it needs a tool that is not always logged in. A failed attempt is
+reported in the completion line, never treated as a failed archive.
 
 ## Carrying findings forward
 

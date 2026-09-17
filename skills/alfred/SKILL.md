@@ -11,7 +11,10 @@ writes: [skills, config, skill_registry]
 Manage Alfred itself: inspect a repository's setup, update it, diagnose it, and author new
 skills.
 
-This is not a pipeline phase. It never appears in a route.
+This is not a pipeline phase. It never appears in a route. Its operations run in the
+`alfred-manage` subagent, which has a shell: the orchestrator delegates them like any phase
+and relays what comes back. The same subagent opens and closes worktrees when the
+orchestrator asks, running `git.worktrees.tool` and returning its output as printed.
 
 ## status
 
@@ -92,6 +95,7 @@ is the memory backend reachable, and does the registry match what is on disk
 is the test command in code_conventions.md runnable
 are the agent pointer files present and pointing at AGENTS.md
 is any state file referencing a change directory that no longer exists
+is any worktree listed whose directory no longer exists   worktree.sh list, exists: false
 ```
 
 Each failure is reported with its remedy. A diagnostic that says something is wrong without
@@ -99,6 +103,35 @@ saying what to do is a longer way of failing.
 
 The test command check matters most: a wrong command makes every `verify` an environment
 failure, and it is invisible until the first change reaches that phase.
+
+## worktrees
+
+List every worktree of this repository with its change, phase and status, with the tool
+named in `git.worktrees.tool`:
+
+```
+~/.config/alfred/bin/worktree.sh list --cwd <repository>
+```
+
+Run it from any checkout, the main one or a worktree: the tool finds the repository. It
+reads each worktree's state file, so a worktree whose change never started shows
+`not_started`, and one whose directory is gone shows `exists: false` and should be closed.
+`status` includes this list when the repository has worktrees. See
+`skills/_shared/worktree-protocol.md`.
+
+## abandon
+
+Remove a worktree without archiving its change. The branch is kept.
+
+```
+confirm("Remove the worktree for feature/login", "uncommitted changes are discarded; the branch is kept")
+~/.config/alfred/bin/worktree.sh abandon --branch <branch> --cwd <main_checkout> --yes
+```
+
+Without `--yes` the tool prints what it would remove, including whether there are
+uncommitted changes, and stops. Run it that way first, show the answer, and pass `--yes`
+only after the user confirmed. The state file goes with the worktree; a change abandoned
+this way is not `failed`, it is gone, and `status` stops listing it.
 
 ## new skill
 

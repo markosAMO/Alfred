@@ -10,7 +10,9 @@ An **installable package**, not a program. Alfred does not run the agent loop â€
 Code, OpenCode, OpenClaw or any compatible agent does. Alfred provides the manual those
 agents follow.
 
-Practical consequence: almost everything here is Markdown. The only code is the installer.
+Practical consequence: almost everything here is Markdown. The only code is the installer
+and the small tools under `bin/` that it installs, for the work an agent must not do by
+hand: creating and removing git worktrees.
 
 ```
 ALFRED REPOSITORY (the mould)        TARGET PROJECT (where the parts come out)
@@ -26,6 +28,7 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `AGENTS.md` | This file | Entry point for agents modifying Alfred |
 | `README.md` | Project presentation | For humans |
 | `install.sh` | Installer | Copies what is needed into the target project |
+| `bin/` | Tools installed with Alfred | `worktree.sh` creates, lists and removes the worktrees changes run in |
 | `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
 | `skills/` | One directory per pipeline phase | The manual for each phase |
 | `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |
@@ -133,6 +136,10 @@ Every mode is overridable in `alfred.config.yaml`.
 17. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
+18. **Parallel changes never share a checkout.** Changes started together through
+   `/alfred-worktree` each run in their own git worktree on their own branch, created and
+   removed by `bin/worktree.sh`, never by an agent running git by hand. One change, one
+   worktree, one branch. See `skills/_shared/worktree-protocol.md`.
 
 ## Commit conventions
 

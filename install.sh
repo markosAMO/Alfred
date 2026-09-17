@@ -13,7 +13,7 @@ ALFRED_HOME="${ALFRED_HOME:-$HOME/.config/alfred}"
 VERSION="0.1.0"
 
 PHASES=(init explore refine research spec diagnose design tasks apply verify review archive)
-PAYLOAD=(skills memory notify tracker templates defaults triggers alfred.config.yaml)
+PAYLOAD=(skills memory notify tracker templates defaults triggers bin alfred.config.yaml)
 
 info() { printf '%s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -40,6 +40,7 @@ install_payload() {
     [ -e "$SOURCE/$item" ] || die "missing from package: $item"
     cp -R "$SOURCE/$item" "$ALFRED_HOME/"
   done
+  chmod +x "$ALFRED_HOME"/bin/*.sh
   info "installed to $ALFRED_HOME"
 }
 
@@ -179,6 +180,7 @@ for rel in report["new"] + report["updatable"]:
 print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
 ' "$ALFRED_HOME" "$SOURCE"
 
+  chmod +x "$ALFRED_HOME"/bin/*.sh
   generate_agents
   record_state
 }
@@ -209,6 +211,7 @@ cmd_doctor() {
     [ -f "$ALFRED_HOME/skills/$phase/SKILL.md" ] || { missing=$((missing + 1)); }
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
+  check "worktree script installed"  "[ -x '$ALFRED_HOME/bin/worktree.sh' ]" "run: $0 update"
 
   info ""
   [ $failures -eq 0 ] && info "no problems found" || info "$failures problem(s) found"
