@@ -19,7 +19,9 @@ orchestrator, not typed into a shell: there is no global `alfred` command.
 | OpenCode | the `alfred` primary agent, or `alfred-<workflow>`, on Tab |
 
 Each installed workflow has its own command; `/alfred` is the default one, `sdd`. A custom
-workflow is created with `/alfred-add-workflow`. See `skills/_shared/workflow-protocol.md`.
+workflow is created with `/alfred-add-workflow`, and `/alfred-workflows-scanner` brings the
+commands up to date after a workflow directory was changed by hand. Both exist in Claude
+Code and in OpenCode. See `skills/_shared/workflow-protocol.md`.
 
 ```
 init                        set up this repository

@@ -115,7 +115,8 @@ Do the operation yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT la
 subagents.
 
 Read your skill at {skill_path} and run the operation named in your task: status, \
-registry, doctor, reindex or add-workflow. The skill names the script each operation runs; \
+registry, doctor, reindex, add-workflow or workflows-scanner. The skill names the script \
+each operation runs; \
 run it with Bash and return its output as printed, so the orchestrator records fields \
 rather than a paraphrase. Return only what the skill's completion section specifies."""
 
@@ -209,7 +210,7 @@ OPENCODE_NAMES = {
 }
 
 # Names a workflow cannot take: they are already commands or agents.
-RESERVED_NAMES = {"manage", "worktree", "add-workflow", "alfred"}
+RESERVED_NAMES = {"manage", "worktree", "add-workflow", "workflows-scanner", "alfred"}
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
@@ -468,9 +469,46 @@ Executor per phase:
 {executors}"""
 
 
-# --- OpenCode ----------------------------------------------------------------------------
+# --- generation ---------------------------------------------------------------------------
+#
+# Every target is computed as a mapping from a relative path to its content, then compared
+# with what is on disk. That is what lets the scanner say what it found and what changed,
+# run without writing, and be run twice with nothing happening the second time.
 
-def opencode_config(profile: dict, skills_root: str, workflows: list[Workflow], default: Workflow) -> dict:
+SCANNER_RULES = """You scan Alfred's workflows on this machine and bring the commands up to \
+date: both workflow roots are read, every workflow validated, and the agents and commands \
+regenerated. One tool does it, `{register_tool}`, the same one `update` runs.
+
+{how}
+
+Report the output as printed: the workflows found, and per agent what was added, updated, \
+removed and left unchanged. When a command was added or removed, add one line: the agent \
+must be restarted before the change is visible. When the tool reports an error, relay it \
+and stop; a workflow that fails validation is named in the error together with the fix.
+
+Running this twice in a row is expected to report that nothing changed.
+
+## The request
+
+$ARGUMENTS"""
+
+SCANNER_DELEGATE = """Delegate to alfred-manage: operation `workflows-scanner`. Pass `check` \
+when the request says check, dry-run or only report; then the tool reports without \
+writing. You have no shell and do not run the tool yourself."""
+
+SCANNER_DIRECT = """You are alfred-manage and have a shell: run the tool with Bash, adding \
+`--dry-run` when the request says check, dry-run or only report. Do not paraphrase what it \
+prints."""
+
+
+def scanner_body(alfred_home: Path, direct: bool) -> str:
+    return SCANNER_RULES.format(
+        register_tool=f"{alfred_home}/bin/register.sh",
+        how=SCANNER_DIRECT if direct else SCANNER_DELEGATE,
+    )
+
+
+def opencode_agents(profile: dict, skills_root: str, workflows: list[Workflow], default: Workflow) -> dict:
     def as_booleans(tools: list[str], allow_task: bool) -> dict:
         enabled = {OPENCODE_NAMES[t]: True for t in tools if t in OPENCODE_NAMES}
         disabled = {v: False for v in set(OPENCODE_NAMES.values()) - set(enabled)}
@@ -478,7 +516,7 @@ def opencode_config(profile: dict, skills_root: str, workflows: list[Workflow], 
         entry["task"] = allow_task
         return entry
 
-    def primary(workflow: Workflow, name: str, description: str) -> dict:
+    def primary(workflow: Workflow, description: str) -> dict:
         return {
             "model": profile["orchestrator"],
             "mode": "primary",
@@ -488,13 +526,9 @@ def opencode_config(profile: dict, skills_root: str, workflows: list[Workflow], 
             "tools": as_booleans(ORCHESTRATOR_TOOLS, allow_task=True),
         }
 
-    agent = {
-        "alfred": primary(default, "alfred", f"Alfred orchestrator, default workflow ({default.name}). Never writes code."),
-    }
+    agent = {"alfred": primary(default, f"Alfred orchestrator, default workflow ({default.name}). Never writes code.")}
     for workflow in workflows:
-        agent[f"alfred-{workflow.name}"] = primary(
-            workflow, f"alfred-{workflow.name}", f"Alfred orchestrator: {workflow.title}. Never writes code."
-        )
+        agent[f"alfred-{workflow.name}"] = primary(workflow, f"Alfred orchestrator: {workflow.title}. Never writes code.")
 
     for phase in library_phases(skills_root):
         agent[f"alfred-{phase}"] = {
@@ -521,30 +555,35 @@ def opencode_config(profile: dict, skills_root: str, workflows: list[Workflow], 
         "model": manage_model(profile),
         "mode": "subagent",
         "hidden": True,
-        "description": "Alfred management: status, registry, doctor, reindex, add-workflow",
+        "description": "Alfred management: status, registry, doctor, reindex, add-workflow, workflows-scanner",
         "prompt": MANAGE_RULES.format(skill_path=f"{skills_root}/alfred/SKILL.md"),
         "tools": as_booleans(phase_tools(profile, "alfred"), allow_task=False),
     }
+    return agent
 
-    return {"$schema": "https://opencode.ai/config.json", "agent": agent}
+
+def opencode_command_file(description: str, body: str, agent: str | None = None, subtask: bool = False) -> str:
+    front = [f"description: {description}"]
+    if agent:
+        front.append(f"agent: {agent}")
+    if subtask:
+        front.append("subtask: true")
+    return "---\n" + "\n".join(front) + "\n---\n\n" + body + "\n"
 
 
-def merge_opencode(target: Path, generated: dict) -> None:
-    """Replace only the alfred-* agents, leaving any other agent untouched."""
-    existing = json.loads(target.read_text()) if target.exists() else {}
-    agents = {
-        name: definition
-        for name, definition in existing.get("agent", {}).items()
-        if name != "alfred" and not name.startswith("alfred-")
+def opencode_commands(profile: dict, skills_root: str) -> dict[str, str]:
+    """OpenCode commands are Markdown files under commands/, invoked as /<name> like in Claude Code."""
+    return {
+        "commands/alfred-workflows-scanner.md": opencode_command_file(
+            "Alfred - scan the installed workflows and bring the alfred-* agents and commands up to date",
+            scanner_body(Path(skills_root).parent, direct=True), agent="alfred-manage", subtask=True,
+        ),
+        "commands/alfred-add-workflow.md": opencode_command_file(
+            "Alfred - define a custom workflow and register its alfred-<name> agent",
+            add_workflow_body(profile, skills_root),
+        ),
     }
-    agents.update(generated["agent"])
-    existing["agent"] = agents
-    existing.setdefault("$schema", generated["$schema"])
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(existing, indent=2) + "\n")
 
-
-# --- Claude Code ----------------------------------------------------------------------------
 
 def agent_file(name: str, description: str, model: str, tools: list[str], body: str, effort: str = "") -> str:
     return (
@@ -560,77 +599,77 @@ def agent_file(name: str, description: str, model: str, tools: list[str], body: 
     )
 
 
-def claude_agents(profile: dict, skills_root: str, claude_home: Path, workflows: list[Workflow], default: Workflow) -> dict:
-    """Subagents under agents/, and one slash command per workflow under commands/.
+def command_file(description: str, hint: str, model: str, tools: list[str], body: str) -> str:
+    return (
+        "---\n"
+        f"description: {description}\n"
+        f"argument-hint: {hint}\n"
+        f"model: {model.split('/', 1)[-1]}\n"
+        f"tools: {', '.join(tools)}\n"
+        "---\n\n"
+        + body
+        + "\n"
+    )
 
-    Stale files are removed: a workflow deleted from disk must not keep its command, and a
-    phase renamed must not keep its old executor. Only alfred-* files are touched.
-    """
-    agents_dir = claude_home / "agents"
-    commands_dir = claude_home / "commands"
-    agents_dir.mkdir(parents=True, exist_ok=True)
-    commands_dir.mkdir(parents=True, exist_ok=True)
 
-    for stale in list(agents_dir.glob("alfred-*.md")) + list(commands_dir.glob("alfred*.md")):
-        stale.unlink()
-
-    written = {"subagents": 0, "commands": []}
+def claude_files(profile: dict, skills_root: str, workflows: list[Workflow], default: Workflow) -> dict[str, str]:
+    """Everything Alfred writes under ~/.claude, as relative path -> content."""
+    files: dict[str, str] = {}
 
     for phase in library_phases(skills_root):
-        (agents_dir / f"alfred-{phase}.md").write_text(agent_file(
+        files[f"agents/alfred-{phase}.md"] = agent_file(
             f"alfred-{phase}", f"Alfred {phase} phase executor", phase_model(profile, phase),
             phase_tools(profile, phase),
             SUBAGENT_RULES.format(phase=phase, skill_path=f"{skills_root}/{phase}/SKILL.md"),
             effort_line(profile, phase),
-        ))
-        written["subagents"] += 1
+        )
 
     for workflow in workflows:
         for phase, skill in workflow.own_phases.items():
             name = f"alfred-{workflow.name}-{phase}"
-            (agents_dir / f"{name}.md").write_text(agent_file(
+            files[f"agents/{name}.md"] = agent_file(
                 name, f"Alfred {workflow.name} workflow, {phase} phase executor",
                 own_phase_model(profile, workflow, phase),
                 phase_tools(profile, phase, workflow.own_tools.get(phase)),
                 SUBAGENT_RULES.format(phase=phase, skill_path=str(skill)),
-            ))
-            written["subagents"] += 1
+            )
 
-    (agents_dir / "alfred-manage.md").write_text(agent_file(
-        "alfred-manage", "Alfred management - status, registry, doctor, reindex, add-workflow",
+    files["agents/alfred-manage.md"] = agent_file(
+        "alfred-manage", "Alfred management - status, registry, doctor, reindex, add-workflow, workflows-scanner",
         manage_model(profile), phase_tools(profile, "alfred"),
         MANAGE_RULES.format(skill_path=f"{skills_root}/alfred/SKILL.md"),
-    ))
-    written["subagents"] += 1
-
-    (commands_dir / "alfred.md").write_text(claude_command(profile, skills_root, default, workflows, alias=True))
-    written["commands"].append("alfred")
-    for workflow in workflows:
-        (commands_dir / f"alfred-{workflow.name}.md").write_text(claude_command(profile, skills_root, workflow, workflows))
-        written["commands"].append(f"alfred-{workflow.name}")
-
-    (commands_dir / "alfred-add-workflow.md").write_text(claude_add_workflow_command(profile, skills_root))
-    written["commands"].append("alfred-add-workflow")
-
-    return written
-
-
-def claude_command(profile: dict, skills_root: str, workflow: Workflow, workflows: list[Workflow], alias: bool = False) -> str:
-    executors = sorted({subagent_name(workflow, phase) for phase in workflow.phases} | {"alfred-init", "alfred-explore"})
-    others = ", ".join(f"/alfred-{other.name}" for other in workflows if other is not workflow) or "none"
-    description = (
-        f"Alfred orchestrator, default workflow: {workflow.title}"
-        if alias else f"Alfred orchestrator: {workflow.title}"
     )
 
-    return f"""---
-description: {description}
-argument-hint: [what you want done, or: init | continue | status]
-model: {profile["orchestrator"].split("/", 1)[-1]}
-tools: {", ".join(ORCHESTRATOR_TOOLS)}
----
+    orchestrator_model = profile["orchestrator"]
+    files["commands/alfred.md"] = command_file(
+        f"Alfred orchestrator, default workflow: {default.title}",
+        "[what you want done, or: init | continue | status]", orchestrator_model, ORCHESTRATOR_TOOLS,
+        orchestrator_body(skills_root, default, workflows),
+    )
+    for workflow in workflows:
+        files[f"commands/alfred-{workflow.name}.md"] = command_file(
+            f"Alfred orchestrator: {workflow.title}",
+            "[what you want done, or: init | continue | status]", orchestrator_model, ORCHESTRATOR_TOOLS,
+            orchestrator_body(skills_root, workflow, workflows),
+        )
+    files["commands/alfred-add-workflow.md"] = command_file(
+        "Alfred - define a custom workflow and register its /alfred-<name> command",
+        "[nothing, to be interviewed, or a pasted workflow.yaml]", orchestrator_model, ORCHESTRATOR_TOOLS,
+        add_workflow_body(profile, skills_root),
+    )
+    files["commands/alfred-workflows-scanner.md"] = command_file(
+        "Alfred - scan the installed workflows and bring the /alfred-* commands up to date",
+        "[nothing, or: check]", orchestrator_model, ORCHESTRATOR_TOOLS,
+        scanner_body(Path(skills_root).parent, direct=False),
+    )
+    return files
 
-{ORCHESTRATOR_RULES}
+
+def orchestrator_body(skills_root: str, workflow: Workflow, workflows: list[Workflow]) -> str:
+    executors = sorted({subagent_name(workflow, phase) for phase in workflow.phases} | {"alfred-init", "alfred-explore"})
+    others = ", ".join(f"/alfred-{other.name}" for other in workflows if other is not workflow) or "none"
+
+    return f"""{ORCHESTRATOR_RULES}
 
 {workflow_section(workflow, skills_root)}
 
@@ -650,9 +689,9 @@ Never read a skill by guessing its path, and never paste a skill into a subagent
 
 Each phase runs as a subagent with an empty context: {", ".join(executors)}.
 
-`status`, `registry`, `doctor`, `reindex` and `add-workflow` are not phases. They are
-operations of the alfred skill and run in alfred-manage, which has Bash and reports what
-the scripts print.
+`status`, `registry`, `doctor`, `reindex`, `add-workflow` and `workflows-scanner` are not
+phases. They are operations of the alfred skill and run in alfred-manage, which has Bash
+and reports what the scripts print.
 
 Pass paths, never content. A subagent fetches what its task needs; anything pasted into its
 prompt spends the clean context before the work begins.
@@ -664,37 +703,124 @@ prompt spends the clean context before the work begins.
 
 ## The request
 
-$ARGUMENTS
-"""
+$ARGUMENTS"""
 
 
-def claude_add_workflow_command(profile: dict, skills_root: str) -> str:
+def add_workflow_body(profile: dict, skills_root: str) -> str:
     alfred_home = Path(skills_root).parent
-    library = ", ".join(library_phases(skills_root))
-    reserved = ", ".join(sorted(RESERVED_NAMES | set(library_phases(skills_root))))
-    body = ADD_WORKFLOW_RULES.format(
+    library = library_phases(skills_root)
+    return ADD_WORKFLOW_RULES.format(
         custom_root=f"{alfred_home}/custom/workflows/",
         protocol=f"{skills_root}/_shared/workflow-protocol.md",
-        reserved=reserved,
-        library=library,
+        reserved=", ".join(sorted(RESERVED_NAMES | set(library))),
+        library=", ".join(library),
         register_tool=f"{alfred_home}/bin/register.sh",
     )
-    return f"""---
-description: Alfred - define a custom workflow and register its /alfred-<name> command
-argument-hint: [nothing, to be interviewed, or a pasted workflow.yaml]
-model: {profile["orchestrator"].split("/", 1)[-1]}
-tools: {", ".join(ORCHESTRATOR_TOOLS)}
----
 
-{body}
-"""
+
+# --- applying and reporting -------------------------------------------------------------
+
+@dataclass
+class Report:
+    added: list[str] = field(default_factory=list)
+    updated: list[str] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)
+    unchanged: int = 0
+
+    def changed(self) -> bool:
+        return bool(self.added or self.updated or self.removed)
+
+
+def apply_files(root: Path, files: dict[str, str], owned: list[str], write: bool) -> Report:
+    """Write files under root and remove the owned ones no longer generated.
+
+    `owned` are glob patterns of what Alfred manages there; anything else is never touched.
+    """
+    report = Report()
+    existing = {
+        str(path.relative_to(root)): path.read_text()
+        for pattern in owned for path in root.glob(pattern) if path.is_file()
+    }
+    for rel, content in files.items():
+        if rel not in existing:
+            report.added.append(rel)
+        elif existing[rel] != content:
+            report.updated.append(rel)
+        else:
+            report.unchanged += 1
+            continue
+        if write:
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(content)
+    for rel in sorted(set(existing) - set(files)):
+        report.removed.append(rel)
+        if write:
+            (root / rel).unlink()
+    return report
+
+
+def apply_opencode(target: Path, agents: dict, write: bool) -> Report:
+    """Replace only the alfred-* agents in opencode.json, leaving any other agent untouched."""
+    report = Report()
+    raw = target.read_text() if target.exists() else ""
+    existing = json.loads(raw) if raw.strip() else {}
+    current = existing.get("agent", {})
+    ours = {name: definition for name, definition in current.items() if name == "alfred" or name.startswith("alfred-")}
+    for name, definition in agents.items():
+        if name not in ours:
+            report.added.append(f"agent {name}")
+        elif ours[name] != definition:
+            report.updated.append(f"agent {name}")
+        else:
+            report.unchanged += 1
+    for name in sorted(set(ours) - set(agents)):
+        report.removed.append(f"agent {name}")
+    if write and report.changed():
+        kept = {name: definition for name, definition in current.items() if name not in ours}
+        kept.update(agents)
+        existing["agent"] = kept
+        existing.setdefault("$schema", "https://opencode.ai/config.json")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(existing, indent=2) + "\n")
+    return report
+
+
+def merge_reports(*reports: Report) -> Report:
+    merged = Report()
+    for report in reports:
+        merged.added += report.added
+        merged.updated += report.updated
+        merged.removed += report.removed
+        merged.unchanged += report.unchanged
+    return merged
+
+
+def describe(label: str, report: Report, write: bool) -> list[str]:
+    verb = "" if write else "would be "
+    lines = [f"{label}: {len(report.added)} {verb}added, {len(report.updated)} {verb}updated, "
+             f"{len(report.removed)} {verb}removed, {report.unchanged} unchanged"]
+    for kind, items in (("added", report.added), ("updated", report.updated), ("removed", report.removed)):
+        lines += [f"  {kind:<8} {item}" for item in sorted(items)]
+    return lines
+
+
+def describe_workflows(workflows: list[Workflow], default: Workflow) -> list[str]:
+    lines = [f"found: {len(workflows)} workflow{'s' if len(workflows) != 1 else ''}"]
+    for workflow in workflows:
+        own = f" ({len(workflow.own_phases)} own: {', '.join(sorted(workflow.own_phases))})" if workflow.own_phases else ""
+        tag = ", default" if workflow is default else ""
+        lines.append(f"  {workflow.name:<14} {workflow.source}{tag}: {len(workflow.phases)} phases{own}, "
+                     f"{len(workflow.routes)} routes, default route {workflow.default_route}")
+    return lines
 
 
 # --- entry point ----------------------------------------------------------------------------
 
 def main() -> int:
-    profile = json.loads(Path(sys.argv[1]).read_text())
-    skills_root = sys.argv[2]
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    write = "--dry-run" not in sys.argv
+    profile = json.loads(Path(args[0]).read_text())
+    skills_root = args[1]
     alfred_home = Path(skills_root).parent
     library = set(library_phases(skills_root))
 
@@ -715,21 +841,31 @@ def main() -> int:
         print(f"error: default workflow {default_name!r} is not installed", file=sys.stderr)
         return 1
 
-    written = []
-    for target in sys.argv[3:]:
+    lines = describe_workflows(workflows, default)
+    total = Report()
+    for target in args[2:]:
         kind, path = target.split("=", 1)
-
         if kind == "opencode":
-            merge_opencode(Path(path), opencode_config(profile, skills_root, workflows, default))
-            written.append(f"opencode: {len(workflows) + 1} orchestrators, alfred-manage, "
-                           f"{len(library) + sum(len(w.own_phases) for w in workflows)} phase subagents")
+            config_path = Path(path)
+            report = merge_reports(
+                apply_opencode(config_path, opencode_agents(profile, skills_root, workflows, default), write),
+                apply_files(config_path.parent, opencode_commands(profile, skills_root), ["commands/alfred*.md"], write),
+            )
+            lines += describe("opencode", report, write)
         elif kind == "claude":
-            result = claude_agents(profile, skills_root, Path(path), workflows, default)
-            written.append(f"claude code: {result['subagents']} subagents, commands: "
-                           + ", ".join(f"/{c}" for c in result["commands"]))
+            report = apply_files(Path(path), claude_files(profile, skills_root, workflows, default),
+                                 ["agents/alfred-*.md", "commands/alfred*.md"], write)
+            lines += describe("claude code", report, write)
+        else:
+            print(f"error: unknown target {kind!r}", file=sys.stderr)
+            return 1
+        total = merge_reports(total, report)
 
-    written.append("workflows: " + ", ".join(f"{w.name} ({w.source})" for w in workflows) + f"; default {default.name}")
-    print("\n".join(written))
+    if not total.changed():
+        lines.append("nothing changed" if write else "nothing would change")
+    elif not write:
+        lines.append("dry run: nothing was written")
+    print("\n".join(lines))
     return 0
 
 

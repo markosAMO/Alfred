@@ -61,8 +61,8 @@ entry_points:
 The file uses a subset of YAML: scalars, flow lists in brackets, and one level of nested
 mapping. Nothing else is needed, and nothing else is parsed.
 
-Reserved names: the shared phase names, `alfred`, `manage`, `worktree`, `add-workflow`.
-They are already agents or commands.
+Reserved names: the shared phase names, `alfred`, `manage`, `worktree`, `add-workflow`,
+`workflows-scanner`. They are already agents or commands.
 
 ## Resolving a phase
 
@@ -91,12 +91,21 @@ alfred-<phase>                   one subagent per shared phase, as before
 alfred-<name>-<phase>            one subagent per own phase, so names never collide
 /alfred                          the default workflow, unchanged
 /alfred-add-workflow             the interview that creates a custom workflow
+/alfred-workflows-scanner        rescan both roots and bring the commands up to date
 ```
 
-It runs from `install`, `update`, `./install.sh workflows`, and at the end of
-`add-workflow`. A workflow directory created by hand is registered by running it; `doctor`
-reports one that was not. Files it generated for a workflow that no longer exists are
-removed on the next run, so a deleted workflow does not keep a command.
+It runs from `install`, `update`, `./install.sh workflows`, at the end of `add-workflow`,
+and from `/alfred-workflows-scanner`, which exists so the scan can be run alone from inside
+an agent. Every run compares what it would generate with what is on disk and reports, per
+agent, what was added, updated, removed and left unchanged; `--dry-run` reports without
+writing. A second run reports that nothing changed. Files it generated for a workflow that
+no longer exists are removed, so a deleted workflow does not keep a command. `doctor`
+reports a workflow without a command.
+
+The same tool serves both agents. In Claude Code the scanner is the slash command
+`/alfred-workflows-scanner`; in OpenCode it is the command of the same name under
+`~/.config/opencode/commands/`, run by the `alfred-manage` agent. Both delegate to the tool
+and relay its report.
 
 The model of an own phase is `<name>-<phase>` in the profile, or the orchestrator's when
 not assigned.

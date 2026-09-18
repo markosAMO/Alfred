@@ -130,6 +130,35 @@ created: custom/workflows/ventas, 2 new phases (prospectar, propuesta)
 registered: /alfred-ventas in Claude Code, alfred-ventas in OpenCode
 ```
 
+## workflows-scanner
+
+Scan both workflow roots, validate every workflow, and bring the commands and agents up to
+date. Nothing is duplicated here: the operation is the register tool.
+
+```
+~/.config/alfred/bin/register.sh              scan, validate, regenerate, report
+~/.config/alfred/bin/register.sh --dry-run    the same report, writing nothing
+```
+
+Run `--dry-run` when the request says `check`. Return the output as printed. It lists the
+workflows found, with their source and phases, and per agent what was added, updated,
+removed and left unchanged; a second run reports `nothing changed`. When the tool fails, a
+workflow did not validate, and the error names it and the reason.
+
+```
+found: 2 workflows
+  sdd            alfred, default: 10 phases, 3 routes, default route pipeline
+  ventas         custom: 3 phases (2 own: propuesta, prospectar), 2 routes, default route completa
+claude code: 3 added, 0 updated, 0 removed, 17 unchanged
+  added    agents/alfred-ventas-propuesta.md
+  added    agents/alfred-ventas-prospectar.md
+  added    commands/alfred-ventas.md
+opencode: 3 added, 0 updated, 0 removed, 20 unchanged
+```
+
+This is what `update` runs too; the operation exists so it can be run alone, after
+creating or editing a workflow directory by hand, without updating Alfred.
+
 ## new skill
 
 Author a skill and register it.

@@ -30,6 +30,7 @@ writes:
 ~/.config/alfred/profile.json     the model assignment
 ~/.config/alfred/state.json       the hash of every installed file
 ~/.config/opencode/opencode.json  one orchestrator per workflow + one subagent per phase
+~/.config/opencode/commands/      alfred-workflows-scanner and alfred-add-workflow
 ~/.claude/agents/                 one subagent per phase
 ~/.claude/commands/alfred-*.md    one slash command per workflow, plus /alfred-add-workflow
 ~/.claude/commands/alfred.md      the default workflow
@@ -110,6 +111,7 @@ describe the work to the selected orchestrator.
 | `status` | which changes are open and where they are |
 | `reindex` | rebuild the memory index from the files |
 | `/alfred-add-workflow` | define a custom workflow and register `/alfred-<name>` |
+| `/alfred-workflows-scanner` | rescan the workflow directories and update the commands; `check` reports only |
 
 ## Why the split
 

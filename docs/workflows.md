@@ -84,6 +84,29 @@ Then register it:
 
 or `./install.sh workflows` from the Alfred clone. Restart the agent.
 
+## Keeping the commands current
+
+After creating, editing or deleting a workflow directory by hand, rescan:
+
+```
+/alfred-workflows-scanner            rescan and update
+/alfred-workflows-scanner check      report only, write nothing
+```
+
+The same command exists in OpenCode, under the same name, run by the `alfred-manage`
+agent. Both run `~/.config/alfred/bin/register.sh`, the tool `update` also runs, so there
+is one scanner and not two. It reports the workflows it found and, per agent, what was
+added, updated, removed and left unchanged. Run it twice and the second run says nothing
+changed. A new or removed command needs an agent restart to show.
+
+From a shell, without an agent:
+
+```bash
+~/.config/alfred/bin/register.sh              # rescan and update
+~/.config/alfred/bin/register.sh --dry-run    # report only
+~/.config/alfred/bin/register.sh --check      # exit 1 if a workflow has no command
+```
+
 ## Where they live, and why they survive updates
 
 ```
@@ -103,8 +126,8 @@ reports the same. Nothing fails silently on the first run.
 
 Lowercase letters, digits and dashes. The name is the directory, the `name` field and the
 command. Names already taken: the shared phase names, `alfred`, `manage`, `worktree`,
-`add-workflow`. A custom workflow with the name of a shipped one is an error, not an
-override.
+`add-workflow`, `workflows-scanner`. A custom workflow with the name of a shipped one is an
+error, not an override.
 
 ## Models
 

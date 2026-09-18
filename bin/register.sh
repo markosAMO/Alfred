@@ -4,10 +4,12 @@
 #
 # Generates one /alfred-<workflow> command per workflow found under the Alfred workflows
 # root and the user's custom root, plus the phase subagents, for every agent detected on
-# the machine. The installer calls this; so does the add-workflow operation; so can you,
-# after creating a workflow directory by hand.
+# the machine. Reports what it found and what changed; a second run changes nothing. The
+# installer calls this; so do the add-workflow and workflows-scanner operations; so can
+# you, after creating a workflow directory by hand.
 #
-#   register.sh            regenerate everything
+#   register.sh            scan both roots, validate, regenerate; report what changed
+#   register.sh --dry-run  the same report, writing nothing
 #   register.sh --check    report workflows without a registered command; exit 1 if any
 
 set -euo pipefail
@@ -51,6 +53,7 @@ cmd_check() {
 }
 
 cmd_register() {
+  local dry_run="${1:-}"
   command -v python3 >/dev/null 2>&1 || fail "python3 is required"
   [ -s "$PROFILE" ] || fail "no model profile at $PROFILE; run the installer first"
   [ -f "$SCRIPTS/generate_agents.py" ] || fail "generator not found at $SCRIPTS/generate_agents.py; run the installer"
@@ -65,12 +68,13 @@ cmd_register() {
   done < <(detect_agents)
   [ ${#targets[@]} -gt 0 ] || fail "no supported agent found; nothing to register" 3
 
-  python3 "$SCRIPTS/generate_agents.py" "$PROFILE" "$ALFRED_HOME/skills" "${targets[@]}"
+  python3 "$SCRIPTS/generate_agents.py" "$PROFILE" "$ALFRED_HOME/skills" "${targets[@]}" $dry_run
 }
 
 case "${1:-}" in
   "")        cmd_register ;;
+  --dry-run) cmd_register --dry-run ;;
   --check)   cmd_check ;;
-  -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
   *)         fail "unknown argument: $1" ;;
 esac
