@@ -11,7 +11,9 @@ writes: [skills, config, skill_registry]
 Manage Alfred itself: inspect a repository's setup, update it, diagnose it, and author new
 skills.
 
-This is not a pipeline phase. It never appears in a route.
+This is not a pipeline phase. It never appears in a route. Its operations run in the
+`alfred-manage` subagent, which has a shell: the orchestrator delegates them like any phase
+and relays what comes back.
 
 ## status
 
@@ -20,6 +22,7 @@ Report what is installed here and what is running.
 ```
 global skills     ~/.config/alfred/skills/     13 skills, version 0.1.0
 local overrides   .alfred/skills/              apply
+workflows         sdd (default), ventas (custom)
 profile           mixed
 memory            engram, reachable
 tracker           none
@@ -92,6 +95,8 @@ is the memory backend reachable, and does the registry match what is on disk
 is the test command in code_conventions.md runnable
 are the agent pointer files present and pointing at AGENTS.md
 is any state file referencing a change directory that no longer exists
+is every installed workflow registered           register.sh --check
+does every workflow's phase resolve              register.sh, which fails naming the phase
 ```
 
 Each failure is reported with its remedy. A diagnostic that says something is wrong without
@@ -99,6 +104,31 @@ saying what to do is a longer way of failing.
 
 The test command check matters most: a wrong command makes every `verify` an environment
 failure, and it is invisible until the first change reaches that phase.
+
+## add-workflow
+
+Create a custom workflow from a confirmed definition and register its command. The
+interview happened before this, in `/alfred-add-workflow`; this operation only writes and
+registers. See `skills/_shared/workflow-protocol.md`.
+
+```
+1  refuse a name that exists under workflows/ or custom/workflows/, or is reserved
+2  create ~/.config/alfred/custom/workflows/<name>/
+3  write workflow.yaml as confirmed
+4  write rules.md from templates/workflow/rules.md, with the routing question and routes
+5  write skills/<phase>/SKILL.md from templates/workflow/SKILL.md for every new phase,
+   with its mode and the description given as the starting point
+6  run ~/.config/alfred/bin/register.sh and return what it printed
+```
+
+Nothing is written under `workflows/`, which the installer owns, and nothing in the Alfred
+package changes. The templates are filled, never improvised: two workflows written by hand
+in different shapes are two formats to parse.
+
+```
+created: custom/workflows/ventas, 2 new phases (prospectar, propuesta)
+registered: /alfred-ventas in Claude Code, alfred-ventas in OpenCode
+```
 
 ## new skill
 

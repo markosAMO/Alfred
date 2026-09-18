@@ -1,0 +1,10 @@
+name: {name}
+title: {title}
+description: {description}
+phases: [{phases}]
+routes:
+  {route_name}: [{route_phases}]
+default_route: {route_name}
+routing: rules.md
+entry_points:
+  default: {first_phase}

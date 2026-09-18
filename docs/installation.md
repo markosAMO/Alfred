@@ -24,11 +24,15 @@ writes:
 
 ```
 ~/.config/alfred/                 the skills, protocols, templates and adapters
+~/.config/alfred/workflows/       the shipped workflows, sdd today
+~/.config/alfred/custom/          yours; the installer never writes here
+~/.config/alfred/bin/register.sh  turns every workflow into a command
 ~/.config/alfred/profile.json     the model assignment
 ~/.config/alfred/state.json       the hash of every installed file
-~/.config/opencode/opencode.json  orchestrator + one subagent per phase
+~/.config/opencode/opencode.json  one orchestrator per workflow + one subagent per phase
 ~/.claude/agents/                 one subagent per phase
-~/.claude/commands/alfred.md      the orchestrator, as a slash command
+~/.claude/commands/alfred-*.md    one slash command per workflow, plus /alfred-add-workflow
+~/.claude/commands/alfred.md      the default workflow
 ```
 
 Only alfred agents are written into an existing OpenCode configuration; any other agent or
@@ -49,6 +53,7 @@ Run from inside the cloned repository.
 | `./install.sh install` | first-time setup |
 | `./install.sh update` | refresh the installed files, leaving modified ones alone |
 | `./install.sh models` | change the model profile and regenerate the agents |
+| `./install.sh workflows` | regenerate the commands from the installed workflows |
 | `./install.sh doctor` | check the setup and name what is broken |
 | `./install.sh status` | what is installed, which profile, which agents |
 
@@ -67,8 +72,11 @@ Start your agent there and ask the orchestrator to run `init`. Nothing is copied
 
 | Agent | How to reach the orchestrator |
 |---|---|
-| Claude Code | `/alfred init` |
+| Claude Code | `/alfred init`, or `/alfred-sdd init` |
 | OpenCode | press Tab, select `alfred`, then ask for `init` |
+
+`/alfred` runs the default workflow. Every installed workflow has its own command,
+`/alfred-<name>`; see [workflows.md](workflows.md).
 
 `init` creates:
 
@@ -101,6 +109,7 @@ describe the work to the selected orchestrator.
 | `continue` | resume where the run stopped |
 | `status` | which changes are open and where they are |
 | `reindex` | rebuild the memory index from the files |
+| `/alfred-add-workflow` | define a custom workflow and register `/alfred-<name>` |
 
 ## Why the split
 
@@ -137,5 +146,8 @@ initialised on its own. See `skills/_shared/workspace-protocol.md`.
 | `python3 is required` | the installer uses python3 for JSON and hashes |
 | the orchestrator does not appear in the agent picker | that picker is OpenCode's; in Claude Code use `/alfred` |
 | `/alfred` is not offered in Claude Code | no agent was detected at install time, or the session predates it — restart Claude Code |
+| `/alfred-<name>` is missing after creating a workflow by hand | run `./install.sh workflows` from the clone, or `~/.config/alfred/bin/register.sh`, then restart the agent |
+| `phases not found in the workflow's skills/ nor in the shared library` | a workflow names a phase that does not exist; add its `SKILL.md` or fix the name |
+| `workflow <name> is defined twice` | a custom workflow has the name of a shipped one; rename it |
 
 `./install.sh doctor` checks all of the above and prints the remedy for each failure.

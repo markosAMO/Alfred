@@ -67,14 +67,16 @@ testing:
   coverage_protocol: skills/_shared/testing-protocol.md
   runner_defined_in: docs/code_conventions.md
 
+workflows:
+  default: sdd
+  root: ~/.config/alfred/workflows/
+  custom_root: ~/.config/alfred/custom/workflows/
+  protocol: skills/_shared/workflow-protocol.md
+  register_tool: ~/.config/alfred/bin/register.sh
+
 routing:
-  decided_by: observable_behaviour_change
-  protocol: skills/_shared/routing.md
   proposed_to_user: always
-  routes:
-    direct: [apply, verify, review]
-    pipeline: [spec, design, tasks, apply, verify, review, archive]
-    full: [refine, research, spec, design, tasks, apply, verify, review, archive]
+  rules_defined_in: workflow
 
 orchestrator:
   protocol: skills/_shared/orchestrator-protocol.md

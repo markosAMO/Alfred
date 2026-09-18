@@ -15,8 +15,11 @@ orchestrator, not typed into a shell: there is no global `alfred` command.
 
 | Agent | Orchestrator |
 |---|---|
-| Claude Code | the `/alfred` command |
-| OpenCode | the `alfred` primary agent, on Tab |
+| Claude Code | `/alfred`, or `/alfred-<workflow>` for a specific workflow |
+| OpenCode | the `alfred` primary agent, or `alfred-<workflow>`, on Tab |
+
+Each installed workflow has its own command; `/alfred` is the default one, `sdd`. A custom
+workflow is created with `/alfred-add-workflow`. See `skills/_shared/workflow-protocol.md`.
 
 ```
 init                        set up this repository
@@ -28,7 +31,7 @@ ff spec                     skip ahead to a phase
 ```
 
 A plain description is the normal entry point. Routing decides which phases run, per
-`skills/_shared/routing.md`.
+the workflow's rules, `workflows/sdd/rules.md` for the default one.
 
 Installing and updating Alfred itself is separate, and is `./install.sh` from the clone.
 See `docs/installation.md`.

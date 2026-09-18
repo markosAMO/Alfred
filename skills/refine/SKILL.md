@@ -34,7 +34,7 @@ it wastes their time.
 When the request arrives as a tracker card, the same criteria apply to the card body.
 
 The decision is proposed and confirmed, never applied silently. The orchestrator names the
-signals it matched and offers to skip straight to `spec`. See `skills/_shared/routing.md`.
+signals it matched and offers to skip straight to `spec`. See `workflows/sdd/rules.md`.
 
 ## Materialise the inputs first
 

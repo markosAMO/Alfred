@@ -1,4 +1,4 @@
-# Routing
+# Routing rules of the sdd workflow
 
 Before any phase runs, the orchestrator chooses a route, states why, and waits for the
 user to accept it.

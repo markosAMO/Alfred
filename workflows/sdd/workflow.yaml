@@ -1,0 +1,13 @@
+name: sdd
+title: Spec-driven development
+description: A request becomes a specification, a design, tasks, code, verification and a merged delta
+phases: [refine, research, spec, diagnose, design, tasks, apply, verify, review, archive]
+routes:
+  direct: [apply, verify, review]
+  pipeline: [spec, design, tasks, apply, verify, review, archive]
+  full: [refine, research, spec, design, tasks, apply, verify, review, archive]
+default_route: pipeline
+routing: rules.md
+entry_points:
+  feature: refine
+  bug: diagnose

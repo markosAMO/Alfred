@@ -84,7 +84,7 @@ Behaviour was always meant to work this way and did not: the code was wrong, the
 specification was right, nothing to write. Behaviour is now meant to differ: that is a
 requirement, and it is written down.
 
-The decision is stated and confirmed, per `skills/_shared/routing.md`.
+The decision is stated and confirmed, per `workflows/sdd/rules.md`.
 
 ## What it writes
 

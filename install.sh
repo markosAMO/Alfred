@@ -13,7 +13,7 @@ ALFRED_HOME="${ALFRED_HOME:-$HOME/.config/alfred}"
 VERSION="0.1.0"
 
 PHASES=(init explore refine research spec diagnose design tasks apply verify review archive)
-PAYLOAD=(skills memory notify tracker templates defaults triggers alfred.config.yaml)
+PAYLOAD=(skills memory notify tracker templates defaults triggers workflows bin scripts alfred.config.yaml)
 
 info() { printf '%s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -40,6 +40,10 @@ install_payload() {
     [ -e "$SOURCE/$item" ] || die "missing from package: $item"
     cp -R "$SOURCE/$item" "$ALFRED_HOME/"
   done
+  chmod +x "$ALFRED_HOME"/bin/*.sh
+  # The user's workflows live here and are never part of the payload, so install and
+  # update neither read nor write nor remove them.
+  mkdir -p "$ALFRED_HOME/custom/workflows"
   info "installed to $ALFRED_HOME"
 }
 
@@ -106,25 +110,17 @@ setup_profile() {
   info "               for example {\"refine\": [\"mcp__atlassian__getJiraIssue\"]}"
 }
 
+# One command per installed workflow, for every agent found. The same tool the
+# add-workflow operation runs later, so a workflow created by hand is registered the same way.
 generate_agents() {
   require_python
-  local targets=() agent
-
-  while read -r agent; do
-    [ -n "$agent" ] || continue
-    case "$agent" in
-      opencode) targets+=("opencode=$HOME/.config/opencode/opencode.json") ;;
-      claude)   targets+=("claude=$HOME/.claude") ;;
-    esac
-  done < <(detect_agents)
-
-  if [ ${#targets[@]} -eq 0 ]; then
-    warn "no supported agent found; skills are installed but no orchestrator was registered"
-    return
-  fi
-
-  python3 "$SOURCE/scripts/generate_agents.py" \
-    "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${targets[@]}"
+  local status=0
+  ALFRED_HOME="$ALFRED_HOME" ALFRED_SCRIPTS="$SOURCE/scripts" "$SOURCE/bin/register.sh" || status=$?
+  case $status in
+    0) ;;
+    3) warn "no supported agent found; skills are installed but no orchestrator was registered" ;;
+    *) die "registering the workflows failed (see above)" ;;
+  esac
 }
 
 record_state() {
@@ -179,8 +175,15 @@ for rel in report["new"] + report["updatable"]:
 print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
 ' "$ALFRED_HOME" "$SOURCE"
 
+  chmod +x "$ALFRED_HOME"/bin/*.sh
+  mkdir -p "$ALFRED_HOME/custom/workflows"
   generate_agents
   record_state
+}
+
+cmd_workflows() {
+  [ -d "$ALFRED_HOME" ] || die "not installed; run: $0 install"
+  generate_agents
 }
 
 cmd_doctor() {
@@ -209,6 +212,9 @@ cmd_doctor() {
     [ -f "$ALFRED_HOME/skills/$phase/SKILL.md" ] || { missing=$((missing + 1)); }
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
+  check "register tool installed"    "[ -x '$ALFRED_HOME/bin/register.sh' ]" "run: $0 update"
+  check "default workflow installed" "[ -f '$ALFRED_HOME/workflows/sdd/workflow.yaml' ]" "run: $0 update"
+  check "every workflow registered"  "'$ALFRED_HOME/bin/register.sh' --check" "run: $0 workflows"
 
   info ""
   [ $failures -eq 0 ] && info "no problems found" || info "$failures problem(s) found"
@@ -222,13 +228,15 @@ cmd_status() {
   info "skills    $(find "$ALFRED_HOME/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
   info "profile   $(python3 -c 'import json;print(json.load(open("'"$ALFRED_HOME"'/profile.json"))["orchestrator"])' 2>/dev/null || echo 'not set')"
   info "agents    $(detect_agents | tr '\n' ' ')"
+  info "workflows $(for d in "$ALFRED_HOME"/workflows/*/ "$ALFRED_HOME"/custom/workflows/*/; do [ -f "${d}workflow.yaml" ] && basename "$d"; done | tr '\n' ' ')"
 }
 
 case "${1:-install}" in
-  install) cmd_install ;;
-  update)  cmd_update ;;
-  models)  setup_profile --force; generate_agents ;;
-  doctor)  cmd_doctor ;;
-  status)  cmd_status ;;
-  *)       die "usage: $0 [install|update|models|doctor|status]" ;;
+  install)   cmd_install ;;
+  update)    cmd_update ;;
+  models)    setup_profile --force; generate_agents ;;
+  workflows) cmd_workflows ;;
+  doctor)    cmd_doctor ;;
+  status)    cmd_status ;;
+  *)         die "usage: $0 [install|update|models|workflows|doctor|status]" ;;
 esac

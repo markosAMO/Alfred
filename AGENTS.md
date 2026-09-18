@@ -10,7 +10,8 @@ An **installable package**, not a program. Alfred does not run the agent loop â€
 Code, OpenCode, OpenClaw or any compatible agent does. Alfred provides the manual those
 agents follow.
 
-Practical consequence: almost everything here is Markdown. The only code is the installer.
+Practical consequence: almost everything here is Markdown. The only code is the installer
+and, under `bin/` and `scripts/`, what it installs to register workflows as commands.
 
 ```
 ALFRED REPOSITORY (the mould)        TARGET PROJECT (where the parts come out)
@@ -27,7 +28,9 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `README.md` | Project presentation | For humans |
 | `install.sh` | Installer | Copies what is needed into the target project |
 | `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
-| `skills/` | One directory per pipeline phase | The manual for each phase |
+| `workflows/` | One directory per shipped workflow | The recipe: which phases, in which order, for which route |
+| `bin/` | Tools installed with Alfred | `register.sh` turns every workflow into a command |
+| `skills/` | One directory per pipeline phase | The manual for each phase, shared by every workflow |
 | `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |
 | `memory/` | Backend-agnostic memory layer | Swap backends without touching any skill |
 | `notify/` | Backend-agnostic notification layer | Same pattern, for talking to the user |
@@ -122,7 +125,8 @@ Every mode is overridable in `alfred.config.yaml`.
    end. See `skills/_shared/orchestrator-protocol.md`.
 14. **A route is proposed, never applied silently.** The orchestrator states which signals
    it matched and waits. The user can always shorten a route; the orchestrator never
-   lengthens one without saying so. See `skills/_shared/routing.md`.
+   lengthens one without saying so. The routes and the rules belong to the workflow:
+   `workflows/sdd/rules.md` for the default one.
 15. **External material is fetched once and materialised as text.** A tracker card, a URL
    or a document from another system is read by the phase that receives it, written to
    `docs/changes/{change}/inputs/` in full, and never fetched again. No later phase and no
@@ -133,6 +137,11 @@ Every mode is overridable in `alfred.config.yaml`.
 17. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
+18. **A workflow is a recipe; phases are the steps.** Which phases run, in which order, for
+   which route is defined in `workflows/<name>/workflow.yaml`, never in a skill or in the
+   orchestrator's text. Every workflow becomes `/alfred-<name>` through the same generator.
+   The user's workflows live under `custom/` on the machine, which the installer never
+   touches. See `skills/_shared/workflow-protocol.md`.
 
 ## Commit conventions
 
@@ -144,6 +153,18 @@ Applies to this repository and to every project Alfred manages.
 - **One commit per feature**, not per task: committed once `verify` and `review` pass.
 - **Never `git add .`**: only the files belonging to the feature are staged, so unrelated
   work in progress is never swept in.
+
+## Adding a workflow
+
+1. Create `workflows/<name>/workflow.yaml`: name, title, description, phases, routes,
+   default route, entry points. The format is in `skills/_shared/workflow-protocol.md`.
+2. Write `workflows/<name>/rules.md`: the question that chooses between its routes.
+3. Phases the shared library does not have go under `workflows/<name>/skills/<phase>/SKILL.md`,
+   with the frontmatter of any skill.
+4. Run `./install.sh workflows`. The command `/alfred-<name>` exists after the agent restarts.
+
+A user does the same on their machine with `/alfred-add-workflow`, which writes under
+`~/.config/alfred/custom/workflows/` instead.
 
 ## Adding a skill
 
