@@ -72,6 +72,29 @@ rather than failing the call.
 `mem_search` returns previews and identifiers. `mem_get_observation` returns content. Both
 are always used in that order, never a search result acted on directly, per the contract.
 
+## What fetch returns
+
+`mem_get_observation` returns the stored document wrapped, not bare: a header line
+`#<id> [<type>] <title>` before it, and a metadata block after it.
+
+```
+Session: ...
+Project: ...
+Scope: ...
+Topic: alfred/project/architecture
+Duplicates: 1
+Revisions: 1
+Created: ...
+```
+
+A check that compares a fetched entry against its file — `reindex` makes one before
+deleting anything under `memory.documents: pointer` — asks whether the document is present
+intact inside what came back, never whether the two are equal. Equality fails on the
+wrapper alone, and would refuse every migration that was in fact correct.
+
+`Duplicates` and `Revisions` are how a repeated `remember` on the same `topic_key` reports
+itself: one entry, revised, rather than a second copy.
+
 ## forget
 
 Engram does not expose deletion through MCP. A superseded entry is rewritten through

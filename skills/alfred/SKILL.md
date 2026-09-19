@@ -80,7 +80,7 @@ them, and the only one in Alfred that deletes a document.
 ```
 for each directory under docs/changes/
   index every document in it, as above
-  read each one back with fetch() and compare it to the file
+  read each one back with fetch() and check the document is in what comes back
   write docs/changes/{change}/README.md from templates/docs/addresses.md,
     one row per document, under the key it was indexed as
   delete the documents that file now names
@@ -89,7 +89,7 @@ for each directory under docs/changes/
 Four conditions are refused rather than worked around:
 
 ```
-a read-back that does not match the file   stop, name the document, delete nothing
+a read-back without the document in it    stop, name the document, delete nothing
 a file not tracked by git                  stop: deleting it would be unrecoverable
 a dirty working tree                       stop: the resulting diff would be unreadable
 a backend that does not answer             stop, per memory.required under pointer
