@@ -5,10 +5,12 @@ One orchestrator that only delegates, and one subagent per phase that only execu
 Written for whichever agents are installed, from the same profile, so a model change is
 made in one place.
 
-The orchestrator takes a different shape per agent. OpenCode has primary agents, so it
-becomes one. Claude Code has no primary agents to pick - its agent files are subagents -
-so it becomes the `/alfred` slash command instead. A skill would not do: a skill loads
-only when the model judges it relevant, and an orchestrator has to start when asked.
+There are two orchestrators: one change in the current checkout, and several at once with
+a worktree each. Both take a different shape per agent. OpenCode has primary agents, so
+they become two of them and appear in the picker. Claude Code has no primary agents to
+pick - its agent files are subagents - so they become the `/alfred` and `/alfred-worktree`
+slash commands instead. A skill would not do: a skill loads only when the model judges it
+relevant, and an orchestrator has to start when asked.
 
 Every agent declares the tools it needs and nothing else. An agent that declares none
 inherits the whole catalogue - every MCP server's full schemas - which is tens of
@@ -224,26 +226,115 @@ def effort_line(profile: dict, phase: str) -> str:
     return f"effort: {effort}\n" if effort else ""
 
 
+def orchestrator_prompt(skills_root: str, phases: list[str], fleet_entry: str) -> str:
+    """The orchestrator for one change, in the checkout it was started from.
+
+    Written once for both agents. What differs between them is how the fleet orchestrator
+    is named - a slash command in Claude Code, an agent in OpenCode - so that is the one
+    thing passed in.
+    """
+    subagents = ", ".join(f"alfred-{phase}" for phase in phases)
+
+    return f"""{ORCHESTRATOR_RULES}
+
+## Resolving skills
+
+Read `.alfred/skill-registry.md` for the path of each skill. A repository may override a
+skill under `.alfred/skills/`, and the override wins for that repository. When the registry
+does not exist yet, skills are at `{skills_root}/<phase>/SKILL.md`.
+
+Never read a skill by guessing its path, and never paste a skill into a subagent's prompt.
+
+## Delegating
+
+Each phase runs as a subagent with an empty context: {subagents}.
+
+`status`, `registry`, `doctor`, `reindex`, `worktrees` and `abandon` are not phases. They
+are operations of the alfred skill and run in alfred-manage, which has Bash and reports
+what the scripts print.
+
+Several changes at once are started with {fleet_entry}, which runs each in its own
+worktree. A single change runs here, in this checkout.
+
+Pass paths, never content. A subagent fetches what its task needs; anything pasted into its
+prompt spends the clean context before the work begins.
+
+## Starting a repository
+
+`init` sets up the repository you are in. It is the only phase that runs before
+`.alfred/` exists, so read its skill from `{skills_root}/init/SKILL.md` directly."""
+
+
+def fleet_prompt(skills_root: str, phases: list[str]) -> str:
+    """The same orchestrator, for several changes at once, one worktree each.
+
+    bin/ sits next to skills/ in the installation, so the tool path is derived from the
+    skills root rather than passed separately.
+
+    Kept apart from the single-change orchestrator rather than made a mode of it: the input
+    is a list with a branch per line, the working set is one state file per change, and a
+    user who wants one change in the current checkout should not have to opt out of
+    worktrees to get it.
+    """
+    subagents = ", ".join(f"alfred-{phase}" for phase in phases)
+    tool = Path(skills_root).parent / "bin" / "worktree.sh"
+
+    return f"""{ORCHESTRATOR_RULES}
+
+{FLEET_RULES}
+
+## Resolving skills
+
+Read `.alfred/skill-registry.md` for the path of each skill, in the worktree the phase runs
+in. When the registry does not exist yet, skills are at `{skills_root}/<phase>/SKILL.md`.
+
+Never read a skill by guessing its path, and never paste a skill into a subagent's prompt.
+
+## Delegating
+
+Each phase runs as a subagent with an empty context: {subagents}. Worktrees are opened,
+listed and closed by alfred-manage, which runs `{tool}` and returns what it prints.
+
+Pass paths, never content. `Worktree:` comes first."""
+
+
 def opencode_config(profile: dict, skills_root: str) -> dict:
     def as_booleans(tools: list[str], allow_task: bool) -> dict:
         enabled = {OPENCODE_NAMES[t]: True for t in tools if t in OPENCODE_NAMES}
-        disabled = {v: False for v in set(OPENCODE_NAMES.values()) - set(enabled)}
+        # Sorted: set iteration order varies per process, and an unsorted difference
+        # rewrites every agent's tool block on each run for no change at all.
+        disabled = {v: False for v in sorted(set(OPENCODE_NAMES.values()) - set(enabled))}
         entry = {**enabled, **disabled}
         entry["task"] = allow_task
         return entry
 
+    phases = sorted(profile["phases"])
+
+    # Two primary agents, the same pair Claude Code gets as two slash commands: one change
+    # in this checkout, or several at once with a worktree each. Both appear in the picker,
+    # so the choice is made by starting the run rather than by an argument to it.
     agent = {
         "alfred": {
             "model": profile["orchestrator"],
             "mode": "primary",
             "description": "Alfred orchestrator: plans, routes and delegates. Never writes code.",
-            "prompt": ORCHESTRATOR_RULES,
+            "prompt": orchestrator_prompt(skills_root, phases, "the `alfred-worktree` agent"),
             "permission": {"task": {"*": "deny", "alfred-*": "allow"}},
             "tools": as_booleans(ORCHESTRATOR_TOOLS, allow_task=True),
-        }
+        },
+        "alfred-worktree": {
+            "model": profile["orchestrator"],
+            "mode": "primary",
+            "description": "Alfred orchestrator for several changes at once, one git worktree each.",
+            "prompt": fleet_prompt(skills_root, phases),
+            "permission": {"task": {"*": "deny", "alfred-*": "allow"}},
+            "tools": as_booleans(ORCHESTRATOR_TOOLS, allow_task=True),
+        },
     }
 
     for phase, model in profile["phases"].items():
+        if phase == "worktree":
+            raise SystemExit("profile: 'worktree' is the fleet orchestrator, not a phase")
         skill_path = f"{skills_root}/{phase}/SKILL.md"
         agent[f"alfred-{phase}"] = {
             "model": model,
@@ -328,8 +419,6 @@ def claude_agents(profile: dict, skills_root: str, claude_home: Path) -> int:
 
 
 def claude_command(profile: dict, skills_root: str, phases: list[str]) -> str:
-    subagents = ", ".join(f"alfred-{phase}" for phase in phases)
-
     return f"""---
 description: Alfred orchestrator - plan, route and delegate a change
 argument-hint: [what you want done, or: init | continue | status]
@@ -337,34 +426,7 @@ model: {profile["orchestrator"].split("/", 1)[-1]}
 tools: {", ".join(ORCHESTRATOR_TOOLS)}
 ---
 
-{ORCHESTRATOR_RULES}
-
-## Resolving skills
-
-Read `.alfred/skill-registry.md` for the path of each skill. A repository may override a
-skill under `.alfred/skills/`, and the override wins for that repository. When the registry
-does not exist yet, skills are at `{skills_root}/<phase>/SKILL.md`.
-
-Never read a skill by guessing its path, and never paste a skill into a subagent's prompt.
-
-## Delegating
-
-Each phase runs as a subagent with an empty context: {subagents}.
-
-`status`, `registry`, `doctor`, `reindex`, `worktrees` and `abandon` are not phases. They
-are operations of the alfred skill and run in alfred-manage, which has Bash and reports
-what the scripts print.
-
-Several changes at once are started with `/alfred-worktree`, which runs each in its own
-worktree. A single change runs here, in this checkout.
-
-Pass paths, never content. A subagent fetches what its task needs; anything pasted into its
-prompt spends the clean context before the work begins.
-
-## Starting a repository
-
-`init` sets up the repository you are in. It is the only phase that runs before
-`.alfred/` exists, so read its skill from `{skills_root}/init/SKILL.md` directly.
+{orchestrator_prompt(skills_root, phases, "`/alfred-worktree`")}
 
 ## The request
 
@@ -373,18 +435,10 @@ $ARGUMENTS
 
 
 def claude_worktree_command(profile: dict, skills_root: str, phases: list[str]) -> str:
-    """The same orchestrator, for several changes at once, one worktree each.
+    """The fleet orchestrator as a slash command.
 
-    bin/ sits next to skills/ in the installation, so the tool path is derived from the
-    skills root rather than passed separately.
-
-    A separate command rather than a mode of /alfred: the input is a list with a branch per
-    line, the working set is one state file per change, and a user who wants one change in
-    the current checkout should not have to opt out of worktrees to get it.
+    A separate command rather than a mode of /alfred, for the reason fleet_prompt gives.
     """
-    subagents = ", ".join(f"alfred-{phase}" for phase in phases)
-    tool = Path(skills_root).parent / "bin" / "worktree.sh"
-
     return f"""---
 description: Alfred orchestrator for several changes at once, one git worktree each
 argument-hint: [branch [from base]: request, one per line, or: continue]
@@ -392,23 +446,7 @@ model: {profile["orchestrator"].split("/", 1)[-1]}
 tools: {", ".join(ORCHESTRATOR_TOOLS)}
 ---
 
-{ORCHESTRATOR_RULES}
-
-{FLEET_RULES}
-
-## Resolving skills
-
-Read `.alfred/skill-registry.md` for the path of each skill, in the worktree the phase runs
-in. When the registry does not exist yet, skills are at `{skills_root}/<phase>/SKILL.md`.
-
-Never read a skill by guessing its path, and never paste a skill into a subagent's prompt.
-
-## Delegating
-
-Each phase runs as a subagent with an empty context: {subagents}. Worktrees are opened,
-listed and closed by alfred-manage, which runs `{tool}` and returns what it prints.
-
-Pass paths, never content. `Worktree:` comes first.
+{fleet_prompt(skills_root, phases)}
 
 ## The request
 
@@ -425,8 +463,12 @@ def main() -> int:
         kind, path = target.split("=", 1)
 
         if kind == "opencode":
-            merge_opencode(Path(path), opencode_config(profile, skills_root))
-            written.append(f"opencode: {len(profile['phases']) + 1} agents")
+            generated = opencode_config(profile, skills_root)
+            merge_opencode(Path(path), generated)
+            written.append(
+                f"opencode: {len(generated['agent']) - 2} subagents "
+                "+ alfred and alfred-worktree agents"
+            )
         elif kind == "claude":
             count = claude_agents(profile, skills_root, Path(path))
             written.append(f"claude code: {count - 2} subagents + /alfred and /alfred-worktree commands")

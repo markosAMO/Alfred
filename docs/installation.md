@@ -23,23 +23,26 @@ The installer detects which agents are present, asks which model runs each phase
 writes:
 
 ```
-~/.config/alfred/                 the skills, protocols, templates and adapters
-~/.config/alfred/bin/worktree.sh  creates and removes the worktrees parallel changes run in
-~/.config/alfred/profile.json     the model assignment
-~/.config/alfred/state.json       the hash of every installed file
-~/.config/opencode/opencode.json  orchestrator + one subagent per phase
-~/.claude/agents/                 one subagent per phase
-~/.claude/commands/alfred.md      the orchestrator, as a slash command
+~/.config/alfred/                      the skills, protocols, templates and adapters
+~/.config/alfred/bin/worktree.sh       creates and removes the worktrees parallel changes run in
+~/.config/alfred/profile.json          the model assignment
+~/.config/alfred/state.json            the hash of every installed file
+~/.config/opencode/opencode.json       both orchestrators + one subagent per phase
+~/.claude/agents/                      one subagent per phase
+~/.claude/commands/alfred.md           one change, as a slash command
+~/.claude/commands/alfred-worktree.md  several changes at once, as a slash command
 ```
 
 Only alfred agents are written into an existing OpenCode configuration; any other agent or
 setting is left as it was.
 
-The orchestrator takes a different shape per agent, because the agents differ. OpenCode has
-primary agents, so it becomes one and appears in the picker. Claude Code has no primary
-agent to select — the files under `~/.claude/agents/` are subagents — so it becomes the
-`/alfred` command. A skill would not do: a skill loads only when the model judges it
-relevant, and an orchestrator has to start when asked.
+There are two orchestrators, the same pair on both agents: one change in the checkout you
+are in, and several at once with a worktree each. They take a different shape per agent,
+because the agents differ. OpenCode has primary agents, so they become `alfred` and
+`alfred-worktree` in the picker. Claude Code has no primary agent to select — the files
+under `~/.claude/agents/` are subagents — so they become the `/alfred` and
+`/alfred-worktree` commands. A skill would not do: a skill loads only when the model judges
+it relevant, and an orchestrator has to start when asked.
 
 ### Installer commands
 

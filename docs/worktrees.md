@@ -21,6 +21,9 @@ fix/payments-timeout: bug: payments time out after 30 seconds
 Each line is `branch [from base]: request`. The branch name is required. Without `from`,
 the branch starts from the branch the repository is currently on.
 
+In OpenCode it is the `alfred-worktree` agent, picked from the agent list, and the same
+list of changes is the first message to it.
+
 For each line, Alfred creates the worktree, proposes a route for the request the way it
 always does, and runs the pipeline inside that worktree. Questions and reports carry the
 change name, so you can tell which change is asking.
@@ -35,7 +38,7 @@ you which change is asking. To pick up where you left off:
 /alfred-worktree continue
 ```
 
-A single change in the current checkout is still `/alfred`.
+A single change in the current checkout is still `/alfred`, or the `alfred` agent.
 
 ## Where the worktrees are
 
