@@ -89,10 +89,10 @@ for each directory under docs/changes/
 Four conditions are refused rather than worked around:
 
 ```
-a read-back without the document in it    stop, name the document, delete nothing
-a file not tracked by git                  stop: deleting it would be unrecoverable
-a dirty working tree                       stop: the resulting diff would be unreadable
-a backend that does not answer             stop, per memory.required under pointer
+a read-back without the document in it   stop, name the document, delete nothing
+a file not tracked by git                stop: deleting it would be unrecoverable
+a dirty working tree                     stop: the resulting diff would be unreadable
+a backend that does not answer           stop, per memory.required under pointer
 ```
 
 The read-back is the whole safety of the operation. An index that reports success and
