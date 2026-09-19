@@ -153,3 +153,23 @@ the files exist regardless.
 | `reindex` | no-op |
 
 The cost is tokens and search quality, never correctness.
+
+## required
+
+`memory.required` decides what happens when a backend *is* configured and does not answer.
+
+| Value | A configured backend that does not answer |
+|---|---|
+| `false` | the run proceeds degraded; the orchestrator says so once, at the start |
+| `true` | the run stops before the first phase, naming the backend |
+
+`false` is the default, and it follows from the source of truth: the documents are
+authoritative and memory is an index over them, so losing the index costs search quality
+rather than correctness.
+
+`true` is for where that trade stops holding. A `docs/` grown past what a text search can
+rank turns every `recall` into a wider and wider read, and `diagnose` silently stops
+finding the postmortems that are the reason they were written.
+
+Neither value says anything about `backend: none`. Nothing is configured, so nothing is
+unreachable, and the run proceeds on the table above.

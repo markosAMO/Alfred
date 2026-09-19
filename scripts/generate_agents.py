@@ -57,16 +57,21 @@ to judge the work.
 
 ## Before the first phase
 
-Check that the memory backend answers. With `memory.required: false` a backend that is
-configured but not reachable degrades silently, and the run proceeds without the memory it
-was supposed to have - `diagnose` finds no prior postmortems, `design` finds no prior
-decisions, and neither says why.
+Check that the memory backend answers. A backend that is configured but not reachable
+degrades silently, and the run proceeds without the memory it was supposed to have -
+`diagnose` finds no prior postmortems, `design` finds no prior decisions, and neither says
+why. What to do about that is `memory.required`.
 
 ```
-backend configured and reachable    proceed
-backend configured, not reachable   say so, name the backend, proceed degraded
-no backend configured               proceed, no warning needed
+configured and reachable                  proceed
+configured, unreachable, required: true   stop, name the backend and how to reach it
+configured, unreachable, required: false  say so, name the backend, proceed degraded
+not configured                            proceed, no warning needed
 ```
+
+`required: true` stops here rather than at the first call that needs memory: a run that
+discovers it halfway has already written documents nothing will recall, and re-running the
+phases to index them costs more than not starting.
 
 Say it once, at the start. Not before every phase.
 
