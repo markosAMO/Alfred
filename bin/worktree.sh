@@ -219,10 +219,16 @@ cmd_open() {
 
   meta_set base "$base"
   [ -z "$change" ] || meta_set change "$change"
-  mkdir -p "$path/.alfred/state"
 
+  # The state directory is created after the copy, not before: copy_files skips any item
+  # already present in the destination, so creating .alfred/state first makes .alfred look
+  # present and skips the entry that carries config.yaml and the skill registry. A copied
+  # .alfred brings the main checkout's state files with it, and those belong to other
+  # changes, so they are cleared rather than inherited.
   local copied setup
   copied="$(copy_files)"
+  mkdir -p "$path/.alfred/state"
+  find "$path/.alfred/state" -maxdepth 1 -name '*.yaml' -delete
   setup="$(run_setup)"
 
   print_record "$base" created
