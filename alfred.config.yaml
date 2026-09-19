@@ -12,6 +12,7 @@ memory:
   backend: engram
   adapter: memory/adapters/engram.md
   index_documents_on_write: true
+  documents: keep
   required: false
 
 notify:

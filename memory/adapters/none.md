@@ -42,6 +42,13 @@ notification timeout. `diagnose` still works; it just investigates from scratch 
 Nothing else changes. No phase fails, no artifact is missing, and switching to a real
 backend later is a `reindex` away because the files were the source of truth the whole time.
 
+## Not a mode for pointer
+
+`memory.documents: pointer` puts the change artifacts in memory and keeps only their
+addresses in the repository. With no backend there is nowhere to put them, so the
+combination is a configuration error and `init` and `doctor` report it as one. This adapter
+is reachable only under `keep`.
+
 ## What is not lost
 
 Pipeline state. State lives in `.alfred/state/`, not in memory, per

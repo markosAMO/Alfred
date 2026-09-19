@@ -81,9 +81,21 @@ The master specification describes current behaviour, in the present tense, with
 of how it got there. Git holds the history, and a specification carrying its own changelog
 becomes unreadable by the fifth change.
 
-The change directory stays. It is the record of one change, with its proposal, design,
-tasks and reports, and it is what a reader follows back from a master spec to understand
-why a requirement says what it says.
+The change directory stays, and `memory.documents` decides what is in it. Under `keep` it
+holds the proposal, design, tasks and reports. Under `pointer` it holds the address file,
+and the documents it names are in memory. Either way it is what a reader follows back from
+a master spec to understand why a requirement says what it says.
+
+## Closing the address file
+
+Under `pointer`, every phase before this one appended a row to
+`docs/changes/{change}/README.md` as it completed. This phase closes it, from
+`templates/docs/addresses.md`: the one-line description, the outcome, the commit, the
+specifications that changed, and the postmortem key for a bug.
+
+It is the only description of this change that stays in the repository, so it is written
+for someone arriving from a master specification with no other context, not as a list of
+keys.
 
 ## Bugs: the postmortem
 
@@ -128,8 +140,10 @@ push
 Staging everything present would sweep in whatever the user left in progress. The file list
 comes from the subagent reports, which is why `apply` requires it.
 
-State is staged with the change, so a collaborator who clones mid-change can continue. The
-skill registry is not: it is ignored, per `skills/_shared/skill-resolver.md`.
+State is staged with the change, so a collaborator who clones mid-change can continue, and
+under `pointer` the address file is staged with it: they answer the same question from two
+sides and neither is useful alone, per `skills/_shared/phase-protocol.md`. The skill
+registry is not: it is ignored, per `skills/_shared/skill-resolver.md`.
 
 ```
 feat(auth): sign in with Google

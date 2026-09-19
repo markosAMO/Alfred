@@ -84,11 +84,14 @@ Every mode is overridable in `alfred.config.yaml`.
 
 1. **No skill names a concrete tool.** Skills say `memory.recall(...)`, never `mem_search`.
    Translation lives in `memory/adapters/`. The same applies to `notify/`.
-2. **Files are the source of truth; the database is an index.** Specs and pipeline state
-   are files under version control. The memory backend holds a searchable copy that is
-   disposable and rebuildable through `reindex`.
-3. **Alfred runs without memory.** With no backend configured the pipeline still works:
-   subagents read the Markdown files directly. More expensive in tokens, never broken.
+2. **Which side is authoritative is the repository's configuration, not the machine's.**
+   Under `memory.documents: keep`, the default, the documents are files under version
+   control and the backend holds a disposable copy rebuilt by `reindex`. Under `pointer`
+   the change documents live in memory and the repository keeps their addresses. Pipeline
+   state is a file in both, always, per `skills/_shared/state-contract.md`.
+3. **Alfred runs without memory, under `keep`.** With no backend configured the pipeline
+   still works: subagents read the Markdown files directly. More expensive in tokens,
+   never broken. `pointer` is the stated exception and requires a backend that answers.
    The same applies to notification channels: an unavailable channel is skipped, never
    fatal.
 4. **Subagents receive paths, not content.** A subagent starts with an empty context and
