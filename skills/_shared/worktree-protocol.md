@@ -161,11 +161,19 @@ Two constraints are not the coordinator's to relax:
 **`--bare` is never used.** A session started with it does not register and cannot be
 addressed. It is the flag that skips the machinery this runs on.
 
-**Permissions are granted when a session is created, by the user, through
-`git.worktrees.sessions`.** A background session cannot show a permission prompt, and the
-coordinator cannot answer one for it: a peer that acts on another's behalf launders the
-permission decision the user was supposed to make. A session that reports being unable to
-act is reported to the user, never worked around by the coordinator doing the thing itself.
+**Permissions are granted when a session is created, by the user, as the explicit list in
+`sessions.allowed_tools`.** A background session cannot show a permission prompt, so a tool
+it was not granted is not deferred, it is refused. The list has to cover everything the
+phases use, the memory tools included, or a phase fails on a tool it was never given.
+
+A permission *mode* is not the lever here. `dontAsk` means do not ask and therefore deny,
+which leaves a session that can read and plan and write nothing; bypassing permissions
+wholesale is refused when a session is started from inside another one. Naming the tools is
+what works, and it is also the only form of this the user can inspect afterwards.
+
+The coordinator cannot widen a grant, and must not route around one. A session reporting
+that it was refused an action is reported to the user; a coordinator that performs the
+action itself launders the decision the user was supposed to make.
 
 ## Asking
 
