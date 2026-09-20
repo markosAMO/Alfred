@@ -195,6 +195,33 @@ print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
   record_state
 }
 
+# `/alfred-worktree` starts a session per change by running the agent's CLI, and an agent
+# does not run a command it has not been permitted. Checked here because the alternative is
+# discovering it mid-run, with the worktrees already open and nothing able to work in them.
+#
+# This reads the settings rather than trying the command: starting a session to find out
+# would cost one, and a permission that is written down is the thing being asked about. A
+# permissive mode can let the command through with no rule present, so a failure here means
+# "this may stop you", not "this will" - which is the safe direction for a check whose
+# remedy is one line and harmless.
+session_permission_granted() {
+  python3 - "$HOME" <<'PY'
+import json, sys
+from pathlib import Path
+
+home = Path(sys.argv[1])
+for f in (home / ".claude/settings.json", home / ".claude/settings.local.json",
+          Path(".claude/settings.json"), Path(".claude/settings.local.json")):
+    try:
+        rules = json.loads(f.read_text()).get("permissions", {}).get("allow") or []
+    except Exception:
+        continue
+    if any(isinstance(r, str) and r.startswith("Bash(claude") for r in rules):
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
 cmd_doctor() {
   local failures=0
 
@@ -222,6 +249,8 @@ cmd_doctor() {
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
   check "worktree script installed"  "[ -x '$ALFRED_HOME/bin/worktree.sh' ]" "run: $0 update"
+  check "sessions may be started"    "session_permission_granted" \
+                                     "allow the start command once: /permissions in Claude Code, or add \"Bash(claude --bg:*)\" to permissions.allow in ~/.claude/settings.json"
 
   info ""
   [ $failures -eq 0 ] && info "no problems found" || info "$failures problem(s) found"
