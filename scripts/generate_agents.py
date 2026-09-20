@@ -246,7 +246,7 @@ Wait for the user to confirm it.
 `setup: failed` with the log path; neither stops the run.
 4. Start one session per change, up to `max_parallel` at a time, each with its working \
 directory set to that change's worktree: run `git.worktrees.sessions.start` with `{change}` \
-replaced, passing `--allowedTools` with every tool in `sessions.allowed_tools`. A session \
+replaced, passing `--allowedTools` only if `sessions.allowed_tools` is set. A session \
 comes up idle. Record each in `.alfred/coordinator.yaml` per the protocol.
 5. Give each session its work in one message: that it is the Alfred orchestrator for that \
 change, its worktree, branch, base and main checkout, the request as the user wrote it, and \

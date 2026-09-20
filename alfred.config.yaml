@@ -48,7 +48,6 @@ git:
     max_parallel: 3
     sessions:
       start: claude --bg --name {change}
-      allowed_tools: [Read, Write, Edit, Glob, Grep, Bash, Task, SendMessage, ListAgents]
     remove_on_archive: true
     pull_request: false
 

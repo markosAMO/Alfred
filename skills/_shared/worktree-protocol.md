@@ -161,15 +161,25 @@ Two constraints are not the coordinator's to relax:
 **`--bare` is never used.** A session started with it does not register and cannot be
 addressed. It is the flag that skips the machinery this runs on.
 
-**Permissions are granted when a session is created, by the user, as the explicit list in
-`sessions.allowed_tools`.** A background session cannot show a permission prompt, so a tool
-it was not granted is not deferred, it is refused. The list has to cover everything the
-phases use, the memory tools included, or a phase fails on a tool it was never given.
+**A session inherits the permissions the user already granted.** Started with no tool flags
+at all, it can do what the user's own settings allow: a session started that way wrote a
+file and queried the memory backend without either being granted to it. This is the default
+and it is the point — a phase must be able to reach what it needs without anyone having
+enumerated, in advance and somewhere else, what the phases use.
 
-A permission *mode* is not the lever here. `dontAsk` means do not ask and therefore deny,
-which leaves a session that can read and plan and write nothing; bypassing permissions
-wholesale is refused when a session is started from inside another one. Naming the tools is
-what works, and it is also the only form of this the user can inspect afterwards.
+`sessions.allowed_tools` exists to narrow that, not to enable it, and is left unset unless
+there is a reason. Setting it replaces inheritance with exactly what it lists, and a
+background session cannot show a permission prompt, so anything omitted is refused rather
+than deferred. A list that forgets the memory tools produces a session that reports the
+backend as unreachable — a backend that is fine, and a tool that was never granted.
+
+A permission *mode* is not the lever either. `dontAsk` means do not ask and therefore deny,
+which leaves a session that plans and writes nothing; bypassing permissions wholesale is
+refused when a session is started from inside another one.
+
+One thing a session must not mistake for an absent backend: some tools arrive deferred, with
+their names known and their schemas not, and have to be loaded before the first call. A
+memory tool that has not been loaded yet is not a memory backend that is down.
 
 The coordinator cannot widen a grant, and must not route around one. A session reporting
 that it was refused an action is reported to the user; a coordinator that performs the
