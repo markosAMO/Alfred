@@ -169,6 +169,18 @@ notify    terminal always; openclaw optional
 tracker   none | jira | github-issues | linear
 ```
 
+With a memory backend, also ask where the change documents live:
+
+```
+memory.documents  keep     the documents are files, memory holds a searchable copy
+                  pointer  the documents are in memory, the repository holds addresses
+```
+
+`keep` is the default and the answer for a repository that is read by people who do not
+run Alfred. `pointer` is for one where `docs/changes/` has grown into the majority of the
+repository, and it requires a backend that answers, per `memory/CONTRACT.md`. It cannot be
+chosen with `backend: none`.
+
 Each is optional and each degrades rather than failing, per their contracts. Chosen values
 are written to `.alfred/config.yaml`.
 

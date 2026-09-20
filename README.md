@@ -67,6 +67,15 @@ bounded execution can run on a local model while judgement stays hosted.
 And to stacks. Code conventions live in the repository being worked on, never here, so one
 Alfred serves a Rails API and a React front end without changing.
 
+## Several changes at once
+
+Changes started together each get their own git worktree and branch, outside the
+repository, so two pipelines never write the same working tree or commit to the same
+`HEAD`. A small installed tool creates, prepares and removes the worktrees; the pipeline
+inside each one is the ordinary pipeline, and `status` reports all of them at once. When a
+change is archived, its branch is pushed and its worktree removed. See
+[docs/worktrees.md](docs/worktrees.md).
+
 ## Multiple repositories
 
 A change spanning several repositories is planned once at workspace level and executed
@@ -98,6 +107,7 @@ commands, and troubleshooting.
 | [AGENTS.md](AGENTS.md) | repository map, pipeline, hard rules |
 | [docs/installation.md](docs/installation.md) | the two installation levels |
 | [docs/models.md](docs/models.md) | model assignment and profiles |
+| [docs/worktrees.md](docs/worktrees.md) | several changes at once, one worktree each |
 | `skills/_shared/` | the protocols every phase relies on |
 
 ## Acknowledgements

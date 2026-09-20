@@ -18,6 +18,10 @@ Design:     alfred/login-google/design
 Conventions: docs/code_conventions.md
 ```
 
+A subagent works where its session is. A change running in its own worktree runs in a
+session whose working directory is that worktree, per `worktree-protocol.md`, so the
+checkout is not an address the subagent has to be given or keep hold of.
+
 The subagent fetches what its task needs. Pasting the full spec into the prompt spends the
 clean context before the work starts, and hands it six thousand tokens to find the one
 paragraph that applies.
@@ -49,7 +53,7 @@ produces code written against an interface that does not exist.
 
 ## Concurrency
 
-Subagents share one checkout. There is no file locking between them, so two that write the
+Subagents of one change share one checkout. There is no file locking between them, so two that write the
 same file produce one silent winner rather than a conflict anyone notices.
 
 Running together therefore requires two conditions, not one: no dependency between the
@@ -59,6 +63,9 @@ decidable.
 A collision that happens anyway is detected afterwards, from the `files_changed` each
 subagent reports: the same file in two concurrent reports stops the run, even when the
 tests pass.
+
+Subagents of different changes never share a checkout: each change started alongside
+another runs in its own worktree, and the file rule above does not apply between them.
 
 ## Failure
 

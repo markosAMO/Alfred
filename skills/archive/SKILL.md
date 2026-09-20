@@ -81,9 +81,21 @@ The master specification describes current behaviour, in the present tense, with
 of how it got there. Git holds the history, and a specification carrying its own changelog
 becomes unreadable by the fifth change.
 
-The change directory stays. It is the record of one change, with its proposal, design,
-tasks and reports, and it is what a reader follows back from a master spec to understand
-why a requirement says what it says.
+The change directory stays, and `memory.documents` decides what is in it. Under `keep` it
+holds the proposal, design, tasks and reports. Under `pointer` it holds the address file,
+and the documents it names are in memory. Either way it is what a reader follows back from
+a master spec to understand why a requirement says what it says.
+
+## Closing the address file
+
+Under `pointer`, every phase before this one appended a row to
+`docs/changes/{change}/README.md` as it completed. This phase closes it, from
+`templates/docs/addresses.md`: the one-line description, the outcome, the commit, the
+specifications that changed, and the postmortem key for a bug.
+
+It is the only description of this change that stays in the repository, so it is written
+for someone arriving from a master specification with no other context, not as a list of
+keys.
 
 ## Bugs: the postmortem
 
@@ -128,12 +140,38 @@ push
 Staging everything present would sweep in whatever the user left in progress. The file list
 comes from the subagent reports, which is why `apply` requires it.
 
+State is staged with the change, so a collaborator who clones mid-change can continue, and
+under `pointer` the address file is staged with it: they answer the same question from two
+sides and neither is useful alone, per `skills/_shared/phase-protocol.md`. The skill
+registry is not: it is ignored, per `skills/_shared/skill-resolver.md`.
+
 ```
 feat(auth): sign in with Google
 
 Implements docs/changes/login-google.
 3 requirements, 7 scenarios, 47 tests.
 ```
+
+## Changes in their own worktree
+
+When state carries a `worktree`, this phase runs inside it, and the commit lands on
+`branch`. After the push:
+
+```
+git.worktrees.pull_request: true    open a pull request from branch to base, if the
+                                    tool for it is available; report and continue if not
+git.worktrees.remove_on_archive     run worktree.sh close --branch <branch> --cwd <main_checkout>
+```
+
+`close` refuses a worktree with uncommitted changes, which after a correct commit means a
+file `apply` did not report. Stop and say which files, rather than forcing: a file changed
+and not committed is the collision `apply` is designed to detect. The branch is deleted
+only when already merged into `base`; otherwise it stays for the pull request. Run `close`
+from `main_checkout`, never from inside the worktree being removed.
+
+The pull request is off by default because opening one is a decision about the team's
+review flow, and because it needs a tool that is not always logged in. A failed attempt is
+reported in the completion line, never treated as a failed archive.
 
 ## Carrying findings forward
 

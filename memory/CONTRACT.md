@@ -8,15 +8,67 @@ Changing backend means changing one adapter file. No skill changes.
 
 ## Source of truth
 
-Markdown files under version control are authoritative. Memory holds a searchable copy.
+Which side is authoritative is `memory.documents`. It is a property of the repository,
+recorded in its `.alfred/config.yaml`, not of the machine a run happens on: two people
+working on the same repository produce the same files.
+
+### keep
+
+The default. Markdown files under version control are authoritative; memory holds a
+searchable copy.
 
 ```
 docs/changes/login-google/spec.md        authoritative
 alfred/login-google/spec                 searchable copy
 ```
 
-Memory can be wiped and rebuilt from the files at any time. The reverse is not true, so
-no artifact exists only in memory.
+Memory can be wiped and rebuilt from the files at any time with `reindex`. The reverse is
+not true, so no artifact exists only in memory.
+
+### pointer
+
+Memory holds the change artifacts; the repository holds their addresses.
+
+```
+alfred/login-google/spec                 authoritative
+docs/changes/login-google/README.md      where to find it
+```
+
+`pointer` needs a backend that answers. `memory.required` reads as `true` under it whatever
+it says, and the run stops before its first phase rather than producing a change whose
+documents end up half in memory and half on disk. `backend: none` with `pointer` is a
+configuration error, not a degraded mode.
+
+What moves is the change directory, and only that. `docs/architecture.md`,
+`docs/code_conventions.md` and everything under `paths.master_specs` stay files in both
+modes: they are what the repository says about itself, they are read by people who are not
+running Alfred, and the agent pointer files name them by path.
+
+## The address file
+
+Under `pointer`, `docs/changes/{change}/README.md` is written from
+`templates/docs/addresses.md` and carries one row per artifact, appended by each phase as
+it completes.
+
+**The entry is stored before its address is written.** Between the two you have an entry
+nothing names: unreachable, and harmless. In the other order you have an address naming
+nothing, and the next phase fetches it, finds nothing, and fails in a way that reads like
+memory loss rather than like a crash between two writes.
+
+**Whatever commits the state file commits the address file.** They answer the same question
+from two sides: state says which phase completed, the address file says where its output
+went. State reading `spec: completed` beside an address file with no spec row leaves
+`continue` resuming a phase whose input it cannot find.
+
+## Reachability
+
+The address file is the root. An entry that no address file names is unreachable, and no
+phase acts on one. A change abandoned before its commit takes its address file with it, and
+what it left in memory is residue rather than state.
+
+`postmortem` is the exception, deliberately. Its purpose is to be found by a change that
+did not exist when it was written, so `diagnose` searches for it instead of addressing it.
+It is the one entry reachable without a pointer.
 
 ## Operations
 
@@ -153,3 +205,26 @@ the files exist regardless.
 | `reindex` | no-op |
 
 The cost is tokens and search quality, never correctness.
+
+## required
+
+`memory.required` decides what happens when a backend *is* configured and does not answer.
+
+| Value | A configured backend that does not answer |
+|---|---|
+| `false` | the run proceeds degraded; the orchestrator says so once, at the start |
+| `true` | the run stops before the first phase, naming the backend |
+
+`false` is the default, and it follows from the source of truth: the documents are
+authoritative and memory is an index over them, so losing the index costs search quality
+rather than correctness.
+
+`memory.documents: pointer` reads as `true` regardless of what is written here, since
+under it the documents are the thing that would be missing.
+
+`true` is for where that trade stops holding. A `docs/` grown past what a text search can
+rank turns every `recall` into a wider and wider read, and `diagnose` silently stops
+finding the postmortems that are the reason they were written.
+
+Neither value says anything about `backend: none`. Nothing is configured, so nothing is
+unreachable, and the run proceeds on the table above.

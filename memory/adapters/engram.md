@@ -11,8 +11,42 @@ full-text search, running on the same machine.
 
 ## Requirements
 
-Engram installed and exposed to the agent as an MCP server. `memory.required: false` means
-a missing binary degrades to `none.md` rather than failing the run.
+Engram installed, and registered with the agent as an MCP server. The two are separate
+steps and the second is the one that gets forgotten: the binary can be installed and the
+config can name `backend: engram` while the agent has never been told the server exists,
+in which case the tools this adapter maps onto are simply absent. Under
+`memory.required: false` that degrades to `none.md` in silence.
+
+The server must be named `engram`, since the tool names the agents declare are built from
+it.
+
+```bash
+# Claude Code, machine-wide so worktrees outside the repository are covered too
+claude mcp add engram --scope user -- \
+  engram mcp --tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context
+```
+
+```jsonc
+// OpenCode, in ~/.config/opencode/opencode.json
+"mcp": {
+  "engram": {
+    "type": "local",
+    "command": ["engram", "mcp", "--tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context"],
+    "enabled": true
+  }
+}
+```
+
+Use the absolute path to the binary where it is not on the agent's `PATH`. The tool list is
+the five operations this adapter uses; Engram exposes more, and every one declared is
+schema an agent carries before it reads a line.
+
+Tool names differ per agent: `mcp__engram__mem_search` in Claude Code, `engram_mem_search`
+in OpenCode. `models.profile` carries the Claude Code form as `memory_tool_prefix`.
+
+A run against a repository whose `docs/` predates the registration starts with a memory
+holding nothing, since every `remember()` until then was a no-op. `reindex` builds it from
+the files.
 
 ## Operation mapping
 
@@ -37,6 +71,29 @@ rather than failing the call.
 
 `mem_search` returns previews and identifiers. `mem_get_observation` returns content. Both
 are always used in that order, never a search result acted on directly, per the contract.
+
+## What fetch returns
+
+`mem_get_observation` returns the stored document wrapped, not bare: a header line
+`#<id> [<type>] <title>` before it, and a metadata block after it.
+
+```
+Session: ...
+Project: ...
+Scope: ...
+Topic: alfred/project/architecture
+Duplicates: 1
+Revisions: 1
+Created: ...
+```
+
+A check that compares a fetched entry against its file — `reindex` makes one before
+deleting anything under `memory.documents: pointer` — asks whether the document is present
+intact inside what came back, never whether the two are equal. Equality fails on the
+wrapper alone, and would refuse every migration that was in fact correct.
+
+`Duplicates` and `Revisions` are how a repeated `remember` on the same `topic_key` reports
+itself: one entry, revised, rather than a second copy.
 
 ## forget
 

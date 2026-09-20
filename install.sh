@@ -13,7 +13,7 @@ ALFRED_HOME="${ALFRED_HOME:-$HOME/.config/alfred}"
 VERSION="0.1.0"
 
 PHASES=(init explore refine research spec diagnose design tasks apply verify review archive)
-PAYLOAD=(skills memory notify tracker templates defaults triggers alfred.config.yaml)
+PAYLOAD=(skills memory notify tracker templates defaults triggers bin alfred.config.yaml)
 
 info() { printf '%s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -40,6 +40,7 @@ install_payload() {
     [ -e "$SOURCE/$item" ] || die "missing from package: $item"
     cp -R "$SOURCE/$item" "$ALFRED_HOME/"
   done
+  chmod +x "$ALFRED_HOME"/bin/*.sh
   info "installed to $ALFRED_HOME"
 }
 
@@ -67,6 +68,16 @@ setup_profile() {
   local orchestrator
   orchestrator="$(ask_model "orchestrator" "anthropic/claude-opus-5")"
 
+  # The worktree coordinator routes messages between the user and one session per change.
+  # It plans nothing and reads no document, so it is the cheapest reliable model rather
+  # than the orchestrator's - asked rather than assumed, like every other assignment here.
+  info ""
+  info "  The worktree coordinator only relays between you and one session per change."
+  info "  It decides nothing, so it runs smaller than the orchestrator."
+  info ""
+  local coordinator
+  coordinator="$(ask_model "worktree coordinator" "anthropic/claude-haiku-4-5-20251001")"
+
   local uniform
   read -r -p "  use the same model for every phase? [Y/n]: " uniform </dev/tty
   uniform="${uniform:-y}"
@@ -90,8 +101,8 @@ setup_profile() {
 
   local joined
   joined="$(IFS=,; printf '%s' "${phase_models[*]}")"
-  printf '{"orchestrator": "%s", "phases": {%s}, "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}\n' \
-    "$orchestrator" "$joined" > "$target"
+  printf '{"orchestrator": "%s", "coordinator": "%s", "phases": {%s}, "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}\n' \
+    "$orchestrator" "$coordinator" "$joined" > "$target"
 
   require_python
   python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$target" \
@@ -179,8 +190,36 @@ for rel in report["new"] + report["updatable"]:
 print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
 ' "$ALFRED_HOME" "$SOURCE"
 
+  chmod +x "$ALFRED_HOME"/bin/*.sh
   generate_agents
   record_state
+}
+
+# `/alfred-worktree` starts a session per change by running the agent's CLI, and an agent
+# does not run a command it has not been permitted. Checked here because the alternative is
+# discovering it mid-run, with the worktrees already open and nothing able to work in them.
+#
+# This reads the settings rather than trying the command: starting a session to find out
+# would cost one, and a permission that is written down is the thing being asked about. A
+# permissive mode can let the command through with no rule present, so a failure here means
+# "this may stop you", not "this will" - which is the safe direction for a check whose
+# remedy is one line and harmless.
+session_permission_granted() {
+  python3 - "$HOME" <<'PY'
+import json, sys
+from pathlib import Path
+
+home = Path(sys.argv[1])
+for f in (home / ".claude/settings.json", home / ".claude/settings.local.json",
+          Path(".claude/settings.json"), Path(".claude/settings.local.json")):
+    try:
+        rules = json.loads(f.read_text()).get("permissions", {}).get("allow") or []
+    except Exception:
+        continue
+    if any(isinstance(r, str) and r.startswith("Bash(claude") for r in rules):
+        sys.exit(0)
+sys.exit(1)
+PY
 }
 
 cmd_doctor() {
@@ -209,6 +248,9 @@ cmd_doctor() {
     [ -f "$ALFRED_HOME/skills/$phase/SKILL.md" ] || { missing=$((missing + 1)); }
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
+  check "worktree script installed"  "[ -x '$ALFRED_HOME/bin/worktree.sh' ]" "run: $0 update"
+  check "sessions may be started"    "session_permission_granted" \
+                                     "allow the start command once: /permissions in Claude Code, or add \"Bash(claude --bg:*)\" to permissions.allow in ~/.claude/settings.json"
 
   info ""
   [ $failures -eq 0 ] && info "no problems found" || info "$failures problem(s) found"

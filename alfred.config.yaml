@@ -12,6 +12,7 @@ memory:
   backend: engram
   adapter: memory/adapters/engram.md
   index_documents_on_write: true
+  documents: keep
   required: false
 
 notify:
@@ -38,6 +39,15 @@ git:
   ai_attribution: false
   stage: files_changed_by_alfred
   push_after_commit: true
+  worktrees:
+    tool: ~/.config/alfred/bin/worktree.sh
+    protocol: skills/_shared/worktree-protocol.md
+    root: ~/.alfred/worktrees/{repo}/{branch}
+    setup_command: none
+    copy_files: []
+    max_parallel: 3
+    remove_on_archive: true
+    pull_request: false
 
 models:
   profile: ~/.config/alfred/profile.json
