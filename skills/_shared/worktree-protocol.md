@@ -53,7 +53,29 @@ holds its own, what it bounds is machine and spend.
 inside each, adopting a session that is still alive and starting one where it is not.
 
 A change in the current checkout, alone, is still `/alfred`, and runs in the session it was
-asked from.
+asked from. So are two changes that are not independent.
+
+## Coupling, which a worktree does not isolate
+
+A worktree isolates file writes. It does nothing about decisions, and two changes that need
+to agree on one are worse off apart than together: each decides alone, they decide
+differently, and the disagreement surfaces later as work that has to be undone in both.
+
+The coordinator reads the list for that before the user confirms it, and says which changes
+will need to know what another decided. Shared files are not the test — two changes are
+coupled when they turn on the same setup command, the same entry point, the same dependency
+list or the same document, whoever writes it. Coupled changes are recommended into one
+session, because an orchestrator holding both knows what each decided for free, and the
+coordinator holding both only learns it by carrying a correction between them.
+
+It is a recommendation, not a refusal. The user may want the worktrees anyway, and a change
+list is theirs to decide.
+
+Where worktrees pay is the opposite case: changes independent in decisions as well as in
+files, each long enough to be worth a session, each needing few answers. The bound that
+matters there is not `max_parallel` but how many questions the user is answering at once —
+three changes that each ask constantly do not run in parallel no matter how many worktrees
+they have, because the user is the thing they are queueing for.
 
 ## Layout
 

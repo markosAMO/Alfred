@@ -97,6 +97,21 @@ A phase in `interactive` mode uses `ask()` and waits. A phase in `confirm` mode 
 `confirm()` before step 4 and stops if the answer is no. A phase in `auto` mode calls
 neither, and must not block for input under any circumstance.
 
+A phase asks for everything it needs at once. It reads its inputs, finds every decision it
+cannot make, and puts them in one round rather than discovering them one at a time — the
+second question of a phase was almost always answerable alongside the first, and asking it
+separately spends another round trip to learn nothing new. This is not a reason to guess: a
+decision that is the user's stays the user's, and a phase short of one still stops.
+
+A round trip is the expensive unit, not the question. It costs the user's attention, and in
+a change running in its own session it also costs three conversations a turn each. Two
+questions in one round cost one of those; the same two, asked in sequence, cost two.
+
+Most of them should not be here at all. `refine` exists to settle what is being asked for
+before the pipeline commits to it, so a decision a later phase discovers is usually one
+`refine` could have levied — and a run that leaks decisions out through `research`, `spec`
+and `design` one at a time has turned a phase that batches by design into three that do not.
+
 Waiting assumes the session the phase runs in is the one the user is looking at. When it is
 not — a change running in its own session, per `skills/_shared/worktree-protocol.md` — the
 phase does not wait. It records the question in state, returns it, and ends; the answer

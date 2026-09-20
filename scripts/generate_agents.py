@@ -238,7 +238,13 @@ resumes every worktree that has an open change.
 1. Read `.alfred/config.yaml` for `git.worktrees`, including `sessions`. Without \
 `.alfred/`, stop: `init` first.
 2. Derive a change name from each request, and show the list: name, branch, base, request. \
-Wait for the user to confirm it.
+Read the list for coupling before the user confirms it: say which of these changes will \
+need to know what another decided, and name the decision. Two changes that touch the same \
+setup command, the same entry point, the same dependency list or the same document are \
+coupled whether or not they write the same file. Where you find coupling, recommend the \
+coupled ones run together in one session under the single-change orchestrator, and say why \
+- a worktree keeps their file writes apart and does nothing about the decision they both \
+depend on. The user decides; you do not collapse the list yourself. Then wait.
 3. Delegate to alfred-manage, once, the opening of every worktree:
    `<git.worktrees.tool> open --branch <branch> --base <base> --change <name> --cwd <repo>`
    for each line. It returns one YAML record per worktree. Keep `path`, `branch`, `base`, \
