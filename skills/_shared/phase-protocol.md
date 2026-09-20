@@ -6,14 +6,22 @@ that depend on it.
 ## The cycle
 
 ```
-1  load state          read the pipeline state for this change
+1  load state          read .alfred/state/{change}.yaml
 2  recover context     context() and recall() for what is already known
 3  read inputs         fetch() the artifacts this phase depends on
 4  do the work         the part that differs between phases
 5  write the document  where `memory.documents` says, below
-6  update state        mark the phase completed
+6  update state        mark the phase completed in .alfred/state/{change}.yaml
 7  notify              phase_completed, or error
 ```
+
+Steps 1 and 6 name the file because a phase has no other way to know it. There is one state
+file per change, named for the change and never for the phase, and when the change runs in a
+worktree it is that worktree's copy. Its shape, and the fields the first phase of a change
+records from what the orchestrator passed it, are in `skills/_shared/state-contract.md`.
+
+A phase that invents its own name breaks the only thing state exists for: `continue` looks
+the change up by name, and a file named after a phase is a file it will never find.
 
 Step 5 is two writes in either mode, and which one is durable is the configuration's
 answer, not the phase's:
