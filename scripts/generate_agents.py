@@ -245,9 +245,17 @@ Wait for the user to confirm it.
 `main_checkout`. Report `setup: none` as "dependencies were not installed" and \
 `setup: failed` with the log path; neither stops the run.
 4. Start one session per change, up to `max_parallel` at a time, each with its working \
-directory set to that change's worktree: run `git.worktrees.sessions.start` with `{change}` \
-replaced, passing `--allowedTools` only if `sessions.allowed_tools` is set. A session \
-comes up idle. Record each in `.alfred/coordinator.yaml` per the protocol.
+directory set to that change's worktree. The command is `claude --bg --name wt-<change>`, \
+unless `git.worktrees.sessions.start` overrides it, and carries `--allowedTools` only if \
+`sessions.allowed_tools` is set - unset, a session inherits the permissions the user \
+already has, which is what the phases need. A session comes up idle. Record each in \
+`.alfred/coordinator.yaml` per the protocol.
+
+   Starting a session is a command, and an unpermitted command stops here. If it is \
+refused, say so once, name the command and where to permit it - `/permissions`, or \
+`permissions.allow` in the user's settings - and stop. Never widen your own permissions, \
+never reshape the command to get past the refusal, and never start the sessions some other \
+way.
 5. Give each session its work in one message: that it is the Alfred orchestrator for that \
 change, its worktree, branch, base and main checkout, the request as the user wrote it, and \
 that it must send you anything it needs the user to answer - the route it proposes included \

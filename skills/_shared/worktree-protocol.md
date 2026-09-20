@@ -138,9 +138,14 @@ orchestrator can say that dependencies were not installed rather than discover i
 ## Sessions
 
 A session is started in the background, named for its change, with its working directory
-set to the worktree. The command is `git.worktrees.sessions.start` with `{change}`
-replaced. The protocol names the setting; the setting names the agent's CLI, as
-`git.worktrees.tool` does for the worktree script.
+set to the worktree. Which command does that is a property of the machine and the agent, not
+of the repository, so each agent's coordinator carries its own — the same reason the model
+profile lives on the machine. A repository configures nothing to run changes this way.
+
+`git.worktrees.sessions.start` exists to override it, with `{change}` replaced, for a
+machine whose CLI is not on the path or is wrapped. It is absent from a normal
+configuration, and a repository that carries it has pinned every machine that clones it to
+one spelling of a command that is not the repository's business.
 
 In the background, and not in a terminal. The difference is not presentation: a session
 becomes addressable only once it has started a conversation, so one launched interactively

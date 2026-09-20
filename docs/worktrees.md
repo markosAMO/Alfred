@@ -44,10 +44,11 @@ A single change in the current checkout is still `/alfred`, or the `alfred` agen
 
 ## Before the first run
 
+There is one thing to set up, once per machine, and nothing at all per repository.
+
 Starting a session is a command, and your agent will not run a command you have not
-permitted. Permit the one `git.worktrees.sessions.start` names — with the default that is
-`claude --bg` — in your own agent settings, once. In Claude Code that is `/permissions`, or
-an entry in `~/.claude/settings.json`:
+permitted. Permit it once in your own agent settings. In Claude Code that is
+`/permissions`, or an entry in `~/.claude/settings.json`:
 
 ```json
 { "permissions": { "allow": ["Bash(claude --bg:*)"] } }

@@ -46,8 +46,6 @@ git:
     setup_command: none
     copy_files: []
     max_parallel: 3
-    sessions:
-      start: claude --bg --name {change}
     remove_on_archive: true
     pull_request: false
 
