@@ -96,3 +96,10 @@ phase that reads it afterwards.
 A phase in `interactive` mode uses `ask()` and waits. A phase in `confirm` mode uses
 `confirm()` before step 4 and stops if the answer is no. A phase in `auto` mode calls
 neither, and must not block for input under any circumstance.
+
+Waiting assumes the session the phase runs in is the one the user is looking at. When it is
+not — a change running in its own session, per `skills/_shared/worktree-protocol.md` — the
+phase does not wait. It records the question in state, returns it, and ends; the answer
+arrives as a fresh dispatch. A phase never reaches past its own session to find the user:
+a subagent's message is sent under its session's address and the reply is delivered there,
+so a phase that asks directly waits for something that cannot come back to it.

@@ -11,7 +11,6 @@ be confused by them, and spends its whole window on the one task it owns.
 Addresses, not content.
 
 ```
-Worktree:   /home/me/.alfred/worktrees/api/feature-login-google
 Task:       3 of alfred/login-google/tasks
 Skill:      .alfred/skills/apply/SKILL.md
 Spec:       alfred/login-google/spec
@@ -19,9 +18,9 @@ Design:     alfred/login-google/design
 Conventions: docs/code_conventions.md
 ```
 
-`Worktree` is present when the change runs in its own checkout, per
-`worktree-protocol.md`. Every relative path in the task and every command the subagent
-runs is inside that directory. Without it, the subagent works where the session is.
+A subagent works where its session is. A change running in its own worktree runs in a
+session whose working directory is that worktree, per `worktree-protocol.md`, so the
+checkout is not an address the subagent has to be given or keep hold of.
 
 The subagent fetches what its task needs. Pasting the full spec into the prompt spends the
 clean context before the work starts, and hands it six thousand tokens to find the one

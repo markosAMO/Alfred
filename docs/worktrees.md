@@ -30,9 +30,11 @@ change name, so you can tell which change is asking.
 
 `git.worktrees.max_parallel` caps how many changes run at once; the rest wait.
 
-Everything happens in the one session you started it from: the routes are proposed
-together, the phases of different changes run at the same time, and every question tells
-you which change is asking. To pick up where you left off:
+Each change runs in its own agent session, started in the background with its working
+directory set to that change's worktree. The session you typed into becomes the
+coordinator: it opens the worktrees, starts a session per change, and from then on carries
+questions up to you and your answers back down. You keep one place to look, and every
+question tells you which change is asking. To pick up where you left off:
 
 ```
 /alfred-worktree continue

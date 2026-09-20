@@ -54,7 +54,7 @@ main_checkout: null
 |---|---|
 | `type` | `feature` or `bug`; decides which entry point applies |
 | `entry_point` | `refine` or `diagnose` |
-| `origin_channel` | where the run started, so blocking questions return there |
+| `origin_channel` | where the run started, so blocking questions return there; for a change in its own session it names the coordinator |
 | `current_phase` | what `continue` resumes |
 | `status` | `running`, `waiting_for_input`, `waiting_for_confirmation`, `completed`, `failed` |
 | `parent` | `workspace:<change>` when this repository is part of a multi-repository change |
