@@ -199,3 +199,8 @@ A change spanning several repositories still runs at workspace level with one ch
 per repository; a worktree per repository per change is a later step. So is a worktree per
 task inside `apply`, which would lift the disjoint-files rule: it needs a merge step the
 pipeline does not have yet.
+
+Every change here shares the one session the run was started from, and `max_parallel`
+exists because that session holds a state file per change. Giving each change its own
+session, with the user's session reduced to a coordinator that routes questions and
+answers between them, is designed in `docs/worktree-sessions.md` and not built.

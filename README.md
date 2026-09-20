@@ -108,6 +108,7 @@ commands, and troubleshooting.
 | [docs/installation.md](docs/installation.md) | the two installation levels |
 | [docs/models.md](docs/models.md) | model assignment and profiles |
 | [docs/worktrees.md](docs/worktrees.md) | several changes at once, one worktree each |
+| [docs/worktree-sessions.md](docs/worktree-sessions.md) | design, not built: one agent session per change |
 | `skills/_shared/` | the protocols every phase relies on |
 
 ## Acknowledgements
