@@ -139,9 +139,16 @@ orchestrator can say that dependencies were not installed rather than discover i
 
 A session is started in the background, named for its change, with its working directory
 set to the worktree. The command is `git.worktrees.sessions.start` with `{change}`
-replaced, carrying the tools and permission mode that `sessions.allowed_tools` and
-`sessions.permission_mode` declare. The protocol names the setting; the setting names the
-agent's CLI, as `git.worktrees.tool` does for the worktree script.
+replaced. The protocol names the setting; the setting names the agent's CLI, as
+`git.worktrees.tool` does for the worktree script.
+
+In the background, and not in a terminal. The difference is not presentation: a session
+becomes addressable only once it has started a conversation, so one launched interactively
+in a terminal window sits there unregistered and unreachable, while a background session
+registers as it comes up. A `start` that opens a terminal produces changes the coordinator
+can see running and cannot talk to, which is the one thing this topology needs. Watching one
+is a separate act, and the agent's CLI has its own way to attach to a session already
+running.
 
 A session comes up idle: starting one is not handing it a task. The coordinator gives it
 its work in the first message, which says it is the Alfred orchestrator for that change and
@@ -160,6 +167,13 @@ Two constraints are not the coordinator's to relax:
 
 **`--bare` is never used.** A session started with it does not register and cannot be
 addressed. It is the flag that skips the machinery this runs on.
+
+**The user has to permit the start command before the first run.** Starting a session is the
+coordinator running a command, and a command it has not been permitted stops the run before
+any change begins. The permission belongs to the user's own agent settings, granted once for
+the command `sessions.start` names. The coordinator cannot grant it: an agent that widens its
+own permissions has removed the decision the permission existed to record, so a coordinator
+blocked here reports the command it needs permitted and stops.
 
 **A session inherits the permissions the user already granted.** Started with no tool flags
 at all, it can do what the user's own settings allow: a session started that way wrote a

@@ -42,6 +42,25 @@ question tells you which change is asking. To pick up where you left off:
 
 A single change in the current checkout is still `/alfred`, or the `alfred` agent.
 
+## Before the first run
+
+Starting a session is a command, and your agent will not run a command you have not
+permitted. Permit the one `git.worktrees.sessions.start` names — with the default that is
+`claude --bg` — in your own agent settings, once. In Claude Code that is `/permissions`, or
+an entry in `~/.claude/settings.json`:
+
+```json
+{ "permissions": { "allow": ["Bash(claude --bg:*)"] } }
+```
+
+Without it the coordinator stops at the first change and tells you which command it needs,
+rather than starting anything. It cannot grant this itself: an agent that widens its own
+permissions has thrown away the decision the permission was there to record.
+
+The sessions need nothing else granted. Each one inherits the permissions you already have,
+which is why `sessions.allowed_tools` is left unset — it narrows a session rather than
+enabling it, and a list that forgets a tool produces a change that fails on it later.
+
 ## Where the worktrees are
 
 ```
