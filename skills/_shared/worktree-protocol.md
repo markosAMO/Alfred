@@ -164,9 +164,11 @@ The coordinator does not announce its own address. A message arrives wrapped wit
 sender in it, and a reply is that sender copied back, so a session learns where to report
 from the first message it receives.
 
-To learn that a session has finished without asking it, a message carries
-`notify_when_idle`. Polling the session list, or sending a session a message asking whether
-it is done, is what that exists to replace.
+The coordinator does not subscribe to a session going idle, and does not ask one whether it
+is done. Every phase reports when it completes, so a session that owes an answer sends one;
+a session that is quiet is working. An idle subscription on top of that fires on turns the
+session has already reported, and each notice costs the coordinator a full turn — its whole
+conversation re-read — to conclude that nothing happened.
 
 Two constraints are not the coordinator's to relax:
 
@@ -231,6 +233,24 @@ Three consequences, none of them free:
 
 When several changes are waiting at once, an answer applies to the change it names; when it
 names none and more than one is waiting, the coordinator asks which.
+
+## What a relay costs
+
+The coordinator passes text through. It does not restate a session's question in its own
+words, and it does not restate the user's answer; it adds the change name and nothing else.
+
+This is a cost rule and a correctness rule at once. Everything the coordinator composes is
+written once and then re-read on every later turn of two conversations — a measured run put
+sixty million tokens of cache read against three quarters of a million of output, which is
+every written token read back about eighty times. Restating is the one cost in this topology
+that buys nothing, because the text already existed. And a coordinator that paraphrases an
+argument it is not equipped to judge — it reads no specification, no design and no diff — is
+a channel that loses the detail the question turned on.
+
+The compact half of this belongs to the session, not to the coordinator. A question travels
+as the question, the options, and the phase's own recommendation; a session that sends its
+reasoning in full is asking the user to read what the phase was supposed to weigh. Where the
+user wants the reasoning, they ask for it, and the coordinator relays that too.
 
 ## State
 
