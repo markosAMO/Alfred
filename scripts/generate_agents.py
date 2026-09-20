@@ -245,11 +245,14 @@ Wait for the user to confirm it.
 `main_checkout`. Report `setup: none` as "dependencies were not installed" and \
 `setup: failed` with the log path; neither stops the run.
 4. Start one session per change, up to `max_parallel` at a time, each with its working \
-directory set to that change's worktree. The command is `claude --bg --name wt-<change>`, \
-unless `git.worktrees.sessions.start` overrides it, and carries `--allowedTools` only if \
+directory set to that change's worktree. The command is \
+`claude --bg --name wt-<change> --model ORCHESTRATOR_MODEL`, unless \
+`git.worktrees.sessions.start` overrides it, and carries `--allowedTools` only if \
 `sessions.allowed_tools` is set - unset, a session inherits the permissions the user \
-already has, which is what the phases need. A session comes up idle. Record each in \
-`.alfred/coordinator.yaml` per the protocol.
+already has, which is what the phases need. The model is named because a session started \
+this way never passes through the orchestrator command and would otherwise run on whatever \
+this machine defaults to rather than on the orchestrator the profile assigns. A session \
+comes up idle. Record each in `.alfred/coordinator.yaml` per the protocol.
 
    Starting a session is a command, and an unpermitted command stops here. If it is \
 refused, say so once, name the command and where to permit it - `/permissions`, or \
@@ -385,16 +388,29 @@ listed and closed by alfred-manage, which runs `{tool}` and returns what it prin
 Pass paths, never content. `Worktree:` comes first."""
 
 
-def coordinator_prompt(skills_root: str) -> str:
+def coordinator_model(profile: dict) -> str:
+    """The coordinator relays and decides nothing, so it is assigned separately.
+
+    A profile written before the key existed falls back to the orchestrator's model rather
+    than to a guess: the previous behaviour, which is wrong only in being expensive.
+    """
+    return profile.get("coordinator") or profile["orchestrator"]
+
+
+def coordinator_prompt(skills_root: str, session_model: str) -> str:
     """The worktree coordinator: it starts a session per change and routes messages.
 
     Claude Code only for now. Starting a session is the agent's own CLI, named in
     `git.worktrees.sessions.start`, and OpenCode's equivalent is not established yet, so the
     OpenCode agent keeps the single-session fleet prompt until it is.
+
+    The sessions it starts run the orchestrator's model, not its own: it is the cheap
+    component precisely because everything it hands off is judged somewhere else.
     """
     tool = Path(skills_root).parent / "bin" / "worktree.sh"
+    rules = COORDINATOR_RULES.replace("ORCHESTRATOR_MODEL", session_model)
 
-    return f"""{COORDINATOR_RULES}
+    return f"""{rules}
 
 ## Delegating
 
@@ -554,11 +570,11 @@ def claude_worktree_command(profile: dict, skills_root: str, phases: list[str]) 
     return f"""---
 description: Alfred worktree coordinator - a session per change, one git worktree each
 argument-hint: [branch [from base]: request, one per line, or: continue]
-model: {profile["orchestrator"].split("/", 1)[-1]}
+model: {coordinator_model(profile).split("/", 1)[-1]}
 tools: {", ".join(COORDINATOR_TOOLS)}
 ---
 
-{coordinator_prompt(skills_root)}
+{coordinator_prompt(skills_root, profile["orchestrator"].split("/", 1)[-1])}
 
 ## The request
 

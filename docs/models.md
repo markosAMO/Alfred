@@ -23,7 +23,7 @@ Phases do not ask the same thing of a model.
 | Judgement under ambiguity | `refine`, `spec`, `design`, `diagnose` | the strongest model available |
 | Adversarial reading | `review` | a model that did not write the code, and is strong enough to disagree with it |
 | Bounded execution | `apply`, `verify`, `tasks` | competence and consistency, not brilliance |
-| Mechanical transformation | `archive` | the cheapest model that is reliable |
+| Mechanical transformation | `archive`, the worktree coordinator | the cheapest model that is reliable |
 
 Running everything on the strongest model is expensive without being better: `archive`
 merges a delta into a file, and no amount of reasoning improves that.
@@ -42,6 +42,7 @@ A common split, shown as illustration rather than as a default:
 ```json
 {
   "orchestrator": "<provider/model>",
+  "coordinator": "<cheap model>",
   "phases": {
     "refine": "<strong hosted model>",
     "spec": "<strong hosted model>",
@@ -70,6 +71,24 @@ execute well; asked to decide what should be built, they drift.
 
 Keep `review` on a model at least as strong as the one that wrote the code. A reviewer
 weaker than the implementer approves everything, and the phase becomes a rubber stamp.
+
+## The coordinator is not an orchestrator
+
+`orchestrator` is what runs a change: it chooses a route, delegates each phase and decides
+what to do with what comes back. `coordinator` is what runs `/alfred-worktree`: it starts a
+session per change and moves messages between them and the user. It proposes no route, reads
+no document and decides nothing, so it belongs with `archive` rather than with the phases it
+delegates to — and it is the largest single cost in a worktree run, because relaying is
+cheap per turn and it takes more turns than anything else.
+
+The sessions it starts run `orchestrator`, not `coordinator`. Each of them is an ordinary
+orchestrator; the coordinator is cheap precisely because every judgement it carries was made
+somewhere else. Its start command names the model for that reason: a session started in the
+background never passes through the orchestrator command, so without it the session would
+run on whatever the machine defaults to, which is a model nothing in the profile chose.
+
+A profile written before this key existed falls back to `orchestrator`, which is what those
+runs already did.
 
 ## Changing assignments
 

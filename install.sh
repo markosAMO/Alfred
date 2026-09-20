@@ -68,6 +68,16 @@ setup_profile() {
   local orchestrator
   orchestrator="$(ask_model "orchestrator" "anthropic/claude-opus-5")"
 
+  # The worktree coordinator routes messages between the user and one session per change.
+  # It plans nothing and reads no document, so it is the cheapest reliable model rather
+  # than the orchestrator's - asked rather than assumed, like every other assignment here.
+  info ""
+  info "  The worktree coordinator only relays between you and one session per change."
+  info "  It decides nothing, so it runs smaller than the orchestrator."
+  info ""
+  local coordinator
+  coordinator="$(ask_model "worktree coordinator" "anthropic/claude-haiku-4-5-20251001")"
+
   local uniform
   read -r -p "  use the same model for every phase? [Y/n]: " uniform </dev/tty
   uniform="${uniform:-y}"
@@ -91,8 +101,8 @@ setup_profile() {
 
   local joined
   joined="$(IFS=,; printf '%s' "${phase_models[*]}")"
-  printf '{"orchestrator": "%s", "phases": {%s}, "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}\n' \
-    "$orchestrator" "$joined" > "$target"
+  printf '{"orchestrator": "%s", "coordinator": "%s", "phases": {%s}, "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}\n' \
+    "$orchestrator" "$coordinator" "$joined" > "$target"
 
   require_python
   python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$target" \
