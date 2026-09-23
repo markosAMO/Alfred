@@ -24,8 +24,13 @@ In order of preference, whichever exists:
 ```
 alfred/{change}/proposal     from refine
 alfred/{change}/diagnosis    from diagnose, when the change is a bug
-the user's request           when routing went straight here
+alfred/{change}/input/request when routing went straight here
 ```
+
+The third is a path like the other two. A request that reaches this phase as text in its
+prompt has been carried through the orchestrator to get here, and this phase is then the one
+writing it down — per `skills/_shared/external-inputs.md`, it is written when the route is
+accepted, before any phase is dispatched.
 
 Read `architecture.md` for the vocabulary of the system, so a requirement uses the terms
 the project already uses rather than inventing parallel ones.

@@ -218,6 +218,17 @@ The pull request is off by default because opening one is a decision about the t
 review flow, and because it needs a tool that is not always logged in. A failed attempt is
 reported in the completion line, never treated as a failed archive.
 
+## Memory conflicts
+
+Every conflict a phase recorded during the change, per `memory/CONTRACT.md`, is collected
+here into one list: what disagreed, which key, and which phase raised it.
+
+They are reported, not resolved. The user settles them in one pass, or leaves them, and
+either way they stop being six separate notices nobody could act on when they appeared.
+
+A list of conflicts never blocks an archive. What they are about is written down twice
+already.
+
 ## Carrying findings forward
 
 `should fix` and `suggestion` findings from `review` are written to memory against the area

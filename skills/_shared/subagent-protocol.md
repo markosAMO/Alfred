@@ -36,12 +36,21 @@ task: 3
 status: completed | failed | blocked
 files_changed: [app/controllers/auth_controller.rb, spec/controllers/auth_spec.rb]
 summary: one paragraph
+context: 49k tokens
+memory_conflicts: [alfred/login-google/design]
 blocked_by: task 2
 reason: only when failed or blocked
 ```
 
 `files_changed` is what lets `git.stage: files_changed_by_alfred` stage precisely the work
 Alfred did, and nothing the user left in progress.
+
+`context` is what the subagent spent. It is known to the subagent and to nobody else, and it
+is the number that tells you whether a phase is worth what it does.
+
+`memory_conflicts` names the entries the backend refused to settle, per
+`memory/CONTRACT.md`. A subagent cannot resolve one and does not try; `archive` collects
+them.
 
 ## Dependencies
 

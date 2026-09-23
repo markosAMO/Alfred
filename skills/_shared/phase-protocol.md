@@ -53,6 +53,31 @@ document is missing is worse than no state: `continue` would skip the phase.
 
 **Notification is last.** The user is told a phase finished only once it actually finished.
 
+## What a completion carries
+
+A phase reports what it did in terms someone can check without asking it again.
+
+```
+verify: 7 of 7 scenarios covered, 47 tests passing, coverage 100%
+commands: bundle exec rspec, bundle exec rubocop
+state: .alfred/state/login-google.yaml
+context: 91k tokens
+```
+
+Numbers as the tool printed them, never rounded into prose. A phase that says the tests pass
+has said something nobody can verify; a phase that says `47 examples, 0 failures` has quoted
+something that either is or is not in the output.
+
+The state file path is there because it is the one thing that outlives the report. Whoever
+is reading — an orchestrator, a coordinator, the user — can look rather than believe, and in
+a fleet of changes running in their own sessions that is the only check there is: a
+coordinator reads reports it has no way to audit, and its whole picture of the run rests on
+them being true.
+
+`context` is the phase's own token cost. It belongs in the line because it is the number
+that decides whether a phase is worth what it does, and asking for it afterwards means
+asking every phase separately, out of band, for something each one already knew.
+
 ## Inputs and outputs
 
 A phase declares what it reads and what it writes in its `SKILL.md` frontmatter. It reads
@@ -96,6 +121,18 @@ phase that reads it afterwards.
 A phase in `interactive` mode uses `ask()` and waits. A phase in `confirm` mode uses
 `confirm()` before step 4 and stops if the answer is no. A phase in `auto` mode calls
 neither, and must not block for input under any circumstance.
+
+`interactive` means a phase **may** ask, not that it must. A phase that reads its inputs and
+finds every decision already made — by `refine`, by the architecture, by the conventions —
+reports what it decided and proceeds. Manufacturing a question to satisfy the mode costs a
+round trip and teaches the user that the gates are ceremony, which is what makes them skip
+the one that mattered.
+
+The same applies to `confirm`. It exists for the moment work becomes expensive to undo, and
+a confirmation of something already confirmed is noise wearing the costume of a safeguard.
+
+A phase reporting that it asked nothing is a phase reporting that nothing was ambiguous.
+That is information, and it is cheaper than the question.
 
 A phase asks for everything it needs at once. It reads its inputs, finds every decision it
 cannot make, and puts them in one round rather than discovering them one at a time — the

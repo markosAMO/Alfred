@@ -31,6 +31,26 @@ docs/changes/{change}/inputs/
 
 Committed with the change, like every other artifact.
 
+## The request is material too
+
+`refine` writes the request down. When the route skips `refine` — the request was already
+clear, or the user shortened the route — nobody does, and the request travels as text: into
+the orchestrator's prompt, through it, and into the first phase that needs it.
+
+That is the one seam where content moves instead of a path, and it was observed in a run
+where `refine` was skipped. It is small, and it is the exception that erodes the rule: a
+request that passes through a prompt is a request the orchestrator now carries for the rest
+of the session, and a phase dispatched twice gets it in two shapes.
+
+```
+docs/changes/{change}/inputs/request.md
+```
+
+Written when the route is accepted, from the user's words, verbatim and not summarised. Every
+phase downstream reads the path. A route that includes `refine` writes a proposal from it as
+usual; a route that does not still has the request in one place, spelled the same way each
+time it is read.
+
 ## Who does it
 
 The phase that first receives the material: `refine` for a feature, `diagnose` for a defect.

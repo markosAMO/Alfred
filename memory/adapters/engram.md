@@ -23,7 +23,7 @@ it.
 ```bash
 # Claude Code, machine-wide so worktrees outside the repository are covered too
 claude mcp add engram --scope user -- \
-  engram mcp --tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context
+  engram mcp --tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context,mem_judge
 ```
 
 ```jsonc
@@ -31,15 +31,16 @@ claude mcp add engram --scope user -- \
 "mcp": {
   "engram": {
     "type": "local",
-    "command": ["engram", "mcp", "--tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context"],
+    "command": ["engram", "mcp", "--tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context,mem_judge"],
     "enabled": true
   }
 }
 ```
 
 Use the absolute path to the binary where it is not on the agent's `PATH`. The tool list is
-the five operations this adapter uses; Engram exposes more, and every one declared is
-schema an agent carries before it reads a line.
+the operations this adapter uses; Engram exposes more, and every one declared is schema an
+agent carries before it reads a line. `mem_judge` earns its place because without it a
+conflict raised in a subagent has nobody to settle it; see `Conflicts` below.
 
 Tool names differ per agent: `mcp__engram__mem_search` in Claude Code, `engram_mem_search`
 in OpenCode. `models.profile` carries the Claude Code form as `memory_tool_prefix`.
@@ -112,6 +113,32 @@ entry was retired is more useful in a memory than a hole where it used to be.
 Engram has no bulk import. Reindexing walks `docs/` and calls `remember` for each artifact,
 deriving each key from its path per the contract's naming rules. Existing entries are
 replaced by `topic_key`, so the operation is safe to repeat.
+
+## Conflicts
+
+`mem_save` can answer `judgment_required: true` with the entries it disagrees with. Engram
+exposes a tool that settles it, and where it is available to the phase, the phase settles
+the conflict and continues.
+
+Where it is not — a subagent whose tool list does not carry it — the phase records the
+conflict in its return and continues, per the contract. `archive` collects them into one
+list for the user. Nothing blocks and nothing is overwritten.
+
+The tool list a session declares is what decides which of those two happens, so a
+subagent that will write memory is granted the same tools the session has:
+
+```bash
+claude mcp add engram --scope user -- \
+  engram mcp --tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context,mem_judge
+```
+
+`mem_judge` absent from that list is not a backend that cannot settle conflicts. It is a
+tool that was never offered, and it reads identically from inside the phase — which is the
+same trap as a memory tool that is deferred and not yet loaded, below.
+
+Conflicts raised against entries with a near-zero similarity score are a threshold that
+wants tuning rather than a disagreement worth a user's attention. Record the observation
+with the conflict; a channel that cries wolf is ignored, and it carries the real ones too.
 
 ## Lifecycle metadata
 

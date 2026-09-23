@@ -138,6 +138,34 @@ reindex(path) -> count
 Rebuilds the searchable copy from the files under `path`. Run after cloning a repository,
 after switching backend, or whenever memory and files may have diverged.
 
+## Conflicts a backend cannot settle
+
+A backend may answer `remember` with a conflict rather than a confirmation: what is being
+stored disagrees with what is already there, and it will not pick between them.
+
+That is the right answer. The wrong part is what happens next, when the conflict is raised
+in a subagent that has no way to settle it — no tool for it, nobody to ask, and an empty
+context that disappears when the phase ends. One measured run finished with six of them
+open, each reported once, into nothing.
+
+```
+the phase records the conflict in its return, and continues
+archive collects every conflict recorded during the change, in one list
+the user settles them, or leaves them, in one pass
+```
+
+A phase never blocks on one. What the conflict is about is already written down twice, so
+nothing is lost by deciding late, and a phase stopping to resolve a memory entry has
+stopped the change for the index rather than for the work.
+
+Never resolve one silently in either direction. An entry overwritten because the newer call
+was newer loses whatever the earlier one knew, and the loss is invisible: both calls
+succeeded.
+
+A backend that raises conflicts on unrelated entries is reporting a tuning problem, not a
+disagreement. Record it and say so — a channel that cries wolf gets ignored, and it is the
+same channel that carries the real ones.
+
 ## Key naming
 
 Keys are deterministic, so any phase can address an artifact without searching for it.
