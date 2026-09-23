@@ -21,7 +21,7 @@ orchestrator asks, running `git.worktrees.tool` and returning its output as prin
 Report what is installed here and what is running.
 
 ```
-global skills     ~/.config/alfred/skills/     13 skills, version 0.2.0
+global skills     ~/.config/alfred/skills/     13 skills, version 0.3.0
 local overrides   .alfred/skills/              apply
 profile           mixed
 memory            engram, reachable, documents: pointer

@@ -10,7 +10,7 @@ set -euo pipefail
 
 SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ALFRED_HOME="${ALFRED_HOME:-$HOME/.config/alfred}"
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 PHASES=(init explore refine research spec diagnose design tasks apply verify review archive)
 PAYLOAD=(skills memory notify tracker templates defaults triggers bin alfred.config.yaml)
