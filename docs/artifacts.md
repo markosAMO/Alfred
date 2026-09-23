@@ -72,6 +72,29 @@ Back up the main checkout's Alfred directories, or run with a memory backend, or
 risk is not hypothetical: a worktree removed by hand, a directory cleaned up, a machine
 replaced, and the documents are gone with no history to recover them from.
 
+## The project's own documentation
+
+Separate question, separate setting. `artifacts.committed` is about Alfred's documents;
+`git.documentation` is about the project's technical documentation, the files a reader of
+the repository consults.
+
+```yaml
+git:
+  documentation: with_change
+```
+
+`with_change`, the default, updates it as part of the change and commits it with the rest.
+It should be the answer: documentation that is updated in a separate pass is documentation
+that goes stale between passes, and the risk of `separate` is that the pass never comes.
+
+`separate` is for a repository whose review process wants documentation on its own. It is
+read by `tasks`, which then creates no documentation task — which is the reason the setting
+exists at all. Deciding it at the end instead means a task was dispatched, written and
+reviewed before being dropped, at the price of a subagent per change.
+
+Merging the delta into the master specifications is not affected by either value. That is
+how the specifications stay true, and it happens on every change.
+
 ## Changing your mind
 
 Switching to `committed: true` is `git add` on the paths in `paths`, plus removing the

@@ -48,6 +48,31 @@ fixing it is one line.
 
 A scenario claimed by two tasks produces two implementations of the same behaviour.
 
+## Documentation is a task or it is not, decided here
+
+`git.documentation` says whether the project's own technical documentation is updated with
+the change or separately from it. This phase reads it, and it is the only phase that acts
+on it.
+
+```
+with_change   a documentation task is created, and it is committed with the rest
+separate      no documentation task is created
+```
+
+Deciding it here is the whole point. A documentation task created now and dropped at
+`archive` was dispatched, written, reviewed and then discarded — in one measured run that
+was about a hundred thousand tokens across two changes, spent on work that was never going
+to be committed. The decision costs nothing before the task list exists and costs a
+subagent after it.
+
+`separate` does not mean the documentation is not written. It means this pipeline is not
+what writes it, and the change says so rather than leaving a reader to wonder whether it was
+forgotten.
+
+The project's technical documentation is not `paths.master_specs`. Merging the delta into
+the master specifications is `archive`'s work and is not optional under either value: it is
+how the specifications stay true, per `skills/archive/SKILL.md`.
+
 ## Dependencies
 
 A task depends on another when it needs something that task creates: an interface, a

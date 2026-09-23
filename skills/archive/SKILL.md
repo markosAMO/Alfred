@@ -130,7 +130,7 @@ as above.
 Per `git` in the configuration:
 
 ```
-stage only the files reported by apply
+stage the files reported by apply
 one commit for the whole change
 conventional commit message
 no AI attribution of any kind
@@ -139,6 +139,28 @@ push
 
 Staging everything present would sweep in whatever the user left in progress. The file list
 comes from the subagent reports, which is why `apply` requires it.
+
+State the scope as what is excluded, never as what is included. "Stage the source and the
+tests" is read literally by something that has no way to know a locale file, a migration or
+a configuration key was part of the work — observed twice in one run, both times leaving the
+change incomplete in the commit.
+
+```
+everything the change needs, excluding .alfred/ and docs/changes/
+```
+
+**Compare before committing.** What git reports as changed is compared against the union of
+every `files_changed` from `apply`, and any file in one and not the other is reported:
+
+```
+changed and not reported   apply touched a file and did not say so
+reported and not changed   a task reported work it did not do
+```
+
+Neither is fatal and neither is resolved silently. A file changed and not reported is the
+collision `apply` is built to detect, and the same difference is what `worktree.sh close`
+refuses on afterwards — by then the commit already exists and the fix is another commit.
+Compared here, it is a question asked while the answer is still cheap.
 
 State is staged with the change, so a collaborator who clones mid-change can continue, and
 under `pointer` the address file is staged with it: they answer the same question from two
