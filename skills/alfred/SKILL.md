@@ -144,6 +144,8 @@ are the agent pointer files present and pointing at AGENTS.md
 is any state file referencing a change directory that no longer exists
 under pointer: does every address file row still resolve, and does state agree with it
 is any worktree listed whose directory no longer exists   worktree.sh list, exists: false
+does every open worktree have architecture, conventions and a configuration
+under artifacts.committed: false: does any worktree hold documents the main checkout lacks
 ```
 
 Each failure is reported with its remedy. A diagnostic that says something is wrong without
@@ -151,6 +153,13 @@ saying what to do is a longer way of failing.
 
 The test command check matters most: a wrong command makes every `verify` an environment
 failure, and it is invisible until the first change reaches that phase.
+
+The two worktree checks report what `worktree.sh open` prints when a worktree is created,
+for the worktrees that are already open. A missing `conventions` is not an error — a
+repository may genuinely not have written them — but a phase that is told costs nothing and
+a phase that discovers it costs a rediscovery per subagent. The document check is the one
+that prevents loss: under `artifacts.committed: false` nothing in git is holding those
+files, so a worktree removed before `archive` copied them back takes the only copy with it.
 
 ## worktrees
 

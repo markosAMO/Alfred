@@ -8,6 +8,10 @@ paths:
   pipeline_state: .alfred/state/
   skill_registry: .alfred/skill-registry.md
 
+artifacts:
+  committed: true
+  local_exclude: .git/info/exclude
+
 memory:
   backend: engram
   adapter: memory/adapters/engram.md
@@ -38,13 +42,14 @@ git:
   message_format: conventional_commits
   ai_attribution: false
   stage: files_changed_by_alfred
+  documentation: with_change
   push_after_commit: true
   worktrees:
     tool: ~/.config/alfred/bin/worktree.sh
     protocol: skills/_shared/worktree-protocol.md
     root: ~/.alfred/worktrees/{repo}/{branch}
     setup_command: none
-    copy_files: []
+    copy_files: [.alfred/config.yaml]
     max_parallel: 3
     remove_on_archive: true
     pull_request: false

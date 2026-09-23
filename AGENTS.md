@@ -41,6 +41,7 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `triggers/` | How the flow starts in each environment | OpenClaw, terminal, future entry points |
 | `docs/installation.md` | The two installation levels | Machine-level setup versus repository setup |
 | `docs/models.md` | Model assignment and profiles | Why phases run on different models |
+| `docs/artifacts.md` | Where Alfred's own documents live | A repository may not accept them, and Alfred still runs there |
 | `docs/` | Project documentation | For humans; agents do not read it |
 
 ## The pipeline
@@ -139,7 +140,12 @@ Every mode is overridable in `alfred.config.yaml`.
 17. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
-18. **Parallel changes never share a checkout.** Changes started together through
+18. **Alfred runs in repositories that do not accept it.** `artifacts.committed: false`
+   keeps Alfred's documents out of git, through the repository's local exclude file and
+   never through `.gitignore`. What changes is who holds the documents, never what Alfred
+   writes: a worktree is given them by copy, and closing one refuses to discard a document
+   the main checkout does not already have. See `docs/artifacts.md`.
+19. **Parallel changes never share a checkout.** Changes started together through
    `/alfred-worktree` each run in their own git worktree on their own branch, created and
    removed by `bin/worktree.sh`, never by an agent running git by hand. One change, one
    worktree, one branch. See `skills/_shared/worktree-protocol.md`.

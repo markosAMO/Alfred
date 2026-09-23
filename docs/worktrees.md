@@ -90,12 +90,30 @@ git:
 worktree. With the default, `none`, nothing is installed, and Alfred says so when it opens
 the worktree rather than when `verify` cannot run the tests.
 
+Opening a worktree also reports what it found there:
+
+```yaml
+artifacts: tracked
+architecture: present
+conventions: missing
+config: present
+```
+
+A worktree is made from a commit, so anything you wrote and never committed is not in it.
+Alfred says which of its own documents are missing at that moment, instead of each phase
+finding out on its own — in one measured run, five subagents discovered the same missing
+file separately.
+
 ## While changes run
 
 `status` lists every open change across all worktrees, with its branch, phase and state.
 
 The memory backend is shared, and that is intended: entries are keyed by change name, and
 a postmortem written from one worktree is found from the next.
+
+If your repository does not accept Alfred's documents in git, see
+[artifacts.md](artifacts.md): the worktree is given them by copy, and closing one refuses
+to throw away documents nothing else is holding.
 
 ## Finishing
 
@@ -133,7 +151,7 @@ git:
     tool: ~/.config/alfred/bin/worktree.sh
     root: ~/.alfred/worktrees/{repo}/{branch}
     setup_command: none
-    copy_files: []
+    copy_files: [.alfred/config.yaml]
     max_parallel: 3
     remove_on_archive: true
     pull_request: false
@@ -154,3 +172,4 @@ the same file run together, needs a merge step the pipeline does not have yet.
 | `has uncommitted changes to tracked files` on close | a file was changed and not committed by `archive`; look at what it lists before forcing |
 | `setup: failed` when opening | the setup command failed; the log path is printed, the worktree is kept |
 | `exists: false` in the list | the worktree directory was deleted by hand; ask for `abandon <branch>` to clean the record |
+| `holds Alfred documents the main checkout does not have` on close | `artifacts.committed: false` and `archive` did not copy them back; they are in no git anywhere, so the close stops rather than discarding them |

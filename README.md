@@ -27,6 +27,9 @@ delta, and merging that delta back into the master specifications is a step in t
 rather than something to remember afterwards. Documentation stops going stale because
 updating it is not optional.
 
+Where a repository will not accept them, Alfred keeps them out of git and still runs. See
+[docs/artifacts.md](docs/artifacts.md).
+
 ## Phases
 
 | Phase | Question |
@@ -108,6 +111,7 @@ commands, and troubleshooting.
 | [docs/installation.md](docs/installation.md) | the two installation levels |
 | [docs/models.md](docs/models.md) | model assignment and profiles |
 | [docs/worktrees.md](docs/worktrees.md) | several changes at once, one worktree each |
+| [docs/artifacts.md](docs/artifacts.md) | where Alfred's documents live, and running where they cannot be committed |
 | `skills/_shared/` | the protocols every phase relies on |
 
 ## Acknowledgements

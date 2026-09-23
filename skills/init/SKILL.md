@@ -122,9 +122,61 @@ docs/changes/
 .alfred/skill-registry.md
 ```
 
+Under `artifacts.committed: false` the same files are created and the exclusions are
+written beside them. What changes is what git is holding, never what Alfred writes.
+
 `AGENTS.md` is the source of truth; the rest are three-line files redirecting to it. Only
 the block between `<!-- ALFRED:BEGIN -->` and `<!-- ALFRED:END -->` belongs to Alfred. An
 existing file keeps everything it already said, per rule 5 in the package `AGENTS.md`.
+
+## Whether the documents are committed
+
+Asked once, here, because every later phase assumes the answer and none of them can change
+it.
+
+```
+ask("Can Alfred's own documents be committed to this repository?",
+    ["yes, commit them", "no, keep them out of git"], "yes, commit them")
+```
+
+`yes` is `artifacts.committed: true` and needs nothing further: the documents are versioned
+with the code they describe, which is where they belong and what keeps them safe.
+
+`no` is for a repository that will not take them — a team that has not adopted Alfred, a
+review process that would reject the directory. It is a legitimate way to run, and it is
+recorded rather than worked around. Alfred then writes the exclusions to
+`artifacts.local_exclude`, `.git/info/exclude` by default:
+
+```
+.alfred/
+docs/changes/
+docs/specs/
+docs/architecture.md
+docs/code_conventions.md
+```
+
+That file is per-clone and is not itself tracked, so keeping Alfred out of a repository
+costs the repository no commit. Writing the same lines to `.gitignore` would be a change to
+the thing the answer was `no` about.
+
+Say what it costs, at the moment the answer is given rather than when it is felt: the
+documents stop being versioned, nobody else's clone has them, and the only copies are this
+checkout and the memory backend. A repository answering `no` is the one where a memory
+backend stops being an optimisation. See `docs/artifacts.md`.
+
+## Commit before opening a worktree
+
+Under `artifacts.committed: true`, the last thing this phase says is that its output has to
+be committed before any worktree is opened.
+
+A worktree is created from a ref. An architecture written here and not committed is not in
+any worktree made afterwards, and every phase running in one discovers its absence
+separately — the cost is a rediscovery per subagent, and nothing upstream can warn them,
+because the orchestrator reads the configuration, the state and the registry and nothing
+else.
+
+Under `committed: false` there is nothing to commit and the tool copies the documents into
+each worktree instead, per `skills/_shared/worktree-protocol.md`.
 
 ## Architecture
 

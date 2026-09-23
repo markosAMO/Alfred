@@ -157,6 +157,62 @@ the worktree. `none`, the default, does nothing and is reported as `setup: none`
 orchestrator can say that dependencies were not installed rather than discover it when
 `verify` cannot run the tests.
 
+`.alfred/config.yaml` is in `copy_files` by default. A worktree that does not have it is a
+change whose every phase reads the configuration of a repository it is not standing in, or
+fails to find one at all.
+
+## What the tool reports before a phase can ask
+
+A worktree is created from a ref, so anything the main checkout has and git does not is
+simply absent from it. The tool is standing in the worktree it just made and knows this for
+free; every phase that has to find it out instead finds it out separately.
+
+```yaml
+architecture: present
+conventions: missing
+config: present
+```
+
+This is the whole of a friction that is otherwise invisible: a run where
+`docs/code_conventions.md` was never committed had five subagents discover its absence
+independently, and the orchestrator could not have told them, because it reads the
+configuration, the state and the registry and nothing else.
+
+The orchestrator records these three fields with the rest of the record, and carries
+`conventions: missing` into every dispatch, so a subagent is told rather than left to infer
+it from a failed read. A phase that knows the file is absent follows the patterns already in
+the code; a phase that expected it and did not find it spends its first minutes deciding
+whether it looked in the wrong place.
+
+## Repositories that do not accept Alfred
+
+`artifacts.committed: false` is for a repository where Alfred's own documents cannot be
+committed: a team that has not adopted it, a checkout whose review process would reject the
+directory, a fork nobody owns. Alfred still runs there. What changes is who is holding the
+documents.
+
+Under `committed: false` they are kept out of git deliberately, through
+`artifacts.local_exclude` — `.git/info/exclude` by default, which is per-clone and untracked,
+so excluding them is not itself a change to the repository. `.gitignore` would be.
+
+Two consequences follow, and the tool handles both:
+
+**A worktree cannot inherit them.** Git has no copy to hand over. The tool copies
+`paths.architecture`, `paths.conventions`, `paths.master_specs` and `paths.changes` from the
+main checkout when it creates the worktree, and reports `artifacts: copied` with what it
+carried. Under `committed: true` it reports `artifacts: tracked` and copies nothing, because
+the branch already has them.
+
+**Closing a worktree would destroy them.** `close` discards untracked files, which is correct
+when they are a copied `.env` and wrong when they are the specification of the change that
+just finished. So `close` refuses when the worktree holds Alfred documents the main checkout
+does not have byte for byte, names them, and stops. `archive` copies them back before asking
+for the close; the refusal means it did not.
+
+The documents are worth more in this mode, not less: git is not holding them, so the main
+checkout and the memory backend are the only two copies there are. A repository that cannot
+commit them is the one where a memory backend stops being an optimisation.
+
 ## Sessions
 
 A session is started in the background, named for its change, with its working directory
@@ -181,6 +237,20 @@ A session comes up idle: starting one is not handing it a task. The coordinator 
 its work in the first message, which says it is the Alfred orchestrator for that change and
 carries the change's addresses — worktree, branch, base, main checkout, and the request.
 Nothing is pasted into it that a path would do.
+
+**The first line of that message loads the skill, before anything else is said.** A session
+that reads the request first is a general-purpose agent reading source files to orient
+itself, and it has already spent context and made decisions by the time it learns there was
+a pipeline for this. Observed: an orchestrator opened two source files before loading the
+skill that tells it never to open one.
+
+What follows the skill line is one block, not instructions arriving as the run needs them:
+the addresses, the preflight fields above, what the staging scope is, whether documentation
+is committed with the change, and which resources are shared with other worktrees. Every one
+of those is a property of the repository or of this fleet, known before the change starts. A
+standing instruction that arrives in the middle of a run has already been violated once by
+definition, and whoever sends it pays a round trip to say something that was true from the
+beginning.
 
 The coordinator does not announce its own address. A message arrives wrapped with the
 sender in it, and a reply is that sender copied back, so a session learns where to report
