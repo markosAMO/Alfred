@@ -57,6 +57,22 @@ test asserts    the response status is 200
 The failure scenarios matter most here. They are the ones most often written to pass rather
 than to check, because the code path they exercise is the one nobody ran by hand.
 
+The second way a test proves nothing is a chain that was stubbed. A test that replaces the
+resolution it is standing on asserts that the replacement works, and passes whatever the
+real one would have done.
+
+```
+scenario touches   a helper the worker calls
+test stubs         the helper's caller, and asserts on the stub
+                   -> does not cover the scenario
+```
+
+Ask it as one question, per `skills/_shared/testing-protocol.md`: does the coverage of this
+unit reach its real call sites, or stop at its own signature? A change to shared code with
+no test that goes through a caller is reported as a finding, with the scenario that should
+have exercised it. This is the gap that let a real regression through a full `verify` and a
+full `review` in one measured run.
+
 ## Coverage
 
 Coverage is measured over the lines the change introduced or modified, per

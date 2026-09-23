@@ -50,12 +50,26 @@ deliberately excluded is not reported as missing.
 ```
 conventions      does it follow docs/code_conventions.md
 correctness      error handling, edge cases, resource cleanup, concurrency
+call sites       does the new contract hold for every caller that already exists
 simplicity       is there a materially simpler shape with the same behaviour
 duplication      does this already exist in the codebase
 coupling         does it reach past the boundaries the architecture draws
 security         input handling, authorisation, secrets, injection surfaces
 readability      will this be understood by someone who was not here
 ```
+
+`call sites` is the one that needs looking up rather than reading. A modified signature, a
+changed return type, a helper whose accepted input narrowed: the diff shows the change and
+not the twelve places that depend on it. Trace them.
+
+```
+changed    helper accepts a string
+callers    one worker passes a symbol
+result     a regression that passes its own author's tests
+```
+
+`verify` asks whether the tests reach the real callers. This phase asks whether the callers
+still work, which is a different question and is answered by reading them.
 
 ## Severity
 
