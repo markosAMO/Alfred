@@ -146,6 +146,20 @@ owning the affected files are re-dispatched.
 `should fix` and `suggestion` findings are recorded and do not block. `archive` carries
 them into memory so they surface when that area is touched again.
 
+## A second pass
+
+A review that follows a fix round reads the diff of the fix, not the diff of the change.
+
+The rest of the code was reviewed once, by this phase, and has not changed since. Reading it
+again produces the same findings, which were either acted on or recorded as `should fix` and
+deliberately left — and re-reporting something the user decided to leave is how a report
+stops being read.
+
+Two things stay whole. The blocking findings of the previous pass are checked as resolved,
+each against the code that now stands rather than against the claim that it was fixed. And a
+fix that touched a file outside its own task pulls that file into this pass, because a fix
+that spread is exactly the case a narrow read would miss.
+
 ## Completion
 
 Follow `skills/_shared/phase-protocol.md`: write the document, index it under

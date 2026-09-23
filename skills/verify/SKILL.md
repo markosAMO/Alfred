@@ -118,6 +118,29 @@ A failed verification returns the change to `apply` with the failing scenarios n
 only the tasks that claim them are re-dispatched. Re-running everything discards work that
 passed.
 
+## A second pass
+
+A verification that follows a fix round is not the first verification again.
+
+```
+the scenarios named in the previous report's Findings
+every scenario whose tests touch a file the fix round changed
+the full command run, because a fix is how a regression arrives
+```
+
+Everything else passed, against code that did not change, and confirming it a second time
+buys nothing. Measured: a second pass cost more than the first, for a report whose only new
+sentence was about the fix.
+
+The commands still run whole — they are one invocation and a partial run is not cheaper —
+and the report still lists every scenario, carrying the verdict of the first pass for the
+ones this pass did not revisit, marked as such. A scenario silently inheriting a pass is how
+a report comes to claim something nobody checked.
+
+A third pass reads the second the same way. What grows is the list of files the fix rounds
+have touched, and it grows slowly, because a change with an ever-widening fix surface is a
+change that should go back to `design` rather than round the loop again.
+
 ## Completion
 
 Follow `skills/_shared/phase-protocol.md`: write the document, index it under

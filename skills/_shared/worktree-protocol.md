@@ -71,6 +71,44 @@ coordinator holding both only learns it by carrying a correction between them.
 It is a recommendation, not a refusal. The user may want the worktrees anyway, and a change
 list is theirs to decide.
 
+## Files two changes both touch
+
+Coupling is about decisions and is judged before the run. Shared *files* are knowable later
+and exactly: each change's `tasks` declares the files of every task, so once two changes
+have both reached `tasks`, the coordinator can intersect the lists.
+
+It is worth doing at that moment rather than discovering it in `apply`.
+
+```
+both changes touch app/models/concerns/channel_sender_helper.rb
+  -> the change that reaches apply first owns it
+  -> the other is told, before its subagent is dispatched
+```
+
+The change that owns the file writes it. The other is told which file, who owns it, and what
+to do when its own task needs the same file: stop and report, per `skills/apply/SKILL.md`,
+which is what a task did in one run and was right to do. The difference is that it knew
+beforehand rather than discovering it mid-task, and that it cost a message instead of a
+round trip through the user.
+
+**A fix that is idempotent needs no round trip at all.** A task that finds a shared file
+already corrected the way its own change requires leaves it alone and says so. A task whose
+correction is the same correction applies it, whether or not the other change got there
+first, and the second writer changes nothing.
+
+```
+channel.to_s.camelize applied by either change, in either order, is one result
+```
+
+That is not a licence to write a shared file whenever the result looks the same. The test is
+whether the two changes want the same final state of that file, and it is answered by
+reading what the other change's design says about it — which is in memory, under that
+change's key, where one run's `design` read another's without anyone relaying it.
+
+Where the answer is no, or where reading it does not settle the question, the task stops and
+reports. Guessing about a file another change owns is the failure the whole layout exists to
+prevent.
+
 Where worktrees pay is the opposite case: changes independent in decisions as well as in
 files, each long enough to be worth a session, each needing few answers. The bound that
 matters there is not `max_parallel` but how many questions the user is answering at once —

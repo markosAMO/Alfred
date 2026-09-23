@@ -72,6 +72,11 @@ the run stops and reports it, even when tests pass.
 appears in a report and not in the declaration is a prediction that was wrong, and the next
 run of that phase treats it as exclusive.
 
+Files shared with *another change* are not this rule. Subagents of different changes write
+different checkouts, so nothing is overwritten; what collides is the branches, later. A task
+reaching a file another change owns stops and reports, and which files those are is known
+before dispatch, per `skills/_shared/worktree-protocol.md`.
+
 ## Writing code
 
 Follow `docs/code_conventions.md` for how this repository writes code, and
