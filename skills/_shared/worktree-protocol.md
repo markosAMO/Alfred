@@ -418,7 +418,18 @@ Notifications carry the change name too, per `notify/CONTRACT.md`, so a user fol
 several changes from a phone can tell which one is asking.
 
 The skill registry is per worktree, since each has its own `.alfred/`; the session hook
-writes it. Configuration is read from the main checkout.
+writes it. Configuration is copied into each worktree at `open`, per `copy_files`, so a
+phase reads the configuration of the repository it is standing in.
+
+The master specifications are the one document two changes both write, and they are **not**
+shared. Each worktree has its own copy on its own branch, `archive` merges the delta there,
+and the merge lands in the change's commit. Two changes touching the same requirement then
+meet as a git conflict when the branches do, which is a question for a person.
+
+A worktree that writes the master specifications in the main checkout instead produces a
+commit whose specification is missing, a file two changes can overwrite with no branch
+between them, and a dirty main checkout nobody expected. All three were observed in one
+run, and the third is what made it visible.
 
 ## Closing
 

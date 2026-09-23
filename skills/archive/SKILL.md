@@ -155,7 +155,30 @@ Implements docs/changes/login-google.
 ## Changes in their own worktree
 
 When state carries a `worktree`, this phase runs inside it, and the commit lands on
-`branch`. After the push:
+`branch`.
+
+**The delta is merged inside the worktree**, into the copy of `paths.master_specs` that is
+on this branch, and it goes into this change's commit like every other file. Not into the
+main checkout.
+
+Writing to the main checkout from a worktree is wrong three times over. The merged
+requirement is not in the commit, so the branch describes behaviour its own specification
+does not mention. Two changes archiving close together write the same file with no branch
+between them and one silently wins. And the main checkout ends up dirty, which is the state
+the worktree layout exists to prevent, discovered later by whoever works there next.
+
+Merged on the branch, two changes that touch the same requirement produce a merge conflict
+when the branches meet, which is a question git puts to a person rather than a loss nobody
+sees.
+
+Under `artifacts.committed: false` there is no commit to put them in. The delta is still
+merged in the worktree, and then this phase copies `paths.master_specs` and
+`paths.changes` back to the main checkout before any close — they are untracked, so the
+worktree is the only place holding them and `close` discards untracked files.
+`worktree.sh close` refuses while the main checkout is missing any of them, and names what
+it found. See `docs/artifacts.md`.
+
+After the push:
 
 ```
 git.worktrees.pull_request: true    open a pull request from branch to base, if the
