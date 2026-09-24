@@ -2,7 +2,7 @@
 change: {change}
 type: {feature|bug}
 closed_at: {ISO8601}
-commit: {sha}
+commit: {the commit subject line, not a hash — see archive/SKILL.md}
 outcome: {completed|closed_incomplete}
 ---
 

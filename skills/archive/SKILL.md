@@ -318,22 +318,21 @@ Implements docs/changes/login-google/record.md.
 3 requirements, 7 scenarios, 47 tests.
 ```
 
-## The record carries the commit that contains it
+## The record does not carry its own commit hash
 
-The record's frontmatter names the commit, and the commit contains the record. Neither can
-be written second.
+It cannot. A commit's hash covers the tree it contains, so a file inside that tree can never
+state the hash — writing it in changes it, and amending to correct it changes it again.
+
+Git already answers the question from both sides, and neither needs a hash in the document:
 
 ```
-commit, then amend with the record's commit line filled in
+which commit closed this change      git log --oneline -1 -- <the record>
+which record does this commit close  the commit message names it
 ```
 
-One commit still, and the same one: the amend rewrites it rather than adding another. Write
-the record with the field empty, stage everything, commit, fill the field in, and amend.
-
-The alternative is a second commit that exists only to write a hash into a file, which is
-the thing `git.granularity: per_feature` is there to prevent. Leaving the field empty is
-worse than either: the record is the document a reader arrives at, and the commit is what it
-sends them to next.
+The record's `commit:` field therefore carries the commit's subject line, which is decided
+before the hash exists and is stable under amend. A phase that finds itself amending to
+write a hash into the tree that produced it has hit the regress, not a step it missed.
 
 The message names the record rather than the directory. Under `final_only` the directory
 holds the record and the delta and nothing else, and a message pointing at a directory that
