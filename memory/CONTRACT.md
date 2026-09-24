@@ -14,8 +14,10 @@ working on the same repository produce the same files.
 
 ### keep
 
-The default. Markdown files under version control are authoritative; memory holds a
-searchable copy.
+Markdown files under version control are authoritative; memory holds a searchable copy.
+Everything a change writes stays after it closes. This was the default until `ephemeral`
+replaced it, and it is the answer for a repository that wants the record of how it was built
+kept in the repository itself.
 
 ```
 docs/changes/login-google/spec.md        authoritative
@@ -46,7 +48,8 @@ running Alfred, and the agent pointer files name them by path.
 
 ### ephemeral
 
-The working documents are written as files during the run, exactly as under `keep`, and
+The default. The working documents are written as files during the run, exactly as under
+`keep`, and
 removed when `archive` closes the change. What stays is the record, the delta specification
 and the master specifications it was merged into.
 

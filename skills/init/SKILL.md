@@ -230,13 +230,13 @@ memory.documents  keep       the documents are files, memory holds a searchable 
                   pointer    the documents are in memory, the repository holds addresses
 ```
 
-`keep` keeps everything and is the answer for a repository whose history of how it was
-built is wanted in the repository itself.
+`ephemeral` is the default, and the answer for most repositories. A change writes seven or
+eight documents and roughly fifteen hundred lines while it is open, and the question they
+settle is answered afterwards by one record and the merged specification. It works with any
+backend, including none.
 
-`ephemeral` is the answer for most repositories, and the one to suggest. A change writes
-seven or eight documents and roughly fifteen hundred lines while it is open, and the
-question it settles is answered afterwards by one record and the merged specification.
-It works with any backend, including none.
+`keep` keeps everything and is the answer for a repository whose history of how it was built
+is wanted in the repository itself. It was the default before `ephemeral`.
 
 `pointer` is for a repository that wants the documents kept and searchable but not on disk,
 and it requires a backend that answers, per `memory/CONTRACT.md`. It cannot be chosen with

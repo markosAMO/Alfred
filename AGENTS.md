@@ -89,11 +89,11 @@ Every mode is overridable in `alfred.config.yaml`.
 1. **No skill names a concrete tool.** Skills say `memory.recall(...)`, never `mem_search`.
    Translation lives in `memory/adapters/`. The same applies to `notify/`.
 2. **Which side is authoritative is the repository's configuration, not the machine's.**
-   Under `memory.documents: keep` the documents are files under version control and the
-   backend holds a disposable copy rebuilt by `reindex`. Under `ephemeral` they are files
-   while the change is open and `archive` removes them, leaving the record and the delta
-   spec. Under `pointer` they live in memory and the repository keeps their addresses.
-   Pipeline state is a file in all three, always, per
+   Under `memory.documents: ephemeral`, the default, the documents are files while the
+   change is open and `archive` removes them, leaving the record and the delta spec. Under
+   `keep` they all stay, under version control, with the backend holding a disposable copy
+   rebuilt by `reindex`. Under `pointer` they live in memory and the repository keeps their
+   addresses. Pipeline state is a file in all three, always, per
    `skills/_shared/state-contract.md`.
 3. **Alfred runs without memory, under `keep` and `ephemeral`.** With no backend configured
    the pipeline still works: subagents read the Markdown files directly. More expensive in

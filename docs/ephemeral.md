@@ -32,10 +32,11 @@ open the repository, in a repository whose subject is not Alfred.
 | Mode | While the change is open | After it closes |
 |---|---|---|
 | `keep` | files | all of them stay |
-| `ephemeral` | files | the record and the delta spec stay |
+| **`ephemeral`** | files | the record and the delta spec stay — **the default** |
 | `pointer` | memory | the address file and the record stay |
 
-`keep` is the original behaviour and changes nothing.
+`keep` is the original behaviour and changes nothing. It was the default until `ephemeral`
+replaced it; a repository that wants every document kept sets it explicitly.
 
 `pointer` moves the documents into the memory backend and keeps addresses for them. It
 needs a backend that answers, and the pipeline stops without one.
@@ -148,6 +149,26 @@ It is kept whenever the change did not close: a phase failed, `verify` failed, `
 blocked, the change was abandoned, or `archive` closed work that was explicitly incomplete.
 That last one matters — open work is work somebody may come back to, and a record reading
 "three tasks unfinished" beside no state leaves nothing able to resume them.
+
+## Not the same question as `artifacts.committed`
+
+`artifacts.committed` decides whether Alfred's documents are committed at all.
+`memory.documents` decides which of them survive the change. They are independent, and
+`docs/artifacts.md` has the table of what the four combinations leave a reader.
+
+## Repositories that predate the default
+
+A repository initialised before `ephemeral` existed carries `memory.documents: keep` in its
+own `.alfred/config.yaml`, and rule 2 says the repository's configuration wins. It keeps
+behaving exactly as it did, and `update` changes nothing about it.
+
+The new default applies to repositories initialised from now on, and to a repository whose
+configuration does not name the key at all. Nothing is rewritten on anyone's behalf: a
+setting that decides whether documents are deleted is not one to change under a user who did
+not ask.
+
+`alfred status` reports the mode in force and where it came from, so a repository still on
+`keep` says so rather than looking like one that chose it.
 
 ## Switching
 

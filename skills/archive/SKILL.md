@@ -209,12 +209,17 @@ able to resume them. See `skills/_shared/state-contract.md`.
 
 Under `pointer`, every phase before this one appended a row to
 `docs/changes/{change}/README.md` as it completed. This phase closes it, from
-`templates/docs/addresses.md`: the one-line description, the outcome, the commit, the
-specifications that changed, and the postmortem key for a bug.
+`templates/docs/addresses.md`: the remaining rows, and the postmortem key for a bug.
 
-It is the only description of this change that stays in the repository, so it is written
-for someone arriving from a master specification with no other context, not as a list of
-keys.
+It is not the description of the change — the record is, and it sits beside this file in
+every mode. The address file is the index that makes the entries reachable, and it stops
+where the record starts. The outcome, the commit and the specifications that changed are
+written once, in the record, because two documents carrying the same outcome go out of step
+at the first correction with nothing to say which is current.
+
+Both are staged together, for the reason the state file is: an index whose record is missing
+describes documents nobody can place, and a record with no index under `pointer` names
+nothing that can be fetched.
 
 ## Bugs: the postmortem
 
@@ -337,11 +342,21 @@ when the branches meet, which is a question git puts to a person rather than a l
 sees.
 
 Under `artifacts.committed: false` there is no commit to put them in. The delta is still
-merged in the worktree, and then this phase copies `paths.master_specs` and
-`paths.changes` back to the main checkout before any close — they are untracked, so the
-worktree is the only place holding them and `close` discards untracked files.
+merged in the worktree, and then this phase copies `paths.master_specs`, `paths.changes`
+and `paths.change_records` back to the main checkout before any close — they are untracked,
+so the worktree is the only place holding them and `close` discards untracked files.
 `worktree.sh close` refuses while the main checkout is missing any of them, and names what
 it found. See `docs/artifacts.md`.
+
+`paths.change_records` is in that list even though it usually resolves inside
+`paths.changes`, because it does not have to. Pointed somewhere else, the record is the one
+document of the change and it would be the one thing `close` discarded.
+
+This is also where `retain: final_only` and `committed: false` have to be done in the right
+order. The working documents are removed first, in the worktree, and only what remains is
+copied back. Copying first and deleting afterwards would carry eight documents into the main
+checkout to delete seven of them there, and a `close` racing that deletion refuses on files
+the main checkout has and the worktree no longer does.
 
 After the push:
 

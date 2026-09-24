@@ -24,13 +24,19 @@ Report what is installed here and what is running.
 global skills     ~/.config/alfred/skills/     13 skills, version 0.3.0
 local overrides   .alfred/skills/              apply
 profile           mixed
-memory            engram, reachable, documents: pointer
+memory            engram, reachable
+documents         ephemeral (default)          artifacts: committed, retain final_only
 tracker           none
 open changes      login-google (design, waiting_for_input)
 ```
 
 Overrides are listed explicitly. A phase behaving differently in one repository is almost
 always an override nobody remembers making.
+
+`documents` says whether the mode was chosen or inherited, for the same reason. `ephemeral`
+became the default after `keep` was, so a repository still on `keep` is either one that
+decided to be or one that predates the change, and those read identically without the
+annotation.
 
 ## update
 
