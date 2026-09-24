@@ -148,6 +148,21 @@ Stores or replaces the entry at `key`. Called after a phase writes its document,
 file and the copy stay in step. Repeated calls on the same `key` replace the entry rather
 than appending a second one.
 
+**All five arguments are required, and the result is checked.** A backend may accept a call
+that drops `key` or `type` — storing the entry, returning an identifier, reporting success —
+and what it stored is then unaddressable, unreplaceable, or unfilterable. Every one of those
+failures is silent at the call site and only shows up in a later phase as an artifact that
+appears never to have been written.
+
+So `remember` is not complete when the call returns. The phase compares what came back
+against what it asked for — the key it named, the type it named — and a mismatch is an
+error raised through `notify`, not a warning to pass. This is the same rule as the read-back
+before a deletion: the cheap check that stops a silent loss.
+
+`type` comes from the table below and nowhere else. A backend's own vocabulary is for people
+saving by hand; a phase that reaches for one has discarded what `recall(query, type)`
+filters on.
+
 ### recall
 
 ```

@@ -23,7 +23,7 @@ it.
 ```bash
 # Claude Code, machine-wide so worktrees outside the repository are covered too
 claude mcp add engram --scope user -- \
-  engram mcp --tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context,mem_judge,mem_save_prompt,mem_delete
+  engram mcp --tools=all
 ```
 
 ```jsonc
@@ -31,16 +31,31 @@ claude mcp add engram --scope user -- \
 "mcp": {
   "engram": {
     "type": "local",
-    "command": ["engram", "mcp", "--tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context,mem_judge,mem_save_prompt,mem_delete"],
+    "command": ["engram", "mcp", "--tools=all"],
     "enabled": true
   }
 }
 ```
 
-Use the absolute path to the binary where it is not on the agent's `PATH`. The tool list is
-the operations this adapter uses; Engram exposes more, and every one declared is schema an
-agent carries before it reads a line. `mem_judge` earns its place because without it a
-conflict raised in a subagent has nobody to settle it; see `Conflicts` below.
+Use the absolute path to the binary where it is not on the agent's `PATH`.
+
+`--tools=all` registers every tool Engram exposes — 23 at v2.0.0, across its `agent` (19)
+and `admin` (4) profiles. Every one of them is schema an agent carries before it reads a
+line, and that cost is paid deliberately.
+
+An earlier version of this file named a subset, and `scripts/generate_agents.py` narrowed it
+again per phase. Both were wrong in the same way: **a phase cannot tell a tool it was not
+given from a backend that cannot do the thing.** Both read as absence from inside the phase,
+so a missing tool degrades into a capability the run silently does without. Observed: an
+`archive` that hit `judgment_required` on every save, had no `mem_judge`, and recorded six
+unsettled conflicts rather than settling them.
+
+A subset is also a copy of the backend's surface that nothing keeps in step. Engram grows a
+tool and the list does not, and the gap only ever shows up as a phase quietly doing less.
+
+Which operations a phase *calls* is `memory/CONTRACT.md`'s business, and it is still narrow —
+`What this adapter does not call` below says so. What is *reachable* is this list, and it is
+everything.
 
 Tool names differ per agent: `mcp__engram__mem_search` in Claude Code, `engram_mem_search`
 in OpenCode. `models.profile` carries the Claude Code form as `memory_tool_prefix`.
@@ -63,6 +78,33 @@ the files.
 
 `topic_key` carries the contract's `key` unchanged. Reusing it is what makes a repeated
 `remember` replace an entry instead of accumulating competing copies of the same artifact.
+
+**A `mem_save` without `topic_key` is not a `remember`.** The field is optional to Engram,
+which accepts the call, stores the entry, returns an id and *suggests* a key it does not
+apply. Nothing fails. What you get is an entry that:
+
+```
+cannot be fetched by key      alfred/{change}/verify-report resolves to nothing
+does not replace on rewrite   the next remember() adds a second copy
+is reachable only by search   which the contract forbids relying on
+```
+
+Observed in a full run: seven of eight artifacts carried their key and `verify-report` did
+not. The phase reported success, `archive` confirmed "every document is present" — by
+searching, which found it — and the defect survived both.
+
+So the key is passed on every call, and it is checked: the `mem_save` result echoes the
+entry it wrote, and a result whose `topic_key` is absent or different from the key asked for
+is a failed `remember`, reported through `notify`, not a warning to skip past.
+
+`type` is passed through from the contract's vocabulary unchanged — `spec`, `design`,
+`tasks`, `verify-report`, `review-report`, `proposal`, `research`, `diagnosis`,
+`postmortem`, `architecture`, `conventions`. Engram accepts each of them; its own native
+types (`decision`, `pattern`, `discovery`, `manual`) are what a human saving by hand uses,
+and a phase that reaches for one has thrown away the distinction `recall(query, type)`
+depends on. In the same run, **none of the eight artifacts carried a contract type** — a
+`verify-report` was stored as `decision` and a `review-report` as `manual`, so filtering a
+recall by type would have returned neither.
 
 `capture_prompt: false` is set where the schema exposes it, so pipeline artifacts are not
 recorded as conversational prompts. An older schema that rejects the field has it omitted
@@ -139,7 +181,7 @@ subagent that will write memory is granted the same tools the session has:
 
 ```bash
 claude mcp add engram --scope user -- \
-  engram mcp --tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context,mem_judge,mem_save_prompt,mem_delete
+  engram mcp --tools=all
 ```
 
 `mem_judge` absent from that list is not a backend that cannot settle conflicts. It is a
@@ -217,15 +259,36 @@ pollutes the history that `context` returns.
 the orchestrator, or a hook. It records the real request before any derived `mem_save`, so
 Engram can attach and deduplicate it. A phase never calls it: a phase did not see the user.
 
+## Session lifecycle belongs to the orchestrator
+
+`mem_session_start` and `mem_session_end` bracket a run. The orchestrator calls them,
+because it is the participant that lives for the whole one; a phase that called them would
+open and close a session per phase and group nothing.
+
+Unbracketed, saves attach to whatever session Engram last had open. Observed: a seven-phase
+run whose every artifact attached to a session opened two days earlier, so the run is not a
+unit anything can retrieve — `context(scope)` returns the stale session's contents and calls
+them recent.
+
+`mem_save_prompt` is the orchestrator's too, and for the same reason: it records the user's
+actual request before any derived `mem_save`, and the orchestrator is the only participant
+that saw the user. A phase never calls it.
+
 ## What this adapter does not call
 
 `mem_session_summary` is for a top-level agent, never a subagent. A phase runs in a session
 that exists for one phase, and a summary written from inside it describes that fragment as
 though it were the run.
 
-`mem_capture_passive`, `mem_timeline` and `mem_stats` are inspection tools for a person at a
-terminal. Declaring them costs every agent the schema before it reads a line, per the note
-on the tool list above.
+`mem_capture_passive`, `mem_timeline`, `mem_stats`, `mem_doctor`, `mem_list_projects`,
+`mem_pin` and `mem_unpin` are inspection and housekeeping tools for a person at a terminal
+or for `alfred doctor`. Every agent is *given* them, per the tool list above — a phase must
+never be unable to tell a missing tool from a backend that cannot — but no phase in the
+pipeline has a reason to call one.
+
+The distinction is the point: **what is reachable is the whole backend; what a phase calls
+is this contract.** Narrowing the first to match the second is what produced an `archive`
+that could not settle a conflict it had correctly detected.
 
 ## Lifecycle metadata
 

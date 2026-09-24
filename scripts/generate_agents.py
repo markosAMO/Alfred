@@ -182,23 +182,31 @@ PHASE_TOOLS = {
     "alfred":   ["Read", "Write", "Glob", "Grep", "Bash"],
 }
 
-# Memory operations per phase, from memory/CONTRACT.md. Only what each phase actually
-# calls: a phase that never supersedes an entry has no use for mem_update.
-PHASE_MEMORY = {
-    "init":     ["mem_save"],
-    "explore":  ["mem_save"],
-    "refine":   ["mem_search", "mem_get_observation", "mem_save", "mem_context"],
-    "research": ["mem_search", "mem_get_observation", "mem_save"],
-    "spec":     ["mem_search", "mem_get_observation", "mem_save"],
-    "diagnose": ["mem_search", "mem_get_observation", "mem_save", "mem_context"],
-    "design":   ["mem_search", "mem_get_observation", "mem_save"],
-    "tasks":    ["mem_search", "mem_get_observation", "mem_save"],
-    "apply":    ["mem_search", "mem_get_observation", "mem_save", "mem_update"],
-    "verify":   ["mem_search", "mem_get_observation", "mem_save"],
-    "review":   ["mem_search", "mem_get_observation", "mem_save"],
-    "archive":  ["mem_search", "mem_get_observation", "mem_save", "mem_update"],
-    "alfred":   ["mem_search", "mem_get_observation", "mem_save"],
-}
+# Every phase gets every memory tool the backend exposes.
+#
+# This used to be carved up per phase, from memory/CONTRACT.md, on the reasoning that a
+# phase which never supersedes an entry has no use for mem_update. The economy was real -
+# each declared tool is schema the agent carries before it reads a line - and it was the
+# wrong trade, for a reason an end-to-end run made plain.
+#
+# A phase cannot tell a tool it was not given from a backend that cannot do the thing. Both
+# read as absence from inside the phase. An archive run hit `judgment_required` on every
+# save and had no `mem_judge` to settle it, so it recorded six open conflicts and moved on -
+# correct behaviour under the contract, and a worse outcome than settling them, caused
+# entirely by a list written before `mem_judge` existed.
+#
+# That failure mode repeats every time the backend grows a tool: the carve-up is a copy of
+# the backend's surface that nothing keeps in step, and it degrades silently. The contract
+# in memory/CONTRACT.md governs which operations a phase *calls*; the tool list governs what
+# is *reachable*. Those are different questions and only the first belongs in a skill.
+MEMORY_TOOLS = [
+    "mem_search", "mem_get_observation", "mem_save", "mem_update", "mem_context",
+    "mem_save_prompt", "mem_suggest_topic_key", "mem_judge", "mem_review",
+    "mem_compare", "mem_capture_passive", "mem_session_start", "mem_session_end",
+    "mem_session_summary", "mem_current_project", "mem_list_projects",
+    "mem_merge_projects", "mem_pin", "mem_unpin", "mem_doctor",
+    "mem_stats", "mem_timeline", "mem_delete",
+]
 
 ORCHESTRATOR_TOOLS = ["Task", "Read"]
 
@@ -318,7 +326,7 @@ def phase_tools(profile: dict, phase: str) -> list[str]:
 
     prefix = profile.get("memory_tool_prefix", "mcp__engram__")
     if prefix:
-        tools += [f"{prefix}{name}" for name in PHASE_MEMORY.get(phase, [])]
+        tools += [f"{prefix}{name}" for name in MEMORY_TOOLS]
 
     tools += profile.get("extra_tools", {}).get(phase, [])
     return tools

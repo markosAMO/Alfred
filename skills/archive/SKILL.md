@@ -397,8 +397,21 @@ reported in the completion line, never treated as a failed archive.
 Every conflict a phase recorded during the change, per `memory/CONTRACT.md`, is collected
 here into one list: what disagreed, which key, and which phase raised it.
 
-They are reported, not resolved. The user settles them in one pass, or leaves them, and
-either way they stop being six separate notices nobody could act on when they appeared.
+**Settle the ones that can be settled.** Every phase is given the backend's full tool list,
+so where the backend offers a judgment call this phase makes it, per
+`memory/adapters/engram.md`. What reaches the user is what judgment could not decide.
+
+This is the step that used to be skipped for the wrong reason. A phase without the tool
+reads exactly like a backend that cannot settle anything, so a run recorded six open
+conflicts, then twenty, and reported them as if that were the contract working. It was a
+tool list written before the tool existed.
+
+What cannot be settled is reported, not guessed: what disagreed, which key, which phase
+raised it. The user settles those in one pass, or leaves them.
+
+Conflicts raised between the artifacts of the same change — a spec that "contests" its own
+design — are a similarity threshold wanting tuning, not a disagreement. Say so once, with
+the count, rather than listing each.
 
 A list of conflicts never blocks an archive. What they are about is written down twice
 already.
