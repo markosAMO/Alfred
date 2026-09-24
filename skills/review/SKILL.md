@@ -3,7 +3,7 @@ name: review
 mode: auto
 skippable: false
 agent: separate_from_author
-reads: [design, conventions, architecture, code]
+reads: [design, conventions, architecture, code, review_findings]
 writes: [review_report]
 document: docs/changes/{change}/review-report.md
 next: [archive]
@@ -15,6 +15,22 @@ Answer one question: is this code sound?
 
 Not whether it satisfies the specification. `verify` established that, and repeating it here
 spends a review on work already done.
+
+## Before reviewing
+
+```
+recall alfred/area/{area}/review-findings    what the last review of this area said
+```
+
+A `should fix` nobody fixed is worth raising again, and raising it as a repeat is worth more
+than raising it as new: the second time it appears it is a pattern rather than a nit, and
+the reader can see it was already declined once.
+
+This recall is why `archive` writes those findings. Without it they were written on every
+change and read on none.
+
+Findings that the change under review has since fixed are dropped silently. Reporting a
+finding as outstanding when the code no longer has it is how a review loses its credibility.
 
 ## Runs alongside verify
 
@@ -144,7 +160,8 @@ Blocking findings return the change to `apply` with the findings attached. Only 
 owning the affected files are re-dispatched.
 
 `should fix` and `suggestion` findings are recorded and do not block. `archive` carries
-them into memory so they surface when that area is touched again.
+them into memory under `alfred/area/{area}/review-findings`, which this phase recalls on
+the next change touching that area — see `Before reviewing`.
 
 ## A second pass
 

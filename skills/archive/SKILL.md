@@ -419,8 +419,18 @@ already.
 ## Carrying findings forward
 
 `should fix` and `suggestion` findings from `review` are written to memory against the area
-they belong to, not discarded. They surface the next time that area is worked on, which is
-the only moment they are worth acting on.
+they belong to, not discarded.
+
+```
+alfred/area/{area}/review-findings
+```
+
+Two phases read them, and the key exists because for a long time neither did: `review`
+recalls them so it raises a repeat as a repeat, and `apply` recalls them so the one phase
+that can fix them is holding the file when it hears about them.
+
+Write the area, the finding, the change it came from and the date. A finding with no area
+cannot be recalled by the phase that needs it, which is the same failure as not writing it.
 
 ## Workspaces
 

@@ -255,6 +255,7 @@ Keys are deterministic, so any phase can address an artifact without searching f
 alfred/project/architecture
 alfred/project/conventions
 alfred/<change-name>/<artifact>
+alfred/area/<area>/review-findings
 alfred/postmortem/<slug>
 ```
 
@@ -281,10 +282,20 @@ alfred/postmortem/payment-timeout-retry
 | `diagnosis` | `diagnose` | `spec`, `design` |
 | `verify-report` | `verify` | `archive` |
 | `review-report` | `review` | `archive` |
+| `review-findings` | `archive` | `apply`, `review` |
 | `postmortem` | `archive` | `diagnose` |
 
 `postmortem` is the entry that makes a bug pay off twice: `diagnose` recalls it before
 investigating, so a class of failure is diagnosed once rather than every time it appears.
+
+**Every row of this table names a reader, and that is a requirement rather than a
+description.** An entry written by a phase that no phase reads is a cost with no return:
+it is paid on every change, it makes every `recall` rank against more noise, and it reads
+like working memory to anyone auditing the backend.
+
+`review-findings` is in the table because it was exactly that. `archive` wrote it, `review`
+and `archive` both said the findings "surface the next time that area is worked on", and no
+phase declared reading them — so they were written on every change and read on none.
 
 ## Passing artifacts to subagents
 
