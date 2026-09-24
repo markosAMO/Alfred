@@ -259,6 +259,22 @@ that and stops rather than assigning a default, per `docs/models.md`.
 Resolve every skill and write `.alfred/skill-registry.md`, recording whether each came from
 the global installation or a local override. See `skills/_shared/skill-resolver.md`.
 
+**Then keep it out of git.** The registry's `path` column carries machine-absolute paths
+into the global installation, which resolve to nothing on anyone else's machine, so it is
+regenerated per clone rather than shared.
+
+```gitignore
+.alfred/skill-registry.md
+```
+
+Added to the repository's `.gitignore` — this one is a change to the repository and belongs
+there, unlike `artifacts.local_exclude`, which exists precisely to avoid one. A repository
+whose `.gitignore` is an allowlist needs the negation instead, since `!.alfred/` would
+otherwise pull the registry back in.
+
+Left out, the registry shows up as an untracked file after every run and `archive` reports a
+working tree it cannot explain.
+
 ## Completion
 
 Follow `skills/_shared/phase-protocol.md`. Report what exists now and what the first command
