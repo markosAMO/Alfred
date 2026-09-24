@@ -192,6 +192,56 @@ Conflicts raised against entries with a near-zero similarity score are a thresho
 wants tuning rather than a disagreement worth a user's attention. Record the observation
 with the conflict; a channel that cries wolf is ignored, and it carries the real ones too.
 
+## Reading what a conflict points at
+
+A conflict is reported as a `sync_id`:
+
+```
+conflict: contested by #obs-4878b291a98ae4cf (pending)
+```
+
+`mem_get_observation` does not accept one. Passed a `sync_id` it answers `id is required`,
+and the only identifier it takes is the numeric `id`. So the identifier the backend hands a
+phase when it raises a conflict is not the identifier the phase needs to read it.
+
+The two are paired in the `results` array of a `mem_search`, and that is the way across:
+
+```
+mem_search(...)  ->  results[] carrying both  { id: 75, sync_id: "obs-4878b291a98ae4cf" }
+mem_get_observation(id: 75)
+```
+
+So a phase resolves a contested entry by searching for it and matching on `sync_id`, never
+by passing the `sync_id` it was given. A phase that passes it straight through gets an error
+that reads like a malformed call rather than like a missing translation, and the usual
+response — record the conflict unread and move on — is how twenty conflicts accumulate with
+nobody ever having seen what either side said.
+
+Where the search does not surface the entry, the conflict is reported with its `sync_id`
+unresolved and named as such. `engram conflicts show <id>` reads it from a terminal, which
+is a person's tool and not this pipeline's.
+
+## Recall is not reliably semantic
+
+Observed in one run: `mem_search` matched an entry on its exact `topic_key`, and a
+natural-language query carrying the same distinctive terms — the area name, the change name,
+the word "findings" — returned nothing at all.
+
+Two consequences for how phases search.
+
+**An artifact is recalled by its key, never by describing it.** The keys are deterministic
+precisely so this never depends on a query working, per `Key naming` in the contract. A
+phase that searches for "the spec for the login change" is relying on the weakest thing the
+backend does.
+
+**A `recall` that returns nothing is not evidence that nothing is there.** It is the one
+result that must never be reported as "no prior work exists". Where a phase needs to know
+that, it asks by key and treats an empty answer as an unwritten artifact; where it is
+genuinely exploring, an empty result is reported as an empty search.
+
+This is the same trap as a missing tool, one level down: the failure returns success, and it
+looks exactly like the world being empty.
+
 ## Sharing memory with the repository
 
 Engram is local to the machine. `engram sync` exports this project's entries to `.engram/`
