@@ -224,14 +224,27 @@ tracker   none | jira | github-issues | linear
 With a memory backend, also ask where the change documents live:
 
 ```
-memory.documents  keep     the documents are files, memory holds a searchable copy
-                  pointer  the documents are in memory, the repository holds addresses
+memory.documents  keep       the documents are files, memory holds a searchable copy
+                  ephemeral  the documents are files while the change is open, and
+                             archive removes them, leaving the record and the delta spec
+                  pointer    the documents are in memory, the repository holds addresses
 ```
 
-`keep` is the default and the answer for a repository that is read by people who do not
-run Alfred. `pointer` is for one where `docs/changes/` has grown into the majority of the
-repository, and it requires a backend that answers, per `memory/CONTRACT.md`. It cannot be
-chosen with `backend: none`.
+`keep` keeps everything and is the answer for a repository whose history of how it was
+built is wanted in the repository itself.
+
+`ephemeral` is the answer for most repositories, and the one to suggest. A change writes
+seven or eight documents and roughly fifteen hundred lines while it is open, and the
+question it settles is answered afterwards by one record and the merged specification.
+It works with any backend, including none.
+
+`pointer` is for a repository that wants the documents kept and searchable but not on disk,
+and it requires a backend that answers, per `memory/CONTRACT.md`. It cannot be chosen with
+`backend: none`.
+
+Say what `ephemeral` costs when it is chosen against `backend: none`: the working documents
+are discarded at close with no second copy anywhere. That is a supported choice, and it is
+the one thing about the mode a user should not discover afterwards.
 
 Each is optional and each degrades rather than failing, per their contracts. Chosen values
 are written to `.alfred/config.yaml`.

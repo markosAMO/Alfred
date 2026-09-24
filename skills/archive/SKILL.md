@@ -3,7 +3,8 @@ name: archive
 mode: auto
 skippable: false
 reads: [spec, diagnosis, verify_report, review_report, master_specs]
-writes: [master_specs, postmortem, commit]
+writes: [master_specs, record, postmortem, commit]
+document: {paths.change_records}/{change}/record.md
 next: []
 ---
 
@@ -81,10 +82,128 @@ The master specification describes current behaviour, in the present tense, with
 of how it got there. Git holds the history, and a specification carrying its own changelog
 becomes unreadable by the fifth change.
 
-The change directory stays, and `memory.documents` decides what is in it. Under `keep` it
-holds the proposal, design, tasks and reports. Under `pointer` it holds the address file,
-and the documents it names are in memory. Either way it is what a reader follows back from
-a master spec to understand why a requirement says what it says.
+The change directory stays, and the configuration decides what is in it.
+
+```
+keep         the proposal, design, tasks and reports, plus the record
+ephemeral    the record and the delta spec
+pointer      the address file, and the record
+```
+
+Either way it is what a reader follows back from a master specification to understand why a
+requirement says what it says. Under `ephemeral` that path is shorter and it is the record
+that answers, which is the point of writing one.
+
+## The record
+
+Every change writes one, in every mode. It is the document the change leaves behind, and
+under `artifacts.retain: final_only` it is the only new one.
+
+Written from `templates/docs/record.md` to the locator the orchestrator passed, which
+resolves under `paths.change_records`.
+
+```
+docs/changes/login-google/record.md
+```
+
+It is written for someone arriving from a master specification months later with no other
+context: what the system does now, why, how it was decided, what was required, and how it
+ended. Not a list of phases that ran, and not a list of keys.
+
+**`How it was decided` is the section that pays.** It carries the approach that was taken
+and the alternatives that were rejected, with the reason each was rejected, from the design.
+Under `final_only` the design document is about to be deleted, and this section is the only
+part of it that survives. Without it the next change reopens a decision that was already
+settled, which is the cost the whole mode exists to avoid paying.
+
+`Result` reports the state at close, not the state when `verify` and `review` wrote their
+reports. Work continues after a report is written — a finding gets fixed in a later commit,
+a blocked task gets finished — and a record that repeats a stale report sends the next reader
+to redo finished work, or to trust that something is pending when it closed. Where the two
+disagree and neither can be ranked, both are recorded with their source and time, never
+resolved silently.
+
+A change closed incomplete says so here. `archive` may close work that did not finish when
+the user asks for it explicitly; it may never describe that work as finished.
+
+## Removing the working documents
+
+Under `artifacts.retain: final_only`, the working documents are removed once the record
+exists.
+
+```
+removed     proposal, research, design, tasks, diagnosis,
+            verify-report, review-report, inputs/
+kept        record.md
+            spec.md, under artifacts.keep_delta_spec
+            paths.master_specs, architecture.md, code_conventions.md
+```
+
+They are removed from the working tree **before staging**, so they never enter the commit
+and the closing diff shows the record, the delta, the merged specifications and the code.
+
+A document an earlier pass committed is tracked, and its removal is staged the same way the
+state file's is. A change that ran straight through never committed them, and they are
+simply deleted.
+
+This is the part to be honest about: with a memory backend configured, the documents were
+indexed as each phase completed and memory is the copy. With `backend: none` there is no
+copy, and they are gone. That is what the mode means, and it is the right trade only because
+what a later reader needs was lifted into the record first. `init` says so when the mode is
+chosen against no backend, and `alfred doctor` repeats it.
+
+Order matters and is not negotiable:
+
+```
+1  merge the delta into paths.master_specs
+2  write the record
+3  read the record back and check it is not empty and carries How it was decided
+4  only then remove the working documents
+```
+
+Step 3 is the whole safety of the operation, and it is the same check `reindex` makes before
+deleting under `pointer`. A record that was written empty, or written without the decisions,
+is indistinguishable from a correct one right up to the moment the inputs are gone. A failed
+read-back stops the phase, deletes nothing, and names the record.
+
+`retain: all` skips this section entirely and is the behaviour of every earlier version.
+
+## Removing the state file
+
+State exists so `continue` can resume. A change that closed has nothing to resume.
+
+Under `artifacts.state_on_completion: delete`, this phase removes
+`.alfred/state/{change}.yaml`.
+
+Whether that removal is staged depends on whether the file was ever committed. A change
+that ran and closed in one pass never committed its state, so the file is untracked and
+deleting it is the whole operation. A change that was interrupted and resumed — the case
+the file exists for — was committed by an earlier pass, and the removal has to be staged or
+the file returns on the next checkout and `continue` finds a change that finished months
+ago.
+
+```
+tracked     git rm, staged with the closing commit
+untracked   delete it
+```
+
+The phase checks which it is rather than assuming: `git rm` on an untracked file fails the
+commit, and a plain delete on a tracked one leaves the repository asserting the change is
+still open.
+
+It is removed only when the change actually closed:
+
+```
+closed complete      removed
+closed incomplete    kept, and the record says what was left open
+verify failed        this phase never ran, so it is kept
+review blocking      same
+abandoned            nothing closed it, so it is kept
+```
+
+The second row is the one that looks inconsistent and is not. Open work is work somebody may
+come back to, and a record reading "three tasks unfinished" beside no state leaves nothing
+able to resume them. See `skills/_shared/state-contract.md`.
 
 ## Closing the address file
 
@@ -131,11 +250,20 @@ Per `git` in the configuration:
 
 ```
 stage the files reported by apply
+stage the record, the delta spec and the merged master specifications
+stage the removal of the state file, when the change closed complete
 one commit for the whole change
 conventional commit message
 no AI attribution of any kind
 push
 ```
+
+One commit, still. The working documents were already removed from the working tree, before
+staging, so there is nothing to un-stage and no second commit to tidy up after the first.
+
+A removal is staged explicitly. `git.stage: files_changed_by_alfred` names files Alfred
+wrote, and a file Alfred deleted is not one of them: left unstaged, the state file is
+committed as though it still existed and comes back on the next checkout.
 
 Staging everything present would sweep in whatever the user left in progress. The file list
 comes from the subagent reports, which is why `apply` requires it.
@@ -148,6 +276,12 @@ change incomplete in the commit.
 ```
 everything the change needs, excluding .alfred/ and docs/changes/
 ```
+
+That exclusion scopes the work `apply` produced, which is code. Alfred's own documents are
+not swept in by it: the record, the delta spec and the merged specifications are staged by
+name, on the line above, and the state file's removal with them. Naming them is what keeps
+the two rules from cancelling each other — an exclusion broad enough to keep the working
+documents out of the commit is broad enough to keep the record out too.
 
 **Compare before committing.** What git reports as changed is compared against the union of
 every `files_changed` from `apply`, and any file in one and not the other is reported:
@@ -162,17 +296,26 @@ collision `apply` is built to detect, and the same difference is what `worktree.
 refuses on afterwards — by then the commit already exists and the fix is another commit.
 Compared here, it is a question asked while the answer is still cheap.
 
-State is staged with the change, so a collaborator who clones mid-change can continue, and
-under `pointer` the address file is staged with it: they answer the same question from two
+Alfred's own documents are outside that comparison. `apply` never wrote them, so every one
+of them is "changed and not reported" by construction, and including them would report the
+record as a collision on every change.
+
+State is staged with the change — its removal when the change closed complete, its current
+contents otherwise, so a collaborator who clones mid-change can continue. Under `pointer`
+the address file is staged with it: they answer the same question from two
 sides and neither is useful alone, per `skills/_shared/phase-protocol.md`. The skill
 registry is not: it is ignored, per `skills/_shared/skill-resolver.md`.
 
 ```
 feat(auth): sign in with Google
 
-Implements docs/changes/login-google.
+Implements docs/changes/login-google/record.md.
 3 requirements, 7 scenarios, 47 tests.
 ```
+
+The message names the record rather than the directory. Under `final_only` the directory
+holds the record and the delta and nothing else, and a message pointing at a directory that
+used to hold eight documents reads as though seven went missing.
 
 ## Changes in their own worktree
 

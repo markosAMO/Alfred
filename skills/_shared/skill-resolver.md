@@ -34,8 +34,14 @@ Resolution runs once, at the start of a run, and is written to `paths.skill_regi
 `source` is the column that matters six months later, when a phase behaves differently in
 one repository and nobody remembers that it was overridden.
 
-The registry is regenerated whenever a skill is added, removed or overridden. It is
-committed with the repository, so a collaborator sees the same resolution.
+The registry is regenerated whenever a skill is added, removed or overridden. It is **not**
+committed: the `path` column carries machine-absolute paths into the global installation,
+which resolve to nothing on anyone else's machine and to the wrong thing on a machine that
+installed Alfred somewhere else. It is regenerated per clone by `alfred registry`, and
+`init` adds it to the repository's ignore file.
+
+This file previously said the opposite while `skills/archive/SKILL.md` said it was ignored,
+each citing the other.
 
 ## Dispatching
 

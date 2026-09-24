@@ -44,6 +44,43 @@ What moves is the change directory, and only that. `docs/architecture.md`,
 modes: they are what the repository says about itself, they are read by people who are not
 running Alfred, and the agent pointer files name them by path.
 
+### ephemeral
+
+The working documents are written as files during the run, exactly as under `keep`, and
+removed when `archive` closes the change. What stays is the record, the delta specification
+and the master specifications it was merged into.
+
+```
+during the run                      at close
+docs/changes/login-google/          docs/changes/login-google/
+  proposal.md                         record.md      the one document the change leaves
+  research.md                         spec.md        the delta, kept
+  spec.md                           docs/specs/                merged, as always
+  design.md
+  tasks.md                          .alfred/state/login-google.yaml    removed
+  verify-report.md
+  review-report.md
+  inputs/
+```
+
+Every phase writes and reads what it writes today. Nothing about a phase changes under this
+mode: the deletion happens once, in `archive`, after the commit that contains the documents
+in full. What is removed is recoverable from that commit, and from memory where a backend is
+configured.
+
+`ephemeral` exists because the volume is retention, not writing. A change leaves seven or
+eight documents of roughly fifteen hundred lines in a repository whose subject is not
+Alfred's process, and by the twentieth change that is the majority of what a reader sees.
+The documents earn their place while the change is open and stop earning it once the
+requirement is merged.
+
+It is the one mode that works with `backend: none`, because the files are still the way the
+phases talk to each other while the change is open. `pointer` cannot say that.
+
+What is never removed, in this mode or any other: `paths.master_specs`,
+`docs/architecture.md`, `docs/code_conventions.md`, the delta specification under
+`artifacts.keep_delta_spec`, and the record. See `docs/ephemeral.md`.
+
 ## The address file
 
 Under `pointer`, `docs/changes/{change}/README.md` is written from
@@ -69,6 +106,32 @@ what it left in memory is residue rather than state.
 `postmortem` is the exception, deliberately. Its purpose is to be found by a change that
 did not exist when it was written, so `diagnose` searches for it instead of addressing it.
 It is the one entry reachable without a pointer.
+
+## Locators
+
+A phase never derives where an artifact is. The orchestrator resolves it from
+`memory.documents` and passes a **locator** per artifact, already resolved.
+
+```
+keep, ephemeral    a path        docs/changes/login-google/spec.md
+pointer            a key         alfred/login-google/spec
+```
+
+A phase reads what it is given: the file when the locator is a path, the entry when it is a
+key. It does not read `memory.documents`, does not detect the mode, and does not branch on
+it.
+
+This is the rule that keeps a mode from costing thirteen edits. A phase that re-derives the
+mode disagrees with the orchestrator that launched it, and the disagreement is silent: the
+phase reads a store the repository never declared, or reads nothing and returns an empty
+result that looks like an artifact that was never written.
+
+It is also the orchestrator's job by construction. The configuration is already in its
+working set, per `skills/_shared/orchestrator-protocol.md`, and the phase's is empty.
+
+A required locator the orchestrator reports as `<unresolved>` means the artifact does not
+exist. The phase reports it as a blocker and stops. It never substitutes the other mode's
+copy, and never goes looking for one.
 
 ## Operations
 

@@ -10,7 +10,7 @@ that depend on it.
 2  recover context     context() and recall() for what is already known
 3  read inputs         fetch() the artifacts this phase depends on
 4  do the work         the part that differs between phases
-5  write the document  where `memory.documents` says, below
+5  write the document  at the locator the orchestrator passed, below
 6  update state        mark the phase completed in .alfred/state/{change}.yaml
 7  notify              phase_completed, or error
 ```
@@ -23,16 +23,28 @@ records from what the orchestrator passed it, are in `skills/_shared/state-contr
 A phase that invents its own name breaks the only thing state exists for: `continue` looks
 the change up by name, and a file named after a phase is a file it will never find.
 
-Step 5 is two writes in either mode, and which one is durable is the configuration's
-answer, not the phase's:
+Step 3 and step 5 both work from **locators**, which the orchestrator resolves and passes
+in. A locator is either a path or a memory key, already decided:
 
 ```
-keep      write the file from the template, then remember() it under its key
-pointer   remember() it under its key, then append its row to the address file
+keep, ephemeral    docs/changes/login-google/spec.md      a path
+pointer            alfred/login-google/spec               a key
 ```
 
-A phase does not choose. It reads `memory.documents` and follows one line or the other, so
-a change is never half in memory and half on disk.
+The phase reads the file when the locator is a path and the entry when it is a key, and
+writes back the same way. It does not read `memory.documents`, does not detect the mode and
+does not branch on it. See `Locators` in `memory/CONTRACT.md`.
+
+Step 5 is two writes, in an order the locator's shape decides:
+
+```
+a path   write the file from the template, then remember() it under its key
+a key    remember() it under its key, then append its row to the address file
+```
+
+A phase does not choose between them, so a change is never half in memory and half on disk.
+A locator the orchestrator reports as `<unresolved>` is an artifact that does not exist: the
+phase reports a blocker and stops, rather than looking for the other mode's copy.
 
 ## Ordering rules
 
@@ -83,10 +95,13 @@ asking every phase separately, out of band, for something each one already knew.
 A phase declares what it reads and what it writes in its `SKILL.md` frontmatter. It reads
 nothing else.
 
-`document:` names the artifact, in both modes. Under `keep` it is where the file is
-written; under `pointer` it is what the key is derived from, per the naming rules in
-`memory/CONTRACT.md`. A phase never has two identities depending on configuration. A phase that reaches for an artifact it did not declare creates a hidden
-dependency that breaks when phases are skipped.
+`document:` names the artifact, in every mode. It is what the orchestrator resolves the
+locator from: a path under `keep` and `ephemeral`, a key under `pointer`, per the naming
+rules in `memory/CONTRACT.md`. A phase never has two identities depending on configuration,
+and never resolves its own.
+
+A phase that reaches for an artifact it did not declare creates a hidden dependency that
+breaks when phases are skipped.
 
 ## Skipping
 

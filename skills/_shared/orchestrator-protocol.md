@@ -14,6 +14,9 @@ the user's request
 .alfred/skill-registry.md
 ```
 
+The configuration is in that list for a reason beyond its own settings: it is what the
+orchestrator resolves every artifact locator from, below.
+
 Roughly two pages. That is the entire working set.
 
 ## What it never reads
@@ -31,14 +34,34 @@ the run is not.
 
 ## Delegation
 
-The orchestrator passes addresses.
+The orchestrator passes addresses, already resolved.
 
 ```
 Skill:  .alfred/skills/apply/SKILL.md
-Task:   3 of alfred/login-google/tasks
-Spec:   alfred/login-google/spec
-Design: alfred/login-google/design
+Task:   3 of docs/changes/login-google/tasks.md
+Spec:   docs/changes/login-google/spec.md
+Design: docs/changes/login-google/design.md
 ```
+
+Each of those is a **locator**, and resolving it is the orchestrator's job alone. It holds
+`.alfred/config.yaml` already, so it is the only participant that knows what
+`memory.documents` says; a phase's context is empty and would have to read the configuration
+to find out.
+
+```
+keep, ephemeral   a path under paths.changes
+pointer           a key, alfred/{change}/{artifact}
+```
+
+A phase is never told the mode and never asked to work it out. Two things follow. Adding a
+storage mode changes this resolution and nothing in any phase. And a phase can never
+disagree with the repository about where its inputs are — the disagreement would be silent,
+because reading the wrong store returns an empty result that looks exactly like an artifact
+nobody wrote.
+
+An artifact that does not exist is passed as `<unresolved>`, not omitted. The phase then
+reports a blocker naming it, instead of treating a missing line as an optional input it may
+proceed without. See `Locators` in `memory/CONTRACT.md`.
 
 It does not open any of them to decide what to send. `tasks.md` is read by the phase that
 dispatches from it, and the orchestrator learns the count and the dependency order from

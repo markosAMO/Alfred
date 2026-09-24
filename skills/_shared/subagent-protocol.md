@@ -8,15 +8,21 @@ be confused by them, and spends its whole window on the one task it owns.
 
 ## What a subagent receives
 
-Addresses, not content.
+Addresses, not content. Each one is a locator the orchestrator already resolved, per
+`skills/_shared/orchestrator-protocol.md`.
 
 ```
-Task:       3 of alfred/login-google/tasks
-Skill:      .alfred/skills/apply/SKILL.md
-Spec:       alfred/login-google/spec
-Design:     alfred/login-google/design
+Task:        3 of docs/changes/login-google/tasks.md
+Skill:       .alfred/skills/apply/SKILL.md
+Spec:        docs/changes/login-google/spec.md
+Design:      docs/changes/login-google/design.md
 Conventions: docs/code_conventions.md
 ```
+
+A locator is read as what its shape says: a path is a file, a key is a memory entry fetched
+through `recall` then `fetch`. The subagent does not read the configuration to find out
+which it is holding, and does not go looking in the other store when one comes back empty —
+an empty result is reported, never worked around.
 
 A subagent works where its session is. A change running in its own worktree runs in a
 session whose working directory is that worktree, per `worktree-protocol.md`, so the
