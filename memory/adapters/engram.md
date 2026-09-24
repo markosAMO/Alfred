@@ -182,14 +182,30 @@ ignore lines when the backend is `engram`.
 Engram groups entries by project, derived from the git remote and lowercased. Two things
 follow, and both bite Alfred specifically.
 
-A worktree under `git.worktrees.root` shares the remote of the repository it came from, so a
-change running in its own worktree records against the same project. That is what we want,
-and it is the reason the MCP server is registered machine-wide rather than per directory.
+**The project is resolved from the session the MCP server runs in, not from the working
+directory of the agent that calls it.** A subagent dispatched with its own working directory
+still writes to the project the server resolved, and it is not told otherwise: the call
+succeeds and reports the project it used, which nobody reads.
 
-A repository with no remote falls back to the directory name. Two clones of the same project
-in differently named directories then accumulate two memories that never see each other, and
-nothing reports it: both runs succeed. `mem_merge_projects` merges them after the fact, and
-`alfred doctor` reports a project with no remote as the condition that causes it.
+Observed directly. A change run entirely inside one repository, by subagents whose working
+directory was that repository, indexed all five of its artifacts against a *different*
+project — the one the server had resolved from the session that launched them.
+
+Two consequences, both of which look like success:
+
+```
+a change run against another checkout      its documents land in the launching project
+a repository with no remote                falls back to a directory name
+```
+
+A worktree under `git.worktrees.root` is the case this is safe for, and the reason the MCP
+server is registered machine-wide: the worktree shares the remote, and the session that runs
+the change is the change's own.
+
+The case it is not safe for is a phase dispatched against a repository the session did not
+start in. `archive` records the keys it actually wrote in the record, which is what makes
+the mistake findable afterwards; `mem_merge_projects` merges what diverged, and
+`alfred doctor` reports a repository whose remote does not match the backend's project.
 
 ## Prompt capture
 

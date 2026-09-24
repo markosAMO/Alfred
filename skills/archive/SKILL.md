@@ -318,6 +318,23 @@ Implements docs/changes/login-google/record.md.
 3 requirements, 7 scenarios, 47 tests.
 ```
 
+## The record carries the commit that contains it
+
+The record's frontmatter names the commit, and the commit contains the record. Neither can
+be written second.
+
+```
+commit, then amend with the record's commit line filled in
+```
+
+One commit still, and the same one: the amend rewrites it rather than adding another. Write
+the record with the field empty, stage everything, commit, fill the field in, and amend.
+
+The alternative is a second commit that exists only to write a hash into a file, which is
+the thing `git.granularity: per_feature` is there to prevent. Leaving the field empty is
+worse than either: the record is the document a reader arrives at, and the commit is what it
+sends them to next.
+
 The message names the record rather than the directory. Under `final_only` the directory
 holds the record and the delta and nothing else, and a message pointing at a directory that
 used to hold eight documents reads as though seven went missing.
