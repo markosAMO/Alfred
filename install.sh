@@ -117,25 +117,52 @@ setup_profile() {
   info "               for example {\"refine\": [\"mcp__atlassian__getJiraIssue\"]}"
 }
 
-generate_agents() {
-  require_python
-  local targets=() agent
-
+# Where each detected agent keeps what the installer writes. Both the orchestrator
+# definitions and the memory server registration go to the same places, so they are built
+# once: an agent that gets one and not the other is the half-configured state that reads,
+# from inside a phase, as a backend that cannot do the thing.
+agent_targets() {
+  local agent
   while read -r agent; do
     [ -n "$agent" ] || continue
     case "$agent" in
-      opencode) targets+=("opencode=$HOME/.config/opencode/opencode.json") ;;
-      claude)   targets+=("claude=$HOME/.claude") ;;
+      opencode) printf '%s\n' "opencode=$HOME/.config/opencode/opencode.json" ;;
+      claude)   printf '%s\n' "claude=$HOME" ;;
     esac
   done < <(detect_agents)
+}
+
+generate_agents() {
+  require_python
+  local targets=() t
+  while read -r t; do [ -n "$t" ] && targets+=("$t"); done < <(agent_targets)
 
   if [ ${#targets[@]} -eq 0 ]; then
     warn "no supported agent found; skills are installed but no orchestrator was registered"
     return
   fi
 
+  # generate_agents.py takes the Claude home itself, not the parent.
+  local resolved=() x
+  for x in "${targets[@]}"; do
+    case "$x" in claude=*) resolved+=("claude=${x#claude=}/.claude") ;; *) resolved+=("$x") ;; esac
+  done
+
   python3 "$SOURCE/scripts/generate_agents.py" \
-    "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${targets[@]}"
+    "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${resolved[@]}"
+}
+
+# The agents declare every memory tool; this makes the server expose them. Both halves are
+# written by the installer because a registration pasted from a document is a step someone
+# skips, and the failure it causes is invisible: the phase sees no tool, which is exactly
+# what a backend that cannot do the thing looks like.
+register_memory() {
+  require_python
+  local targets=() t
+  while read -r t; do [ -n "$t" ] && targets+=("$t"); done < <(agent_targets)
+  [ ${#targets[@]} -eq 0 ] && return 0
+
+  python3 "$SOURCE/scripts/register_memory.py" apply "$ALFRED_HOME" "${targets[@]}" || true
 }
 
 record_state() {
@@ -149,6 +176,7 @@ cmd_install() {
   install_payload
   setup_profile
   generate_agents
+  register_memory
   record_state
   info ""
   info "Done. Open your agent, select the Alfred orchestrator, and run init in a repository."
@@ -192,6 +220,7 @@ print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
 
   chmod +x "$ALFRED_HOME"/bin/*.sh
   generate_agents
+  register_memory
   record_state
 }
 
@@ -222,6 +251,34 @@ sys.exit(1)
 PY
 }
 
+# The agents' half of the memory wiring. generate_agents.py is the authority on the list,
+# so it is asked rather than copied: a check carrying its own copy is one more thing to fall
+# out of step, which is the failure being checked for.
+agents_declare_every_memory_tool() {
+  python3 - "$SOURCE" "$HOME/.claude/agents" <<'PYCHECK'
+import re, sys
+from pathlib import Path
+
+source, agents = Path(sys.argv[1]), Path(sys.argv[2])
+gen = (source / "scripts/generate_agents.py").read_text()
+block = re.search(r"MEMORY_TOOLS = \[(.*?)\]", gen, re.S)
+if not block:
+    sys.exit(1)
+expected = set(re.findall(r'"(mem_[a-z_]+)"', block.group(1)))
+if not expected:
+    sys.exit(1)
+
+files = sorted(agents.glob("alfred-*.md"))
+if not files:
+    sys.exit(1)
+for f in files:
+    line = next((l for l in f.read_text().splitlines() if l.startswith("tools:")), "")
+    if not expected <= set(re.findall(r"mem_[a-z_]+", line)):
+        sys.exit(1)
+sys.exit(0)
+PYCHECK
+}
+
 cmd_doctor() {
   local failures=0
 
@@ -249,6 +306,16 @@ cmd_doctor() {
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
   check "worktree script installed"  "[ -x '$ALFRED_HOME/bin/worktree.sh' ]" "run: $0 update"
+
+  # Both halves of the memory wiring, checked separately because they fail separately and
+  # only one of them is visible from inside a run.
+  local mt=() m
+  while read -r m; do [ -n "$m" ] && mt+=("$m"); done < <(agent_targets)
+  check "memory server exposes every tool" \
+        "python3 '$SOURCE/scripts/register_memory.py' check '$ALFRED_HOME' ${mt[*]}" \
+        "run: $0 update, which rewrites the registration with --tools=all"
+  check "agents declare every memory tool" "agents_declare_every_memory_tool" \
+        "run: $0 update, which regenerates the agent definitions"
   check "sessions may be started"    "session_permission_granted" \
                                      "allow the start command once: /permissions in Claude Code, or add \"Bash(claude --bg:*)\" to permissions.allow in ~/.claude/settings.json"
 

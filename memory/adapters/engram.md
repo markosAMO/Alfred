@@ -11,51 +11,59 @@ full-text search, running on the same machine.
 
 ## Requirements
 
-Engram installed, and registered with the agent as an MCP server. The two are separate
-steps and the second is the one that gets forgotten: the binary can be installed and the
-config can name `backend: engram` while the agent has never been told the server exists,
-in which case the tools this adapter maps onto are simply absent. Under
-`memory.required: false` that degrades to `none.md` in silence.
-
-The server must be named `engram`, since the tool names the agents declare are built from
-it.
+Engram installed. The registration is the installer's job, not yours.
 
 ```bash
-# Claude Code, machine-wide so worktrees outside the repository are covered too
-claude mcp add engram --scope user -- \
-  engram mcp --tools=all
+./install.sh install     # registers it
+./install.sh update      # registers it, and repairs a narrowed one
+./install.sh doctor      # reports either half being short
 ```
 
+`install` and `update` write the MCP server entry for every agent they detect, with
+`--tools=all`, through `scripts/register_memory.py`. A registration already on disk that
+names a subset is **repaired**, not reported: it is the state a previous version of this
+document created, and leaving it is the failure below.
+
+This used to be a command in this file for the reader to paste, and that was the bug. The
+two halves of the wiring have to agree — the agent declares the tool and the server exposes
+it — and only one of them was automatic. A half-configured pair is silent: the phase sees no
+tool, which is indistinguishable from a backend that cannot do the thing.
+
+`doctor` checks both halves separately, because they break separately:
+
+```
+memory server exposes every tool     the registration, per this file
+agents declare every memory tool     the definitions, per scripts/generate_agents.py
+```
+
+`--tools=all` is every tool Engram exposes — 23 at v2.0.0, across its `agent` (19) and
+`admin` (4) profiles. Every one is schema an agent carries before it reads a line, and that
+cost is paid deliberately: which operations a phase *calls* is `memory/CONTRACT.md`'s
+business and stays narrow; what is *reachable* is everything.
+
+The registration the installer writes, for reference:
+
 ```jsonc
-// OpenCode, in ~/.config/opencode/opencode.json
+// Claude Code, ~/.claude.json
+"mcpServers": {
+  "engram": {"type": "stdio", "command": "/abs/path/to/engram",
+             "args": ["mcp", "--tools=all"], "env": {}}
+}
+
+// OpenCode, ~/.config/opencode/opencode.json
 "mcp": {
-  "engram": {
-    "type": "local",
-    "command": ["engram", "mcp", "--tools=all"],
-    "enabled": true
-  }
+  "engram": {"type": "local",
+             "command": ["/abs/path/to/engram", "mcp", "--tools=all"],
+             "enabled": true}
 }
 ```
 
-Use the absolute path to the binary where it is not on the agent's `PATH`.
+The absolute path is written rather than the bare name, since an agent does not inherit the
+shell's `PATH`. Other servers in those files are left untouched.
 
-`--tools=all` registers every tool Engram exposes — 23 at v2.0.0, across its `agent` (19)
-and `admin` (4) profiles. Every one of them is schema an agent carries before it reads a
-line, and that cost is paid deliberately.
-
-An earlier version of this file named a subset, and `scripts/generate_agents.py` narrowed it
-again per phase. Both were wrong in the same way: **a phase cannot tell a tool it was not
-given from a backend that cannot do the thing.** Both read as absence from inside the phase,
-so a missing tool degrades into a capability the run silently does without. Observed: an
-`archive` that hit `judgment_required` on every save, had no `mem_judge`, and recorded six
-unsettled conflicts rather than settling them.
-
-A subset is also a copy of the backend's surface that nothing keeps in step. Engram grows a
-tool and the list does not, and the gap only ever shows up as a phase quietly doing less.
-
-Which operations a phase *calls* is `memory/CONTRACT.md`'s business, and it is still narrow —
-`What this adapter does not call` below says so. What is *reachable* is this list, and it is
-everything.
+A backend named in `alfred.config.yaml` whose binary is not on `PATH` is reported and not
+invented: nothing registers a server that cannot start. `memory.required` decides at run
+time whether that is fatal.
 
 Tool names differ per agent: `mcp__engram__mem_search` in Claude Code, `engram_mem_search`
 in OpenCode. `models.profile` carries the Claude Code form as `memory_tool_prefix`.
@@ -176,17 +184,12 @@ Where it is not — a subagent whose tool list does not carry it — the phase r
 conflict in its return and continues, per the contract. `archive` collects them into one
 list for the user. Nothing blocks and nothing is overwritten.
 
-The tool list a session declares is what decides which of those two happens, so a
-subagent that will write memory is granted the same tools the session has:
-
-```bash
-claude mcp add engram --scope user -- \
-  engram mcp --tools=all
-```
+Every phase is granted every tool, per `Requirements` above, so the first is what happens.
 
 `mem_judge` absent from that list is not a backend that cannot settle conflicts. It is a
 tool that was never offered, and it reads identically from inside the phase — which is the
-same trap as a memory tool that is deferred and not yet loaded, below.
+same trap as a memory tool that is deferred and not yet loaded, below. That is why the
+registration is the installer's and `doctor` checks it.
 
 Conflicts raised against entries with a near-zero similarity score are a threshold that
 wants tuning rather than a disagreement worth a user's attention. Record the observation

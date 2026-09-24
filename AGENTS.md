@@ -29,6 +29,7 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `README.md` | Project presentation | For humans |
 | `install.sh` | Installer | Copies what is needed into the target project |
 | `bin/` | Tools installed with Alfred | `worktree.sh` creates, lists and removes the worktrees changes run in |
+| `scripts/` | Installer helpers | `generate_agents.py` writes the agent definitions, `register_memory.py` the memory server registration |
 | `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
 | `skills/` | One directory per pipeline phase | The manual for each phase |
 | `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |
@@ -169,7 +170,13 @@ Every mode is overridable in `alfred.config.yaml`.
    because reading the wrong store returns an empty result that looks like an artifact
    nobody wrote. Adding a storage mode is an orchestrator change and touches no phase. See
    `Locators` in `memory/CONTRACT.md`.
-22. **Parallel changes never share a checkout.** Changes started together through
+22. **A capability is wired by the installer or it is not wired.** The agents declare every
+   memory tool and the server exposes every memory tool, and `install`, `update` and
+   `doctor` each write or check both halves. Neither is a command in a document for someone
+   to paste: a phase cannot tell a tool it was never granted from a backend that cannot do
+   the thing, so a half-configured pair is silent and looks like the backend's limitation.
+   See `memory/adapters/engram.md`.
+23. **Parallel changes never share a checkout.** Changes started together through
    `/alfred-worktree` each run in their own git worktree on their own branch, created and
    removed by `bin/worktree.sh`, never by an agent running git by hand. One change, one
    worktree, one branch. See `skills/_shared/worktree-protocol.md`.
