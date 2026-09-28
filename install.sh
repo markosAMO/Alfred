@@ -23,6 +23,81 @@ require_python() {
   command -v python3 >/dev/null 2>&1 || die "python3 is required"
 }
 
+# The helper that does the installer's bookkeeping and writes the agent definitions. The Go
+# binary is preferred: it needs no interpreter and hashes the payload in parallel. The
+# Python scripts remain as the fallback while both implementations are in the tree, so a
+# machine without a Go toolchain still installs.
+HELPER=""
+
+setup_runtime() {
+  [ -n "$HELPER" ] && return 0
+
+  if [ -x "$SOURCE/.build/alfred" ]; then
+    HELPER="$SOURCE/.build/alfred"
+    return 0
+  fi
+
+  if command -v go >/dev/null 2>&1; then
+    if (cd "$SOURCE" && go build -o .build/alfred ./cmd/alfred) >/dev/null 2>&1; then
+      HELPER="$SOURCE/.build/alfred"
+      return 0
+    fi
+    warn "the Go helper did not build; falling back to python3"
+  fi
+
+  require_python
+}
+
+helper_state() {
+  if [ -n "$HELPER" ]; then "$HELPER" state "$@"
+  else
+    local op="$1"; shift
+    python3 "$SOURCE/scripts/manage_state.py" "$op" "$@"
+  fi
+}
+
+helper_agents() {
+  if [ -n "$HELPER" ]; then "$HELPER" agents "$@"
+  else python3 "$SOURCE/scripts/generate_agents.py" "$@"
+  fi
+}
+
+helper_json_get() {
+  if [ -n "$HELPER" ]; then "$HELPER" json-get "$1" "$2"
+  else python3 -c 'import json,sys
+src = sys.stdin if sys.argv[1] == "-" else open(sys.argv[1])
+value = json.load(src)[sys.argv[2]]
+print("\n".join(value) if isinstance(value, list) else value)' "$1" "$2"
+  fi
+}
+
+helper_json_valid() {
+  if [ -n "$HELPER" ]; then "$HELPER" json-valid "$1"
+  else python3 -c 'import json,sys;json.load(open(sys.argv[1]))' "$1"
+  fi
+}
+
+helper_state_apply() {
+  if [ -n "$HELPER" ]; then "$HELPER" state apply "$1" "$2"
+  else python3 -c '
+import json, shutil, sys
+from pathlib import Path
+
+report = json.load(sys.stdin)
+home, source = Path(sys.argv[1]), Path(sys.argv[2])
+count = 0
+
+for rel in report["new"] + report["updatable"]:
+    target = home / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source / rel, target)
+    count += 1
+
+print("%d files updated, %d left alone" % (count, len(report["modified"])))
+' "$1" "$2"
+  fi
+}
+
 # Agents are detected rather than asked about: an agent that is not installed has nowhere
 # to register an orchestrator.
 detect_agents() {
@@ -104,9 +179,8 @@ setup_profile() {
   printf '{"orchestrator": "%s", "coordinator": "%s", "phases": {%s}, "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}\n' \
     "$orchestrator" "$coordinator" "$joined" > "$target"
 
-  require_python
-  python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$target" \
-    || die "could not write a valid profile"
+  setup_runtime
+  helper_json_valid "$target" || die "could not write a valid profile"
 
   info ""
   info "profile written to $target"
@@ -118,7 +192,7 @@ setup_profile() {
 }
 
 generate_agents() {
-  require_python
+  setup_runtime
   local targets=() agent
 
   while read -r agent; do
@@ -134,14 +208,13 @@ generate_agents() {
     return
   fi
 
-  python3 "$SOURCE/scripts/generate_agents.py" \
-    "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${targets[@]}"
+  helper_agents "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${targets[@]}"
 }
 
 record_state() {
-  require_python
+  setup_runtime
   local payload; payload="$(IFS=,; printf '%s' "${PAYLOAD[*]}")"
-  python3 "$SOURCE/scripts/manage_state.py" write "$ALFRED_HOME" "$VERSION" "$payload"
+  helper_state write "$ALFRED_HOME" "$VERSION" "$payload"
 }
 
 cmd_install() {
@@ -156,16 +229,15 @@ cmd_install() {
 
 # Never overwrite a file the user changed. That is the whole point of recording the hashes.
 cmd_update() {
-  require_python
+  setup_runtime
   [ -d "$ALFRED_HOME" ] || die "not installed; run: $0 install"
 
   local report
   local payload; payload="$(IFS=,; printf '%s' "${PAYLOAD[*]}")"
-  report="$(python3 "$SOURCE/scripts/manage_state.py" compare "$ALFRED_HOME" "$SOURCE" "$payload")"
+  report="$(helper_state compare "$ALFRED_HOME" "$SOURCE" "$payload")"
 
   local modified
-  modified="$(printf '%s' "$report" | python3 -c \
-    'import json,sys; print("\n".join(json.load(sys.stdin)["modified"]))')"
+  modified="$(printf '%s' "$report" | helper_json_get - modified)"
 
   if [ -n "$modified" ]; then
     warn "these files were modified locally and will not be touched:"
@@ -173,22 +245,7 @@ cmd_update() {
     warn "compare them against $SOURCE and merge by hand if you want the new version"
   fi
 
-  printf '%s' "$report" | python3 -c '
-import json, shutil, sys
-from pathlib import Path
-
-report = json.load(sys.stdin)
-home, source = Path(sys.argv[1]), Path(sys.argv[2])
-count = 0
-
-for rel in report["new"] + report["updatable"]:
-    target = home / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source / rel, target)
-    count += 1
-
-print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
-' "$ALFRED_HOME" "$SOURCE"
+  printf '%s' "$report" | helper_state_apply "$ALFRED_HOME" "$SOURCE"
 
   chmod +x "$ALFRED_HOME"/bin/*.sh
   generate_agents
@@ -205,7 +262,8 @@ print(f"{count} files updated, {len(report['"'"'modified'"'"'])} left alone")
 # "this may stop you", not "this will" - which is the safe direction for a check whose
 # remedy is one line and harmless.
 session_permission_granted() {
-  python3 - "$HOME" <<'PY'
+  if [ -n "$HELPER" ]; then "$HELPER" session-permission "$HOME"
+  else python3 - "$HOME" <<'PY'
 import json, sys
 from pathlib import Path
 
@@ -220,9 +278,11 @@ for f in (home / ".claude/settings.json", home / ".claude/settings.local.json",
         sys.exit(0)
 sys.exit(1)
 PY
+  fi
 }
 
 cmd_doctor() {
+  setup_runtime
   local failures=0
 
   check() {
@@ -236,7 +296,8 @@ cmd_doctor() {
   }
 
   info "Alfred doctor"
-  check "python3 available"      "command -v python3"        "install python3"
+  check "a helper runtime"       "[ -n \"$HELPER\" ] || command -v python3" \
+                                 "install go (preferred) or python3"
   check "installed"              "[ -d '$ALFRED_HOME/skills' ]" "run: $0 install"
   check "model profile set"      "[ -s '$ALFRED_HOME/profile.json' ]" "run: $0 models"
   check "state recorded"         "[ -f '$ALFRED_HOME/state.json' ]"   "run: $0 update"
@@ -259,10 +320,11 @@ cmd_doctor() {
 
 cmd_status() {
   [ -d "$ALFRED_HOME" ] || die "not installed; run: $0 install"
+  setup_runtime
   info "home      $ALFRED_HOME"
-  info "version   $(python3 -c 'import json;print(json.load(open("'"$ALFRED_HOME"'/state.json"))["version"])' 2>/dev/null || echo unknown)"
+  info "version   $(helper_json_get "$ALFRED_HOME/state.json" version 2>/dev/null || echo unknown)"
   info "skills    $(find "$ALFRED_HOME/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
-  info "profile   $(python3 -c 'import json;print(json.load(open("'"$ALFRED_HOME"'/profile.json"))["orchestrator"])' 2>/dev/null || echo 'not set')"
+  info "profile   $(helper_json_get "$ALFRED_HOME/profile.json" orchestrator 2>/dev/null || echo 'not set')"
   info "agents    $(detect_agents | tr '\n' ' ')"
 }
 
