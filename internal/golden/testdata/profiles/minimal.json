@@ -1,0 +1,3 @@
+{"orchestrator": "solo-model",
+  "phases": {"spec": "solo-model", "apply": "solo-model"},
+  "memory_tool_prefix": ""}

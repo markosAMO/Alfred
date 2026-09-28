@@ -1,0 +1,26 @@
+{
+  "payload": "pay,top.yaml",
+  "version": "0.2.0",
+  "skills_root": "/home/someone/.config/alfred/skills",
+  "files": {
+    "pay/a/b.txt": "b",
+    "pay/a-c/d.txt": "d",
+    "pay/a.b/c.txt": "c",
+    "pay/deep/er/still/x.md": "x",
+    "pay/ñandu.md": "non-ascii name",
+    "pay/.hidden": "hidden",
+    "pay/.git/config": "git",
+    "pay/state.json": "{}",
+    "pay/profile.json": "{}",
+    "pay/bin/run.sh": "#!/bin/sh\n",
+    "top.yaml": "top: true\n",
+    "README.md": "not part of the payload"
+  },
+  "home_edits": {
+    "pay/a/b.txt": "the user edited this"
+  },
+  "source_edits": {
+    "pay/a-c/d.txt": "a new release",
+    "pay/added.txt": "added upstream"
+  }
+}
