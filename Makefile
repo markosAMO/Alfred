@@ -1,13 +1,13 @@
 # Alfred's Go helper: the installer's bookkeeping and the agent generator.
 #
-# The Python scripts under scripts/ are still in the tree and still work. `make parity`
-# is what says the two agree; it runs the real scripts and diffs their output byte for
-# byte, and it is the check that has to stay green until the scripts are deleted.
+# `make golden` is the check that matters most. Its fixtures were recorded from the Python
+# scripts this replaced, while both were in the tree, so the bytes the installer emits are
+# still pinned to what they were before the migration.
 
 GO ?= go
 BIN := .build/alfred
 
-.PHONY: all build test parity lint fmt vet check clean
+.PHONY: all build test golden lint fmt vet check clean
 
 all: check
 
@@ -17,8 +17,8 @@ build:
 test:
 	$(GO) test ./...
 
-parity:
-	$(GO) test ./internal/parity/ -v -count=1
+golden:
+	$(GO) test ./internal/golden/ -v -count=1
 
 lint:
 	golangci-lint run ./...
