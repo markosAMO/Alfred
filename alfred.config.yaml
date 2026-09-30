@@ -1,18 +1,26 @@
-version: 0.2.0
+version: 0.3.0
 
 paths:
   architecture: docs/architecture.md
   conventions: docs/code_conventions.md
   master_specs: docs/specs/
   changes: docs/changes/
+  change_records: docs/changes/
   pipeline_state: .alfred/state/
   skill_registry: .alfred/skill-registry.md
+
+artifacts:
+  committed: true
+  local_exclude: .git/info/exclude
+  retain: final_only
+  keep_delta_spec: true
+  state_on_completion: delete
 
 memory:
   backend: engram
   adapter: memory/adapters/engram.md
   index_documents_on_write: true
-  documents: keep
+  documents: ephemeral
   required: false
 
 notify:
@@ -38,13 +46,14 @@ git:
   message_format: conventional_commits
   ai_attribution: false
   stage: files_changed_by_alfred
+  documentation: with_change
   push_after_commit: true
   worktrees:
     tool: ~/.config/alfred/bin/worktree.sh
     protocol: skills/_shared/worktree-protocol.md
     root: ~/.alfred/worktrees/{repo}/{branch}
     setup_command: none
-    copy_files: []
+    copy_files: [.alfred/config.yaml]
     max_parallel: 3
     remove_on_archive: true
     pull_request: false
@@ -163,4 +172,5 @@ phases:
 
   archive:
     mode: auto
-    produces: [master_specs, postmortem]
+    produces: [record, master_specs, postmortem]
+    removes: [working_documents, state]

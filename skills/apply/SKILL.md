@@ -2,7 +2,7 @@
 name: apply
 mode: confirm
 skippable: false
-reads: [tasks, spec, design, conventions]
+reads: [tasks, spec, design, conventions, review_findings]
 writes: [code]
 next: [verify]
 ---
@@ -13,6 +13,21 @@ Execute the task list. One subagent per task, each with an empty context.
 
 This phase dispatches and records. The code is written by the subagents, and this phase
 does not write any of it itself.
+
+## Before dispatching
+
+```
+recall alfred/area/{area}/review-findings    for the areas the task list touches
+```
+
+Past `should fix` findings are passed to the subagent whose task touches the file they are
+about, as context rather than as work: a task does what its task says. A finding that is
+cheap to honour while already editing that file is honoured; anything larger stays a finding
+and is reported, not silently absorbed into an unrelated change.
+
+This is the other half of what `archive` writes those findings for. `review` reads them to
+stop repeating itself; this phase reads them because it is the one that can actually fix
+them, and the moment it is holding the file open is the only cheap moment there is.
 
 ## Confirmation
 
@@ -71,6 +86,11 @@ the run stops and reports it, even when tests pass.
 `tasks` predicted the file lists; the reports are what actually happened. A file that
 appears in a report and not in the declaration is a prediction that was wrong, and the next
 run of that phase treats it as exclusive.
+
+Files shared with *another change* are not this rule. Subagents of different changes write
+different checkouts, so nothing is overwritten; what collides is the branches, later. A task
+reaching a file another change owns stops and reports, and which files those are is known
+before dispatch, per `skills/_shared/worktree-protocol.md`.
 
 ## Writing code
 

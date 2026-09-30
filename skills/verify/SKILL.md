@@ -57,6 +57,22 @@ test asserts    the response status is 200
 The failure scenarios matter most here. They are the ones most often written to pass rather
 than to check, because the code path they exercise is the one nobody ran by hand.
 
+The second way a test proves nothing is a chain that was stubbed. A test that replaces the
+resolution it is standing on asserts that the replacement works, and passes whatever the
+real one would have done.
+
+```
+scenario touches   a helper the worker calls
+test stubs         the helper's caller, and asserts on the stub
+                   -> does not cover the scenario
+```
+
+Ask it as one question, per `skills/_shared/testing-protocol.md`: does the coverage of this
+unit reach its real call sites, or stop at its own signature? A change to shared code with
+no test that goes through a caller is reported as a finding, with the scenario that should
+have exercised it. This is the gap that let a real regression through a full `verify` and a
+full `review` in one measured run.
+
 ## Coverage
 
 Coverage is measured over the lines the change introduced or modified, per
@@ -101,6 +117,29 @@ This phase does not fix anything. It reports.
 A failed verification returns the change to `apply` with the failing scenarios named, and
 only the tasks that claim them are re-dispatched. Re-running everything discards work that
 passed.
+
+## A second pass
+
+A verification that follows a fix round is not the first verification again.
+
+```
+the scenarios named in the previous report's Findings
+every scenario whose tests touch a file the fix round changed
+the full command run, because a fix is how a regression arrives
+```
+
+Everything else passed, against code that did not change, and confirming it a second time
+buys nothing. Measured: a second pass cost more than the first, for a report whose only new
+sentence was about the fix.
+
+The commands still run whole — they are one invocation and a partial run is not cheaper —
+and the report still lists every scenario, carrying the verdict of the first pass for the
+ones this pass did not revisit, marked as such. A scenario silently inheriting a pass is how
+a report comes to claim something nobody checked.
+
+A third pass reads the second the same way. What grows is the list of files the fix rounds
+have touched, and it grows slowly, because a change with an ever-widening fix surface is a
+change that should go back to `design` rather than round the loop again.
 
 ## Completion
 

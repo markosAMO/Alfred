@@ -3,7 +3,7 @@ name: review
 mode: auto
 skippable: false
 agent: separate_from_author
-reads: [design, conventions, architecture, code]
+reads: [design, conventions, architecture, code, review_findings]
 writes: [review_report]
 document: docs/changes/{change}/review-report.md
 next: [archive]
@@ -15,6 +15,22 @@ Answer one question: is this code sound?
 
 Not whether it satisfies the specification. `verify` established that, and repeating it here
 spends a review on work already done.
+
+## Before reviewing
+
+```
+recall alfred/area/{area}/review-findings    what the last review of this area said
+```
+
+A `should fix` nobody fixed is worth raising again, and raising it as a repeat is worth more
+than raising it as new: the second time it appears it is a pattern rather than a nit, and
+the reader can see it was already declined once.
+
+This recall is why `archive` writes those findings. Without it they were written on every
+change and read on none.
+
+Findings that the change under review has since fixed are dropped silently. Reporting a
+finding as outstanding when the code no longer has it is how a review loses its credibility.
 
 ## Runs alongside verify
 
@@ -50,12 +66,26 @@ deliberately excluded is not reported as missing.
 ```
 conventions      does it follow docs/code_conventions.md
 correctness      error handling, edge cases, resource cleanup, concurrency
+call sites       does the new contract hold for every caller that already exists
 simplicity       is there a materially simpler shape with the same behaviour
 duplication      does this already exist in the codebase
 coupling         does it reach past the boundaries the architecture draws
 security         input handling, authorisation, secrets, injection surfaces
 readability      will this be understood by someone who was not here
 ```
+
+`call sites` is the one that needs looking up rather than reading. A modified signature, a
+changed return type, a helper whose accepted input narrowed: the diff shows the change and
+not the twelve places that depend on it. Trace them.
+
+```
+changed    helper accepts a string
+callers    one worker passes a symbol
+result     a regression that passes its own author's tests
+```
+
+`verify` asks whether the tests reach the real callers. This phase asks whether the callers
+still work, which is a different question and is answered by reading them.
 
 ## Severity
 
@@ -130,7 +160,22 @@ Blocking findings return the change to `apply` with the findings attached. Only 
 owning the affected files are re-dispatched.
 
 `should fix` and `suggestion` findings are recorded and do not block. `archive` carries
-them into memory so they surface when that area is touched again.
+them into memory under `alfred/area/{area}/review-findings`, which this phase recalls on
+the next change touching that area — see `Before reviewing`.
+
+## A second pass
+
+A review that follows a fix round reads the diff of the fix, not the diff of the change.
+
+The rest of the code was reviewed once, by this phase, and has not changed since. Reading it
+again produces the same findings, which were either acted on or recorded as `should fix` and
+deliberately left — and re-reporting something the user decided to leave is how a report
+stops being read.
+
+Two things stay whole. The blocking findings of the previous pass are checked as resolved,
+each against the code that now stands rather than against the claim that it was fixed. And a
+fix that touched a file outside its own task pulls that file into this pass, because a fix
+that spread is exactly the case a narrow read would miss.
 
 ## Completion
 

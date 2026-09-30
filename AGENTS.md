@@ -29,6 +29,7 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `README.md` | Project presentation | For humans |
 | `install.sh` | Installer | Copies what is needed into the target project |
 | `bin/` | Tools installed with Alfred | `worktree.sh` creates, lists and removes the worktrees changes run in |
+| `scripts/` | Installer helpers | `generate_agents.py` writes the agent definitions, `register_memory.py` the memory server registration |
 | `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
 | `skills/` | One directory per pipeline phase | The manual for each phase |
 | `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |
@@ -41,6 +42,8 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `triggers/` | How the flow starts in each environment | OpenClaw, terminal, future entry points |
 | `docs/installation.md` | The two installation levels | Machine-level setup versus repository setup |
 | `docs/models.md` | Model assignment and profiles | Why phases run on different models |
+| `docs/artifacts.md` | Where Alfred's own documents live | A repository may not accept them, and Alfred still runs there |
+| `docs/ephemeral.md` | What a change leaves behind | The documents are how phases talk; keeping them afterwards is a separate decision |
 | `docs/` | Project documentation | For humans; agents do not read it |
 
 ## The pipeline
@@ -61,8 +64,10 @@ COMMON TRUNK
   apply       code (one subagent per task, parallel when files are disjoint)
   verify  ┐   does it satisfy the spec?
   review  ┘   is the code well written?      dispatched together
-  archive     feature → delta merged into master specs
+  archive     writes the record, the one document the change leaves
+              feature → delta merged into master specs
               bug     → postmortem written to memory
+              removes the working documents and the state file
 
 NAVIGATION
   continue · ff · status
@@ -85,18 +90,23 @@ Every mode is overridable in `alfred.config.yaml`.
 1. **No skill names a concrete tool.** Skills say `memory.recall(...)`, never `mem_search`.
    Translation lives in `memory/adapters/`. The same applies to `notify/`.
 2. **Which side is authoritative is the repository's configuration, not the machine's.**
-   Under `memory.documents: keep`, the default, the documents are files under version
-   control and the backend holds a disposable copy rebuilt by `reindex`. Under `pointer`
-   the change documents live in memory and the repository keeps their addresses. Pipeline
-   state is a file in both, always, per `skills/_shared/state-contract.md`.
-3. **Alfred runs without memory, under `keep`.** With no backend configured the pipeline
-   still works: subagents read the Markdown files directly. More expensive in tokens,
-   never broken. `pointer` is the stated exception and requires a backend that answers.
+   Under `memory.documents: ephemeral`, the default, the documents are files while the
+   change is open and `archive` removes them, leaving the record and the delta spec. Under
+   `keep` they all stay, under version control, with the backend holding a disposable copy
+   rebuilt by `reindex`. Under `pointer` they live in memory and the repository keeps their
+   addresses. Pipeline state is a file in all three, always, per
+   `skills/_shared/state-contract.md`.
+3. **Alfred runs without memory, under `keep` and `ephemeral`.** With no backend configured
+   the pipeline still works: subagents read the Markdown files directly. More expensive in
+   tokens, never broken. Under `ephemeral` the working documents are then discarded at
+   close with no second copy, which is a supported choice and one `init` states out loud.
+   `pointer` is the stated exception and requires a backend that answers.
    The same applies to notification channels: an unavailable channel is skipped, never
    fatal.
-4. **Subagents receive paths, not content.** A subagent starts with an empty context and
-   fetches what it needs. Pasting a four-thousand-token spec into every subagent defeats
-   the purpose of a clean context.
+4. **Subagents receive locators, not content.** A subagent starts with an empty context and
+   fetches what it needs from the path or key it was handed. Pasting a four-thousand-token
+   spec into every subagent defeats the purpose of a clean context. Resolving the locator
+   is rule 20's business, never the subagent's.
 5. **User-authored content is never overwritten.** The installer only touches what sits
    between `<!-- ALFRED:BEGIN -->` and `<!-- ALFRED:END -->`, or appends. `.alfred/state.json`
    stores the sha256 of every managed file: if it changed, the installer reports a diff
@@ -139,7 +149,34 @@ Every mode is overridable in `alfred.config.yaml`.
 17. **Existing repositories are documented on demand.** `explore` derives specifications
    for the area a change touches, never for the whole repository. A codebase documents
    itself as it is worked on.
-18. **Parallel changes never share a checkout.** Changes started together through
+18. **Alfred runs in repositories that do not accept it.** `artifacts.committed: false`
+   keeps Alfred's documents out of git, through the repository's local exclude file and
+   never through `.gitignore`. What changes is who holds the documents, never what Alfred
+   writes: a worktree is given them by copy, and closing one refuses to discard a document
+   the main checkout does not already have. See `docs/artifacts.md`.
+19. **A change leaves one document, and it is written before anything is deleted.**
+   `archive` writes the record from `templates/docs/record.md`, reads it back, and only then
+   removes the working documents under `artifacts.retain: final_only`. The record carries
+   the decisions the design would otherwise take with it. A failed read-back deletes
+   nothing. See `docs/ephemeral.md`.
+20. **State is deleted when the change closes, and only then.** A change that completed has
+   nothing to resume, so `archive` removes `.alfred/state/{change}.yaml` and stages the
+   removal with the closing commit. A change that failed, was abandoned, or was closed
+   incomplete keeps it: open work is work somebody may come back to. See
+   `skills/_shared/state-contract.md`.
+21. **A phase is told where its artifacts are; it never works it out.** The orchestrator
+   resolves every locator from `memory.documents` — a path or a memory key — and passes it
+   in. A phase that re-derives the mode disagrees with the run that launched it, silently,
+   because reading the wrong store returns an empty result that looks like an artifact
+   nobody wrote. Adding a storage mode is an orchestrator change and touches no phase. See
+   `Locators` in `memory/CONTRACT.md`.
+22. **A capability is wired by the installer or it is not wired.** The agents declare every
+   memory tool and the server exposes every memory tool, and `install`, `update` and
+   `doctor` each write or check both halves. Neither is a command in a document for someone
+   to paste: a phase cannot tell a tool it was never granted from a backend that cannot do
+   the thing, so a half-configured pair is silent and looks like the backend's limitation.
+   See `memory/adapters/engram.md`.
+23. **Parallel changes never share a checkout.** Changes started together through
    `/alfred-worktree` each run in their own git worktree on their own branch, created and
    removed by `bin/worktree.sh`, never by an agent running git by hand. One change, one
    worktree, one branch. See `skills/_shared/worktree-protocol.md`.

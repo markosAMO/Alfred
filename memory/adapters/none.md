@@ -42,12 +42,28 @@ notification timeout. `diagnose` still works; it just investigates from scratch 
 Nothing else changes. No phase fails, no artifact is missing, and switching to a real
 backend later is a `reindex` away because the files were the source of truth the whole time.
 
+## Ephemeral against no backend
+
+`memory.documents: ephemeral` is reachable here, and it is the one combination that
+genuinely discards something. The working documents are removed when `archive` closes the
+change, and with no backend there is no second copy: they are gone.
+
+That is a supported configuration, not an accident. What a later reader needs — what
+changed, why, how it was decided, what it required and how it ended — is lifted into the
+record before anything is deleted, and the delta specification and the master
+specifications stay as files. What is discarded is the reasoning-in-progress that produced
+them.
+
+It still deserves to be said out loud rather than discovered. `init` says it when the mode
+is chosen against `backend: none`, and `alfred doctor` reports the pair as a condition worth
+knowing about rather than as an error.
+
 ## Not a mode for pointer
 
 `memory.documents: pointer` puts the change artifacts in memory and keeps only their
 addresses in the repository. With no backend there is nowhere to put them, so the
 combination is a configuration error and `init` and `doctor` report it as one. This adapter
-is reachable only under `keep`.
+is reachable under `keep` and `ephemeral`, never under `pointer`.
 
 ## What is not lost
 

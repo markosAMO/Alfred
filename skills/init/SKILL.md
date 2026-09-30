@@ -122,9 +122,61 @@ docs/changes/
 .alfred/skill-registry.md
 ```
 
+Under `artifacts.committed: false` the same files are created and the exclusions are
+written beside them. What changes is what git is holding, never what Alfred writes.
+
 `AGENTS.md` is the source of truth; the rest are three-line files redirecting to it. Only
 the block between `<!-- ALFRED:BEGIN -->` and `<!-- ALFRED:END -->` belongs to Alfred. An
 existing file keeps everything it already said, per rule 5 in the package `AGENTS.md`.
+
+## Whether the documents are committed
+
+Asked once, here, because every later phase assumes the answer and none of them can change
+it.
+
+```
+ask("Can Alfred's own documents be committed to this repository?",
+    ["yes, commit them", "no, keep them out of git"], "yes, commit them")
+```
+
+`yes` is `artifacts.committed: true` and needs nothing further: the documents are versioned
+with the code they describe, which is where they belong and what keeps them safe.
+
+`no` is for a repository that will not take them — a team that has not adopted Alfred, a
+review process that would reject the directory. It is a legitimate way to run, and it is
+recorded rather than worked around. Alfred then writes the exclusions to
+`artifacts.local_exclude`, `.git/info/exclude` by default:
+
+```
+.alfred/
+docs/changes/
+docs/specs/
+docs/architecture.md
+docs/code_conventions.md
+```
+
+That file is per-clone and is not itself tracked, so keeping Alfred out of a repository
+costs the repository no commit. Writing the same lines to `.gitignore` would be a change to
+the thing the answer was `no` about.
+
+Say what it costs, at the moment the answer is given rather than when it is felt: the
+documents stop being versioned, nobody else's clone has them, and the only copies are this
+checkout and the memory backend. A repository answering `no` is the one where a memory
+backend stops being an optimisation. See `docs/artifacts.md`.
+
+## Commit before opening a worktree
+
+Under `artifacts.committed: true`, the last thing this phase says is that its output has to
+be committed before any worktree is opened.
+
+A worktree is created from a ref. An architecture written here and not committed is not in
+any worktree made afterwards, and every phase running in one discovers its absence
+separately — the cost is a rediscovery per subagent, and nothing upstream can warn them,
+because the orchestrator reads the configuration, the state and the registry and nothing
+else.
+
+Under `committed: false` there is nothing to commit and the tool copies the documents into
+each worktree instead, per `skills/_shared/worktree-protocol.md`.
 
 ## Architecture
 
@@ -172,14 +224,27 @@ tracker   none | jira | github-issues | linear
 With a memory backend, also ask where the change documents live:
 
 ```
-memory.documents  keep     the documents are files, memory holds a searchable copy
-                  pointer  the documents are in memory, the repository holds addresses
+memory.documents  keep       the documents are files, memory holds a searchable copy
+                  ephemeral  the documents are files while the change is open, and
+                             archive removes them, leaving the record and the delta spec
+                  pointer    the documents are in memory, the repository holds addresses
 ```
 
-`keep` is the default and the answer for a repository that is read by people who do not
-run Alfred. `pointer` is for one where `docs/changes/` has grown into the majority of the
-repository, and it requires a backend that answers, per `memory/CONTRACT.md`. It cannot be
-chosen with `backend: none`.
+`ephemeral` is the default, and the answer for most repositories. A change writes seven or
+eight documents and roughly fifteen hundred lines while it is open, and the question they
+settle is answered afterwards by one record and the merged specification. It works with any
+backend, including none.
+
+`keep` keeps everything and is the answer for a repository whose history of how it was built
+is wanted in the repository itself. It was the default before `ephemeral`.
+
+`pointer` is for a repository that wants the documents kept and searchable but not on disk,
+and it requires a backend that answers, per `memory/CONTRACT.md`. It cannot be chosen with
+`backend: none`.
+
+Say what `ephemeral` costs when it is chosen against `backend: none`: the working documents
+are discarded at close with no second copy anywhere. That is a supported choice, and it is
+the one thing about the mode a user should not discover afterwards.
 
 Each is optional and each degrades rather than failing, per their contracts. Chosen values
 are written to `.alfred/config.yaml`.
@@ -193,6 +258,22 @@ that and stops rather than assigning a default, per `docs/models.md`.
 
 Resolve every skill and write `.alfred/skill-registry.md`, recording whether each came from
 the global installation or a local override. See `skills/_shared/skill-resolver.md`.
+
+**Then keep it out of git.** The registry's `path` column carries machine-absolute paths
+into the global installation, which resolve to nothing on anyone else's machine, so it is
+regenerated per clone rather than shared.
+
+```gitignore
+.alfred/skill-registry.md
+```
+
+Added to the repository's `.gitignore` — this one is a change to the repository and belongs
+there, unlike `artifacts.local_exclude`, which exists precisely to avoid one. A repository
+whose `.gitignore` is an allowlist needs the negation instead, since `!.alfred/` would
+otherwise pull the registry back in.
+
+Left out, the registry shows up as an untracked file after every run and `archive` reports a
+working tree it cannot explain.
 
 ## Completion
 

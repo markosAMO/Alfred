@@ -11,35 +11,59 @@ full-text search, running on the same machine.
 
 ## Requirements
 
-Engram installed, and registered with the agent as an MCP server. The two are separate
-steps and the second is the one that gets forgotten: the binary can be installed and the
-config can name `backend: engram` while the agent has never been told the server exists,
-in which case the tools this adapter maps onto are simply absent. Under
-`memory.required: false` that degrades to `none.md` in silence.
-
-The server must be named `engram`, since the tool names the agents declare are built from
-it.
+Engram installed. The registration is the installer's job, not yours.
 
 ```bash
-# Claude Code, machine-wide so worktrees outside the repository are covered too
-claude mcp add engram --scope user -- \
-  engram mcp --tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context
+./install.sh install     # registers it
+./install.sh update      # registers it, and repairs a narrowed one
+./install.sh doctor      # reports either half being short
 ```
 
+`install` and `update` write the MCP server entry for every agent they detect, with
+`--tools=all`, through `scripts/register_memory.py`. A registration already on disk that
+names a subset is **repaired**, not reported: it is the state a previous version of this
+document created, and leaving it is the failure below.
+
+This used to be a command in this file for the reader to paste, and that was the bug. The
+two halves of the wiring have to agree — the agent declares the tool and the server exposes
+it — and only one of them was automatic. A half-configured pair is silent: the phase sees no
+tool, which is indistinguishable from a backend that cannot do the thing.
+
+`doctor` checks both halves separately, because they break separately:
+
+```
+memory server exposes every tool     the registration, per this file
+agents declare every memory tool     the definitions, per scripts/generate_agents.py
+```
+
+`--tools=all` is every tool Engram exposes — 23 at v2.0.0, across its `agent` (19) and
+`admin` (4) profiles. Every one is schema an agent carries before it reads a line, and that
+cost is paid deliberately: which operations a phase *calls* is `memory/CONTRACT.md`'s
+business and stays narrow; what is *reachable* is everything.
+
+The registration the installer writes, for reference:
+
 ```jsonc
-// OpenCode, in ~/.config/opencode/opencode.json
+// Claude Code, ~/.claude.json
+"mcpServers": {
+  "engram": {"type": "stdio", "command": "/abs/path/to/engram",
+             "args": ["mcp", "--tools=all"], "env": {}}
+}
+
+// OpenCode, ~/.config/opencode/opencode.json
 "mcp": {
-  "engram": {
-    "type": "local",
-    "command": ["engram", "mcp", "--tools=mem_search,mem_get_observation,mem_save,mem_update,mem_context"],
-    "enabled": true
-  }
+  "engram": {"type": "local",
+             "command": ["/abs/path/to/engram", "mcp", "--tools=all"],
+             "enabled": true}
 }
 ```
 
-Use the absolute path to the binary where it is not on the agent's `PATH`. The tool list is
-the five operations this adapter uses; Engram exposes more, and every one declared is
-schema an agent carries before it reads a line.
+The absolute path is written rather than the bare name, since an agent does not inherit the
+shell's `PATH`. Other servers in those files are left untouched.
+
+A backend named in `alfred.config.yaml` whose binary is not on `PATH` is reported and not
+invented: nothing registers a server that cannot start. `memory.required` decides at run
+time whether that is fatal.
 
 Tool names differ per agent: `mcp__engram__mem_search` in Claude Code, `engram_mem_search`
 in OpenCode. `models.profile` carries the Claude Code form as `memory_tool_prefix`.
@@ -62,6 +86,33 @@ the files.
 
 `topic_key` carries the contract's `key` unchanged. Reusing it is what makes a repeated
 `remember` replace an entry instead of accumulating competing copies of the same artifact.
+
+**A `mem_save` without `topic_key` is not a `remember`.** The field is optional to Engram,
+which accepts the call, stores the entry, returns an id and *suggests* a key it does not
+apply. Nothing fails. What you get is an entry that:
+
+```
+cannot be fetched by key      alfred/{change}/verify-report resolves to nothing
+does not replace on rewrite   the next remember() adds a second copy
+is reachable only by search   which the contract forbids relying on
+```
+
+Observed in a full run: seven of eight artifacts carried their key and `verify-report` did
+not. The phase reported success, `archive` confirmed "every document is present" — by
+searching, which found it — and the defect survived both.
+
+So the key is passed on every call, and it is checked: the `mem_save` result echoes the
+entry it wrote, and a result whose `topic_key` is absent or different from the key asked for
+is a failed `remember`, reported through `notify`, not a warning to skip past.
+
+`type` is passed through from the contract's vocabulary unchanged — `spec`, `design`,
+`tasks`, `verify-report`, `review-report`, `proposal`, `research`, `diagnosis`,
+`postmortem`, `architecture`, `conventions`. Engram accepts each of them; its own native
+types (`decision`, `pattern`, `discovery`, `manual`) are what a human saving by hand uses,
+and a phase that reaches for one has thrown away the distinction `recall(query, type)`
+depends on. In the same run, **none of the eight artifacts carried a contract type** — a
+`verify-report` was stored as `decision` and a `review-report` as `manual`, so filtering a
+recall by type would have returned neither.
 
 `capture_prompt: false` is set where the schema exposes it, so pipeline artifacts are not
 recorded as conversational prompts. An older schema that rejects the field has it omitted
@@ -97,21 +148,200 @@ itself: one entry, revised, rather than a second copy.
 
 ## forget
 
-Engram does not expose deletion through MCP. A superseded entry is rewritten through
-`update` with its content replaced by a supersession note naming what replaced it.
+`mem_delete(id)` removes an observation, and Engram does expose it. This adapter still does
+not call it.
+
+A superseded entry is rewritten through `update`, its content replaced by a note naming what
+replaced it.
 
 ```
 superseded by alfred/{change}/spec, 2026-09-14
 ```
 
-The entry stops asserting something false, which is what `forget` is for. A record that an
-entry was retired is more useful in a memory than a hole where it used to be.
+The entry stops asserting something false, which is what `forget` is for, and the fact that
+it was retired survives. A hole where an entry used to be answers no question; `recall`
+returns nothing either way, and nobody can tell a decision that was reversed from one that
+was never recorded.
+
+This is a choice, not a limitation. An earlier version of this file claimed Engram had no
+deletion through MCP, which was wrong. Where a caller genuinely needs the row gone —
+material stored by mistake, something that should never have been written down — `mem_delete`
+is the call, and it is the one case this adapter makes it.
 
 ## reindex
 
 Engram has no bulk import. Reindexing walks `docs/` and calls `remember` for each artifact,
 deriving each key from its path per the contract's naming rules. Existing entries are
 replaced by `topic_key`, so the operation is safe to repeat.
+
+## Conflicts
+
+`mem_save` can answer `judgment_required: true` with the entries it disagrees with. Engram
+exposes a tool that settles it, and where it is available to the phase, the phase settles
+the conflict and continues.
+
+Where it is not — a subagent whose tool list does not carry it — the phase records the
+conflict in its return and continues, per the contract. `archive` collects them into one
+list for the user. Nothing blocks and nothing is overwritten.
+
+Every phase is granted every tool, per `Requirements` above, so the first is what happens.
+
+`mem_judge` absent from that list is not a backend that cannot settle conflicts. It is a
+tool that was never offered, and it reads identically from inside the phase — which is the
+same trap as a memory tool that is deferred and not yet loaded, below. That is why the
+registration is the installer's and `doctor` checks it.
+
+Conflicts raised against entries with a near-zero similarity score are a threshold that
+wants tuning rather than a disagreement worth a user's attention. Record the observation
+with the conflict; a channel that cries wolf is ignored, and it carries the real ones too.
+
+## Reading what a conflict points at
+
+A conflict is reported as a `sync_id`:
+
+```
+conflict: contested by #obs-4878b291a98ae4cf (pending)
+```
+
+`mem_get_observation` does not accept one. Passed a `sync_id` it answers `id is required`,
+and the only identifier it takes is the numeric `id`. So the identifier the backend hands a
+phase when it raises a conflict is not the identifier the phase needs to read it.
+
+The two are paired in the `results` array of a `mem_search`, and that is the way across:
+
+```
+mem_search(...)  ->  results[] carrying both  { id: 75, sync_id: "obs-4878b291a98ae4cf" }
+mem_get_observation(id: 75)
+```
+
+So a phase resolves a contested entry by searching for it and matching on `sync_id`, never
+by passing the `sync_id` it was given. A phase that passes it straight through gets an error
+that reads like a malformed call rather than like a missing translation, and the usual
+response — record the conflict unread and move on — is how twenty conflicts accumulate with
+nobody ever having seen what either side said.
+
+Where the search does not surface the entry, the conflict is reported with its `sync_id`
+unresolved and named as such. `engram conflicts show <id>` reads it from a terminal, which
+is a person's tool and not this pipeline's.
+
+## Recall is not reliably semantic
+
+Observed in one run: `mem_search` matched an entry on its exact `topic_key`, and a
+natural-language query carrying the same distinctive terms — the area name, the change name,
+the word "findings" — returned nothing at all.
+
+Two consequences for how phases search.
+
+**An artifact is recalled by its key, never by describing it.** The keys are deterministic
+precisely so this never depends on a query working, per `Key naming` in the contract. A
+phase that searches for "the spec for the login change" is relying on the weakest thing the
+backend does.
+
+**A `recall` that returns nothing is not evidence that nothing is there.** It is the one
+result that must never be reported as "no prior work exists". Where a phase needs to know
+that, it asks by key and treats an empty answer as an unwritten artifact; where it is
+genuinely exploring, an empty result is reported as an empty search.
+
+This is the same trap as a missing tool, one level down: the failure returns success, and it
+looks exactly like the world being empty.
+
+## Sharing memory with the repository
+
+Engram is local to the machine. `engram sync` exports this project's entries to `.engram/`
+inside the repository, and that directory is committed.
+
+```bash
+engram sync            # after a run, export the project's entries to .engram/
+engram sync --import   # after cloning, load them
+```
+
+```gitignore
+.engram/engram.db      # the local database, never committed
+.engram/cloud.json     # local credentials, never committed
+```
+
+Everything else under `.engram/` is committed on purpose: `manifest.json` and the gzipped
+chunks under `chunks/`, which are the entries themselves. They are compact — several hundred
+entries compress to a few hundred kilobytes, which is less than one change costs in prose.
+
+This is what makes `memory.documents: ephemeral` safe for more than one person. The working
+documents are removed at close, and the two copies that remain are the commit and memory. A
+memory that never leaves one laptop makes the second copy worthless to everyone else, and
+the first person to clone the repository gets the record and nothing behind it.
+
+Run `sync` after a change closes, and commit `.engram/` with it. `init` writes the two
+ignore lines when the backend is `engram`.
+
+## Project naming
+
+Engram groups entries by project, derived from the git remote and lowercased. Two things
+follow, and both bite Alfred specifically.
+
+**The project is resolved from the session the MCP server runs in, not from the working
+directory of the agent that calls it.** A subagent dispatched with its own working directory
+still writes to the project the server resolved, and it is not told otherwise: the call
+succeeds and reports the project it used, which nobody reads.
+
+Observed directly. A change run entirely inside one repository, by subagents whose working
+directory was that repository, indexed all five of its artifacts against a *different*
+project — the one the server had resolved from the session that launched them.
+
+Two consequences, both of which look like success:
+
+```
+a change run against another checkout      its documents land in the launching project
+a repository with no remote                falls back to a directory name
+```
+
+A worktree under `git.worktrees.root` is the case this is safe for, and the reason the MCP
+server is registered machine-wide: the worktree shares the remote, and the session that runs
+the change is the change's own.
+
+The case it is not safe for is a phase dispatched against a repository the session did not
+start in. `archive` records the keys it actually wrote in the record, which is what makes
+the mistake findable afterwards; `mem_merge_projects` merges what diverged, and
+`alfred doctor` reports a repository whose remote does not match the backend's project.
+
+## Prompt capture
+
+`capture_prompt: false` is set on every pipeline artifact, per the mapping above. A phase
+document is generated output, not something the user said, and recording it as a prompt
+pollutes the history that `context` returns.
+
+`mem_save_prompt` is the other half and belongs to whatever observes the user directly —
+the orchestrator, or a hook. It records the real request before any derived `mem_save`, so
+Engram can attach and deduplicate it. A phase never calls it: a phase did not see the user.
+
+## Session lifecycle belongs to the orchestrator
+
+`mem_session_start` and `mem_session_end` bracket a run. The orchestrator calls them,
+because it is the participant that lives for the whole one; a phase that called them would
+open and close a session per phase and group nothing.
+
+Unbracketed, saves attach to whatever session Engram last had open. Observed: a seven-phase
+run whose every artifact attached to a session opened two days earlier, so the run is not a
+unit anything can retrieve — `context(scope)` returns the stale session's contents and calls
+them recent.
+
+`mem_save_prompt` is the orchestrator's too, and for the same reason: it records the user's
+actual request before any derived `mem_save`, and the orchestrator is the only participant
+that saw the user. A phase never calls it.
+
+## What this adapter does not call
+
+`mem_session_summary` is for a top-level agent, never a subagent. A phase runs in a session
+that exists for one phase, and a summary written from inside it describes that fragment as
+though it were the run.
+
+`mem_capture_passive`, `mem_timeline`, `mem_stats`, `mem_doctor`, `mem_list_projects`,
+`mem_pin` and `mem_unpin` are inspection and housekeeping tools for a person at a terminal
+or for `alfred doctor`. Every agent is *given* them, per the tool list above — a phase must
+never be unable to tell a missing tool from a backend that cannot — but no phase in the
+pipeline has a reason to call one.
+
+The distinction is the point: **what is reachable is the whole backend; what a phase calls
+is this contract.** Narrowing the first to match the second is what produced an `archive`
+that could not settle a conflict it had correctly detected.
 
 ## Lifecycle metadata
 

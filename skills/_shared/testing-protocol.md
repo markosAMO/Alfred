@@ -22,6 +22,35 @@ POST /payments
   fix exists.
 - User interface.
 
+## Shared code is tested through a caller
+
+A unit tested only on its own is tested against the types its author had in mind. Its
+callers are what the system actually passes it.
+
+```
+helper.custom_sender(channel)
+  tested with  "in_app"   passes
+  called with  :in_app    raises
+```
+
+That is a real run. A helper was corrected, tested with a string, and called by a worker
+that passes a symbol. The test passed, the review passed, and the defect arrived from
+outside the pipeline — which is the part that matters: both quality gates were blind to it
+in the same way.
+
+So a change to code other code calls — a helper, a concern, a shared signature — is
+exercised from at least one real call site, with the types that call site passes, and
+without stubbing the chain under test. Stubbing the resolution turns the test into an
+assertion that the stub works.
+
+One caller is enough. The point is not coverage of every caller, it is that the test has
+touched the real one once, which is what tells you the contract holds outside the
+laboratory.
+
+Finding the callers is the change's job, not the test's: `design` traces them and `tasks`
+lists them among the files a task touches. A caller nobody found is the defect this rule
+exists for.
+
 ## Never tested
 
 - Framework behaviour. That the router routes is not your test.
