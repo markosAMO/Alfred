@@ -1,6 +1,9 @@
-# Alfred
+<p align="center">
+  <img src="assets/banner.png" width="860"
+       alt="Alfred - a spec-driven workflow for building software with AI agents">
+</p>
 
-**A spec-driven workflow for building software with AI agents.**
+# Alfred
 
 Alfred is not a program. It is a package of instructions that configures the coding agents
 you already use, so that software work follows the same pipeline every time, in every
