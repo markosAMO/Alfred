@@ -31,6 +31,16 @@ docs/changes/{change}/inputs/
 
 Committed with the change, like every other artifact.
 
+Under `memory.documents: ephemeral` the inputs are working material like the rest: they are
+removed when `archive` closes the change, and memory is where they survive. What the record
+keeps of them is the citation — what the material was and where it came from — not the
+material itself.
+
+Under `pointer` they are indexed and the files do not stay, for the same reason no other
+change document does. This was previously unstated, and the directory was the one thing
+`pointer` left on disk while claiming not to: a materialised ticket is the largest document
+in a change, because the rule below forbids summarising it.
+
 ## The request is material too
 
 `refine` writes the request down. When the route skips `refine` — the request was already

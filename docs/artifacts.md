@@ -72,6 +72,58 @@ Back up the main checkout's Alfred directories, or run with a memory backend, or
 risk is not hypothetical: a worktree removed by hand, a directory cleaned up, a machine
 replaced, and the documents are gone with no history to recover them from.
 
+## Which documents, and for how long
+
+This setting decides **whether** Alfred's documents are committed. `memory.documents`
+decides **which of them still exist** once a change closes. They are independent, and both
+have to be read to know what a repository ends up holding.
+
+```
+artifacts.committed    does git hold them
+memory.documents       do they survive the change
+```
+
+Under `memory.documents: ephemeral`, the default, `archive` removes the working documents at
+close and leaves the record and the delta specification. See `docs/ephemeral.md`.
+
+The two combine into four repositories:
+
+| `committed` | `documents` | What a reader finds |
+|---|---|---|
+| `true` | `ephemeral` | the record and the delta, in git, with history |
+| `true` | `keep` | every document of every change, in git |
+| `false` | `ephemeral` | the record and the delta, on one machine, untracked |
+| `false` | `keep` | every document, on one machine, untracked |
+
+The third row is the one to be careful with. Nothing about it is broken, and it is the right
+answer for a repository that will not take Alfred's documents at all — but it stacks the two
+ways of not keeping something, and what is left of a change is a single untracked file in
+one person's checkout. Back that checkout up, or run a memory backend, or both. The warning
+under `committed: false` above applies twice over here.
+
+## An accepted loss
+
+`ephemeral` against `backend: none` discards the working documents with no second copy
+anywhere. They are removed before the closing commit is staged, so git never held them
+either.
+
+This is a decision, taken deliberately, and it is recorded here rather than left to be
+discovered:
+
+- What a later reader needs is lifted into the record **first**, and the record is read back
+  before anything is deleted. A failed read-back deletes nothing.
+- The delta specification and the master specifications stay as files, so what the change
+  required is never in question.
+- What is discarded is the reasoning in progress — the proposal, the research, the design
+  narrative, the task breakdown and the two reports.
+- The alternative was committing the documents and then deleting them, which means two
+  commits per change and every change appearing twice in the history. That was judged worse
+  than the loss.
+
+`init` states it when the mode is chosen against no backend, and `alfred doctor` reports the
+pair as a standing condition. A repository that wants the reasoning kept has `keep`, and a
+repository that wants it kept and searchable but off disk has `pointer`.
+
 ## The project's own documentation
 
 Separate question, separate setting. `artifacts.committed` is about Alfred's documents;

@@ -3,10 +3,16 @@ change: {change}
 phase: addresses
 ---
 
-# {change}
+# {change} — addresses
 
-One line on what this change did, in the present tense, for a reader who arrives from a
-master specification and wants to know whether to open anything else.
+Where this change's documents are stored. **What the change did is in `record.md`, beside
+this file.** This one exists to be addressable, not to be read: it is the index that makes
+the entries reachable, per `Reachability` in `memory/CONTRACT.md`.
+
+Two files rather than one, under `pointer`, because they answer different questions. The
+record is prose for a person arriving from a master specification; this is a key per
+artifact for a phase that has to fetch one. Merging them would put machine addresses in the
+middle of the document somebody actually reads.
 
 ## Where the documents are
 
@@ -24,10 +30,12 @@ entry behind it is a defect, not a gap: see `memory/CONTRACT.md`.
 
 | | |
 |---|---|
-| Result | `completed` or `failed`, with the reason |
-| Commit | |
-| Specifications changed | paths under `paths.master_specs` |
+| Record | `record.md` — the outcome, the decisions, what was required |
 | Postmortem | `alfred/postmortem/{slug}`, for a bug |
+
+The result, the commit and the specifications that changed are in the record and are not
+repeated here. Two places carrying the same outcome go out of step at the first correction,
+and nothing says which one is current.
 
 ## Recovering the documents
 

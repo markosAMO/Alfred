@@ -5,18 +5,22 @@ paths:
   conventions: docs/code_conventions.md
   master_specs: docs/specs/
   changes: docs/changes/
+  change_records: docs/changes/
   pipeline_state: .alfred/state/
   skill_registry: .alfred/skill-registry.md
 
 artifacts:
   committed: true
   local_exclude: .git/info/exclude
+  retain: final_only
+  keep_delta_spec: true
+  state_on_completion: delete
 
 memory:
   backend: engram
   adapter: memory/adapters/engram.md
   index_documents_on_write: true
-  documents: keep
+  documents: ephemeral
   required: false
 
 notify:
@@ -168,4 +172,5 @@ phases:
 
   archive:
     mode: auto
-    produces: [master_specs, postmortem]
+    produces: [record, master_specs, postmortem]
+    removes: [working_documents, state]

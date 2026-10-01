@@ -1,5 +1,6 @@
 /*
 !.gitignore
 !.alfred/
+.alfred/skill-registry.md
 !docs/
 !AGENTS.md

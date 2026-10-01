@@ -24,13 +24,19 @@ Report what is installed here and what is running.
 global skills     ~/.config/alfred/skills/     13 skills, version 0.3.0
 local overrides   .alfred/skills/              apply
 profile           mixed
-memory            engram, reachable, documents: pointer
+memory            engram, reachable
+documents         ephemeral (default)          artifacts: committed, retain final_only
 tracker           none
 open changes      login-google (design, waiting_for_input)
 ```
 
 Overrides are listed explicitly. A phase behaving differently in one repository is almost
 always an override nobody remembers making.
+
+`documents` says whether the mode was chosen or inherited, for the same reason. `ephemeral`
+became the default after `keep` was, so a repository still on `keep` is either one that
+decided to be or one that predates the change, and those read identically without the
+annotation.
 
 ## update
 
@@ -69,8 +75,10 @@ have done something.
 
 ### Migrating a repository to pointer
 
-`reindex` reads `memory.documents`. Under `keep` it stops at the report above: indexing is
-all there is to do and nothing on disk changes.
+`reindex` reads `memory.documents`. Under `keep` and `ephemeral` it stops at the report
+above: indexing is all there is to do and nothing on disk changes. `ephemeral` deletes at
+close, in `archive`, and never here — a change still open keeps every document it has
+written so far.
 
 Under `pointer` the change documents belong in memory and the repository keeps only their
 addresses, so a `docs/changes/` written while the repository was on `keep` is carrying
@@ -143,10 +151,23 @@ is the test command in code_conventions.md runnable
 are the agent pointer files present and pointing at AGENTS.md
 is any state file referencing a change directory that no longer exists
 under pointer: does every address file row still resolve, and does state agree with it
+under ephemeral: does every closed change have a record, and is the state file gone
+does the memory backend report a project name matching this repository's git remote
 is any worktree listed whose directory no longer exists   worktree.sh list, exists: false
 does every open worktree have architecture, conventions and a configuration
 under artifacts.committed: false: does any worktree hold documents the main checkout lacks
 ```
+
+Two of those are conditions rather than faults, and are reported as such.
+
+`memory.documents: ephemeral` with `backend: none` discards the working documents at close
+with no second copy anywhere. It is supported and it is a choice; `doctor` names it so it is
+not discovered after the fact.
+
+A repository with no git remote makes the memory backend fall back to the directory name, so
+two clones in differently named directories accumulate two memories that never see each
+other and both runs succeed. `doctor` reports the missing remote; `mem_merge_projects`
+merges what already diverged. See `memory/adapters/engram.md`.
 
 Each failure is reported with its remedy. A diagnostic that says something is wrong without
 saying what to do is a longer way of failing.
