@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="Alfred - a spec-driven workflow for building software with AI agents">
+  <title>Alfred</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B0E14"/>
+      <stop offset="0.55" stop-color="#111823"/>
+      <stop offset="1" stop-color="#0D1420"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#D4AF37" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#E8C76B" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#D4AF37" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="tie" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E8C76B"/>
+      <stop offset="1" stop-color="#C19A2E"/>
+    </linearGradient>
+
+    <g id="bowtie">
+      <path d="M104 150 L48 114 L48 186 Z" fill="url(#tie)"/>
+      <path d="M126 150 L182 114 L182 186 Z" fill="url(#tie)"/>
+      <rect x="104" y="137" width="22" height="26" rx="6" fill="#C9A433"/>
+    </g>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="4" fill="url(#rule)"/>
+
+  <use href="#bowtie" transform="translate(600,178) scale(1.5) translate(-115,-150)"/>
+
+  <text x="600" y="372" text-anchor="middle" font-family="Georgia, 'Times New Roman', 'Liberation Serif', serif" font-size="132" letter-spacing="3" fill="#F0F6FC">Alfred</text>
+
+  <text x="600" y="424" text-anchor="middle" font-family="-apple-system, 'Segoe UI', Roboto, 'Liberation Sans', sans-serif" font-size="30" fill="#A9B4C0">A spec-driven workflow for building software with AI agents</text>
+
+  <rect x="420" y="470" width="360" height="2" fill="url(#rule)"/>
+
+  <text x="600" y="518" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="22" fill="#6E7681">refine<tspan fill="#D4AF37"> · </tspan>spec<tspan fill="#D4AF37"> · </tspan>design<tspan fill="#D4AF37"> · </tspan>tasks<tspan fill="#D4AF37"> · </tspan>apply<tspan fill="#D4AF37"> · </tspan>verify<tspan fill="#D4AF37"> · </tspan>review<tspan fill="#D4AF37"> · </tspan>archive</text>
+
+  <text x="600" y="582" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="21" fill="#596673">github.com/markosAMO/Alfred</text>
+</svg>
