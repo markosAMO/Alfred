@@ -1,0 +1,9 @@
+{"orchestrator": "anthropic/claude-opus-5",
+  "coordinator": "anthropic/claude-haiku-4-5-20251001",
+  "phases": {"init": "anthropic/claude-opus-5", "explore": "anthropic/claude-opus-5",
+    "refine": "anthropic/claude-opus-5", "research": "anthropic/claude-opus-5",
+    "spec": "anthropic/claude-opus-5", "diagnose": "anthropic/claude-opus-5",
+    "design": "anthropic/claude-opus-5", "tasks": "anthropic/claude-opus-5",
+    "apply": "anthropic/claude-opus-5", "verify": "anthropic/claude-opus-5",
+    "review": "anthropic/claude-opus-5", "archive": "anthropic/claude-opus-5"},
+  "memory_tool_prefix": "", "effort": {}, "extra_tools": {}}

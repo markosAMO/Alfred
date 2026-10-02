@@ -11,7 +11,15 @@ full-text search, running on the same machine.
 
 ## Requirements
 
-Engram installed. The registration is the installer's job, not yours.
+Engram v3, and a yes when the installer asks whether to use it; `./install.sh models` asks
+again. Neither the binary nor the registration is yours to set up.
+
+When the answer is yes and no engram v3 is found, the installer offers to install it with
+`go install`, pinned to the version whose tools the agents declare. Go is already required
+for the installer's helper, so the backend adds no package manager. The binary lands in
+`GOBIN`, or `GOPATH/bin`, and is registered by absolute path, so the agents find it whether
+or not that directory is on the shell's `PATH`. An older engram earlier on `PATH` is left
+alone and named, since it keeps answering in the shell.
 
 ```bash
 ./install.sh install     # registers it
@@ -20,7 +28,7 @@ Engram installed. The registration is the installer's job, not yours.
 ```
 
 `install` and `update` write the MCP server entry for every agent they detect, with
-`--tools=all`, through `scripts/register_memory.py`. A registration already on disk that
+`--tools=all`, through the installer's helper (`internal/memory`). A registration already on disk that
 names a subset is **repaired**, not reported: it is the state a previous version of this
 document created, and leaving it is the failure below.
 
@@ -33,11 +41,12 @@ tool, which is indistinguishable from a backend that cannot do the thing.
 
 ```
 memory server exposes every tool     the registration, per this file
-agents declare every memory tool     the definitions, per scripts/generate_agents.py
+agents declare every memory tool     the definitions, per internal/agents
 ```
 
-`--tools=all` is every tool Engram exposes — 23 at v2.0.0, across its `agent` (19) and
-`admin` (4) profiles. Every one is schema an agent carries before it reads a line, and that
+`--tools=all` is every tool Engram exposes — 23 at v3.0.0, the version the installer pins,
+across its `agent` (19) and `admin` (4) profiles. Every one is schema an agent carries
+before it reads a line, and that
 cost is paid deliberately: which operations a phase *calls* is `memory/CONTRACT.md`'s
 business and stays narrow; what is *reachable* is everything.
 

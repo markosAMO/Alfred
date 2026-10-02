@@ -221,6 +221,20 @@ notify    terminal always; openclaw optional
 tracker   none | jira | github-issues | linear
 ```
 
+**Memory follows the machine.** The installer asks once per machine whether to use a memory
+backend, and the answer is the profile's `memory_tool_prefix`. An empty or absent prefix
+means no agent was given a memory tool, so no phase can reach a backend whatever this file
+names. Write `memory.backend: none` and `memory.adapter: memory/adapters/none.md` without
+asking, and say why in one line:
+
+```
+memory: none, this machine was installed without memory (./install.sh models to enable it)
+```
+
+Naming a backend the phases cannot reach does not break a run, but it makes the
+orchestrator warn at the start of every one about a backend that was never going to answer.
+Only when the profile carries a prefix is the memory backend asked.
+
 With a memory backend, also ask where the change documents live:
 
 ```

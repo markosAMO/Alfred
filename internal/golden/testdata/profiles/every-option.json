@@ -1,0 +1,8 @@
+{"orchestrator": "anthropic/claude-opus-5",
+  "coordinator": "vendor/cheap", "manage": "vendor/mid",
+  "phases": {"spec": "vendor/big", "apply": "vendor/small", "init": "vendor/mid",
+    "archive": "vendor/small"},
+  "memory_tool_prefix": "mcp__custom__",
+  "effort": {"spec": "high", "archive": "low"},
+  "extra_tools": {"spec": ["mcp__atlassian__getJiraIssue", "mcp__a__niño"],
+    "apply": ["mcp__b__tool"]}}

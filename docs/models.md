@@ -60,6 +60,14 @@ A common split, shown as illustration rather than as a default:
 }
 ```
 
+`memory_tool_prefix` is written by the installer from one question: whether to use Engram
+for memory. Yes writes `mcp__engram__`, and every agent is given every memory tool under
+it; no writes an empty prefix, and no agent carries tools with no server behind them. A
+profile without the key gets no memory tools. `./install.sh models` asks again.
+
+`init` reads the same answer: on a machine without memory it writes `memory.backend: none`
+to the repository's configuration rather than asking, since no phase could reach a backend.
+
 `effort` and `extra_tools` are optional and per phase: effort is the second cost lever
 after model choice, and extra tools are for whatever a phase needs beyond the base set —
 a tracker's read tool in `refine`, for instance, which is stack-specific and therefore not

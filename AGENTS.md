@@ -29,7 +29,7 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `README.md` | Project presentation | For humans |
 | `install.sh` | Installer | Copies what is needed into the target project |
 | `bin/` | Tools installed with Alfred | `worktree.sh` creates, lists and removes the worktrees changes run in |
-| `scripts/` | Installer helpers | `generate_agents.py` writes the agent definitions, `register_memory.py` the memory server registration |
+| `cmd/alfred/`, `internal/` | The installer's Go helper | Writes the agent definitions, the memory server registration and the install bookkeeping |
 | `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
 | `skills/` | One directory per pipeline phase | The manual for each phase |
 | `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |

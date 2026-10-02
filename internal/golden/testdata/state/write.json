@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "files": {
+    "pay/.hidden": "e564b4081d7a9ea4b00dada53bdae70c99b87b6fce869f0c3dd4d2bfa1e53e1c",
+    "pay/a-c/d.txt": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4",
+    "pay/a.b/c.txt": "2e7d2c03a9507ae265ecf5b5356885a53393a2029d241394997265a1a25aefc6",
+    "pay/a/b.txt": "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d",
+    "pay/bin/run.sh": "a8076d3d28d21e02012b20eaf7dbf75409a6277134439025f282e368e3305abf",
+    "pay/deep/er/still/x.md": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+    "pay/ñandu.md": "1da06098d1ce89cd634ecb787129af0e80b0408b2d399255cf7c8624cc6b2988",
+    "top.yaml": "ff8d133e31b5c03b64af54571d9d0683e2680ce28d383d7730691de4a6ddacb9"
+  }
+}
