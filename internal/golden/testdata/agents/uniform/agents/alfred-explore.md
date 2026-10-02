@@ -2,7 +2,7 @@
 name: alfred-explore
 description: Alfred explore phase executor
 model: claude-opus-5
-tools: Read, Write, Glob, Grep, Bash, mcp__engram__mem_save
+tools: Read, Write, Glob, Grep, Bash
 ---
 
 You are the Alfred executor for the explore phase, not the orchestrator.

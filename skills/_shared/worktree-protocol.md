@@ -71,6 +71,44 @@ coordinator holding both only learns it by carrying a correction between them.
 It is a recommendation, not a refusal. The user may want the worktrees anyway, and a change
 list is theirs to decide.
 
+## Files two changes both touch
+
+Coupling is about decisions and is judged before the run. Shared *files* are knowable later
+and exactly: each change's `tasks` declares the files of every task, so once two changes
+have both reached `tasks`, the coordinator can intersect the lists.
+
+It is worth doing at that moment rather than discovering it in `apply`.
+
+```
+both changes touch app/models/concerns/channel_sender_helper.rb
+  -> the change that reaches apply first owns it
+  -> the other is told, before its subagent is dispatched
+```
+
+The change that owns the file writes it. The other is told which file, who owns it, and what
+to do when its own task needs the same file: stop and report, per `skills/apply/SKILL.md`,
+which is what a task did in one run and was right to do. The difference is that it knew
+beforehand rather than discovering it mid-task, and that it cost a message instead of a
+round trip through the user.
+
+**A fix that is idempotent needs no round trip at all.** A task that finds a shared file
+already corrected the way its own change requires leaves it alone and says so. A task whose
+correction is the same correction applies it, whether or not the other change got there
+first, and the second writer changes nothing.
+
+```
+channel.to_s.camelize applied by either change, in either order, is one result
+```
+
+That is not a licence to write a shared file whenever the result looks the same. The test is
+whether the two changes want the same final state of that file, and it is answered by
+reading what the other change's design says about it — which is in memory, under that
+change's key, where one run's `design` read another's without anyone relaying it.
+
+Where the answer is no, or where reading it does not settle the question, the task stops and
+reports. Guessing about a file another change owns is the failure the whole layout exists to
+prevent.
+
 Where worktrees pay is the opposite case: changes independent in decisions as well as in
 files, each long enough to be worth a session, each needing few answers. The bound that
 matters there is not `max_parallel` but how many questions the user is answering at once —
@@ -157,6 +195,62 @@ the worktree. `none`, the default, does nothing and is reported as `setup: none`
 orchestrator can say that dependencies were not installed rather than discover it when
 `verify` cannot run the tests.
 
+`.alfred/config.yaml` is in `copy_files` by default. A worktree that does not have it is a
+change whose every phase reads the configuration of a repository it is not standing in, or
+fails to find one at all.
+
+## What the tool reports before a phase can ask
+
+A worktree is created from a ref, so anything the main checkout has and git does not is
+simply absent from it. The tool is standing in the worktree it just made and knows this for
+free; every phase that has to find it out instead finds it out separately.
+
+```yaml
+architecture: present
+conventions: missing
+config: present
+```
+
+This is the whole of a friction that is otherwise invisible: a run where
+`docs/code_conventions.md` was never committed had five subagents discover its absence
+independently, and the orchestrator could not have told them, because it reads the
+configuration, the state and the registry and nothing else.
+
+The orchestrator records these three fields with the rest of the record, and carries
+`conventions: missing` into every dispatch, so a subagent is told rather than left to infer
+it from a failed read. A phase that knows the file is absent follows the patterns already in
+the code; a phase that expected it and did not find it spends its first minutes deciding
+whether it looked in the wrong place.
+
+## Repositories that do not accept Alfred
+
+`artifacts.committed: false` is for a repository where Alfred's own documents cannot be
+committed: a team that has not adopted it, a checkout whose review process would reject the
+directory, a fork nobody owns. Alfred still runs there. What changes is who is holding the
+documents.
+
+Under `committed: false` they are kept out of git deliberately, through
+`artifacts.local_exclude` — `.git/info/exclude` by default, which is per-clone and untracked,
+so excluding them is not itself a change to the repository. `.gitignore` would be.
+
+Two consequences follow, and the tool handles both:
+
+**A worktree cannot inherit them.** Git has no copy to hand over. The tool copies
+`paths.architecture`, `paths.conventions`, `paths.master_specs` and `paths.changes` from the
+main checkout when it creates the worktree, and reports `artifacts: copied` with what it
+carried. Under `committed: true` it reports `artifacts: tracked` and copies nothing, because
+the branch already has them.
+
+**Closing a worktree would destroy them.** `close` discards untracked files, which is correct
+when they are a copied `.env` and wrong when they are the specification of the change that
+just finished. So `close` refuses when the worktree holds Alfred documents the main checkout
+does not have byte for byte, names them, and stops. `archive` copies them back before asking
+for the close; the refusal means it did not.
+
+The documents are worth more in this mode, not less: git is not holding them, so the main
+checkout and the memory backend are the only two copies there are. A repository that cannot
+commit them is the one where a memory backend stops being an optimisation.
+
 ## Sessions
 
 A session is started in the background, named for its change, with its working directory
@@ -181,6 +275,20 @@ A session comes up idle: starting one is not handing it a task. The coordinator 
 its work in the first message, which says it is the Alfred orchestrator for that change and
 carries the change's addresses — worktree, branch, base, main checkout, and the request.
 Nothing is pasted into it that a path would do.
+
+**The first line of that message loads the skill, before anything else is said.** A session
+that reads the request first is a general-purpose agent reading source files to orient
+itself, and it has already spent context and made decisions by the time it learns there was
+a pipeline for this. Observed: an orchestrator opened two source files before loading the
+skill that tells it never to open one.
+
+What follows the skill line is one block, not instructions arriving as the run needs them:
+the addresses, the preflight fields above, what the staging scope is, whether documentation
+is committed with the change, and which resources are shared with other worktrees. Every one
+of those is a property of the repository or of this fleet, known before the change starts. A
+standing instruction that arrives in the middle of a run has already been violated once by
+definition, and whoever sends it pays a round trip to say something that was true from the
+beginning.
 
 The coordinator does not announce its own address. A message arrives wrapped with the
 sender in it, and a reply is that sender copied back, so a session learns where to report
@@ -348,7 +456,18 @@ Notifications carry the change name too, per `notify/CONTRACT.md`, so a user fol
 several changes from a phone can tell which one is asking.
 
 The skill registry is per worktree, since each has its own `.alfred/`; the session hook
-writes it. Configuration is read from the main checkout.
+writes it. Configuration is copied into each worktree at `open`, per `copy_files`, so a
+phase reads the configuration of the repository it is standing in.
+
+The master specifications are the one document two changes both write, and they are **not**
+shared. Each worktree has its own copy on its own branch, `archive` merges the delta there,
+and the merge lands in the change's commit. Two changes touching the same requirement then
+meet as a git conflict when the branches do, which is a question for a person.
+
+A worktree that writes the master specifications in the main checkout instead produces a
+commit whose specification is missing, a file two changes can overwrite with no branch
+between them, and a dirty main checkout nobody expected. All three were observed in one
+run, and the third is what made it visible.
 
 ## Closing
 

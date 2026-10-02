@@ -6,11 +6,10 @@
 package settings
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/markosAMO/alfred/internal/pyjson"
 )
 
 // SessionPermissionGranted reports whether any settings file allows the start command.
@@ -31,11 +30,16 @@ func SessionPermissionGranted(home string) bool {
 		if err != nil {
 			continue
 		}
-		doc, err := pyjson.Decode(data)
-		if err != nil {
+		var doc struct {
+			Permissions struct {
+				Allow []any `json:"allow"`
+			} `json:"permissions"`
+		}
+		if err := json.Unmarshal(data, &doc); err != nil {
 			continue
 		}
-		for _, rule := range doc.Get("permissions").Get("allow").Strings() {
+		for _, item := range doc.Permissions.Allow {
+			rule, _ := item.(string)
 			if strings.HasPrefix(rule, "Bash(claude") {
 				return true
 			}

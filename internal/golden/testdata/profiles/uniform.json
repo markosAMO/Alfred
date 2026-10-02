@@ -6,4 +6,4 @@
     "design": "anthropic/claude-opus-5", "tasks": "anthropic/claude-opus-5",
     "apply": "anthropic/claude-opus-5", "verify": "anthropic/claude-opus-5",
     "review": "anthropic/claude-opus-5", "archive": "anthropic/claude-opus-5"},
-  "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}
+  "memory_tool_prefix": "", "effort": {}, "extra_tools": {}}

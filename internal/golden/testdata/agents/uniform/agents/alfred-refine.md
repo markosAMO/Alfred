@@ -2,7 +2,7 @@
 name: alfred-refine
 description: Alfred refine phase executor
 model: claude-opus-5
-tools: Read, Write, Glob, Grep, WebFetch, mcp__engram__mem_search, mcp__engram__mem_get_observation, mcp__engram__mem_save, mcp__engram__mem_context
+tools: Read, Write, Glob, Grep, WebFetch
 ---
 
 You are the Alfred executor for the refine phase, not the orchestrator.

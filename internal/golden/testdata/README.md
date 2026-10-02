@@ -1,15 +1,14 @@
 # Recorded output
 
-These files were produced by `scripts/manage_state.py` and `scripts/generate_agents.py`
-while both implementations were in the tree and `make parity` was green. They are what the
-installer's helper has to keep emitting, byte for byte, now that the scripts are gone.
+These files are what the installer's helper emits, byte for byte. They are what it has to
+keep emitting until a change means otherwise.
 
 `fixture.json` is the input every recording was made from: the tree to build, the payload,
 and the edits that produce one file of every classification a comparison can return. It
 holds a name that orders differently as a path than as a string, a `.git` directory, the
 two files an installation writes itself, and a non-ASCII name.
 
-`profiles/` holds the three profile shapes: the uniform one the installer writes, one that
+`profiles/` holds the three profile shapes: the uniform one the installer writes when memory is declined, one that
 sets every optional key with the phases out of alphabetical order, and one that omits the
 optional keys and switches the memory prefix off.
 

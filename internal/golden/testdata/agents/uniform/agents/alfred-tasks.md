@@ -2,7 +2,7 @@
 name: alfred-tasks
 description: Alfred tasks phase executor
 model: claude-opus-5
-tools: Read, Write, Glob, Grep, mcp__engram__mem_search, mcp__engram__mem_get_observation, mcp__engram__mem_save
+tools: Read, Write, Glob, Grep
 ---
 
 You are the Alfred executor for the tasks phase, not the orchestrator.

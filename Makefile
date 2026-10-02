@@ -1,8 +1,7 @@
 # Alfred's Go helper: the installer's bookkeeping and the agent generator.
 #
-# `make golden` is the check that matters most. Its fixtures were recorded from the Python
-# scripts this replaced, while both were in the tree, so the bytes the installer emits are
-# still pinned to what they were before the migration.
+# `make golden` is the check that matters most: it pins the exact bytes the installer
+# emits, which other programs read.
 
 GO ?= go
 BIN := .build/alfred

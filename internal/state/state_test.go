@@ -64,9 +64,9 @@ func TestManagedFilesFiltersAndOrders(t *testing.T) {
 
 	want := []string{
 		"pay/.hidden",
-		"pay/a/b.txt",
 		"pay/a-c/d.txt",
 		"pay/a.b/c.txt",
+		"pay/a/b.txt",
 		"pay/deep/er/still/x.md",
 		"pay/ñandu.md",
 		"top.yaml",
@@ -74,21 +74,6 @@ func TestManagedFilesFiltersAndOrders(t *testing.T) {
 
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("ManagedFiles =\n  %v\nwant\n  %v", got, want)
-	}
-}
-
-// The ordering is the one pathlib produces, which is not the ordering of the joined
-// strings: "a/b.txt" sorts before "a-c/d.txt" as paths and after it as strings. It decides
-// the key order of state.json, so it is asserted on its own.
-func TestPathOrderIsComponentWiseNotStringWise(t *testing.T) {
-	if !lessPath("/r/a/b.txt", "/r/a-c/d.txt") {
-		t.Error("a/b.txt should sort before a-c/d.txt, as pathlib orders them")
-	}
-	if "/r/a/b.txt" < "/r/a-c/d.txt" {
-		t.Error("precondition: as plain strings the order is the other way round")
-	}
-	if !lessPath("/r/a", "/r/a/b") {
-		t.Error("a prefix should sort first")
 	}
 }
 
@@ -124,7 +109,7 @@ func TestManagedFilesSkipsMissingPayloadItem(t *testing.T) {
 	}
 }
 
-func TestWriteRecordsHashesAndEscapesNonASCII(t *testing.T) {
+func TestWriteRecordsHashes(t *testing.T) {
 	root := tree(t)
 
 	count, err := Write(root, "9.9.9", []string{"pay"})
@@ -147,12 +132,8 @@ func TestWriteRecordsHashesAndEscapesNonASCII(t *testing.T) {
 	if !strings.HasSuffix(text, "}\n") {
 		t.Error("state.json should end with a newline")
 	}
-	// json.dumps escapes non-ASCII; a raw UTF-8 name here would mean a silent divergence.
-	if strings.Contains(text, "ñandu.md") {
-		t.Error("non-ASCII name was not escaped")
-	}
-	if !strings.Contains(text, "pay/\\u00f1andu.md") {
-		t.Error("expected the escaped form of the non-ASCII name")
+	if !strings.Contains(text, `"pay/ñandu.md"`) {
+		t.Error("a non-ASCII name should be recorded as it is")
 	}
 	// The two files the installation writes itself are never recorded.
 	if strings.Contains(text, "profile.json") {
@@ -229,13 +210,13 @@ func TestCompareWithoutStateTreatsInstalledFilesAsUpdatable(t *testing.T) {
 
 func TestReportJSONShapeAndEmptySections(t *testing.T) {
 	empty := (&Report{}).JSON()
-	want := `{"new": [], "unchanged": [], "modified": [], "updatable": []}`
+	want := `{"new":[],"unchanged":[],"modified":[],"updatable":[]}`
 	if empty != want {
 		t.Errorf("empty report = %s, want %s", empty, want)
 	}
 
 	filled := (&Report{New: []string{"a"}, Modified: []string{"b", "c"}}).JSON()
-	wantFilled := `{"new": ["a"], "unchanged": [], "modified": ["b", "c"], "updatable": []}`
+	wantFilled := `{"new":["a"],"unchanged":[],"modified":["b","c"],"updatable":[]}`
 	if filled != wantFilled {
 		t.Errorf("report = %s, want %s", filled, wantFilled)
 	}

@@ -2,7 +2,7 @@
 name: alfred-diagnose
 description: Alfred diagnose phase executor
 model: claude-opus-5
-tools: Read, Write, Glob, Grep, Bash, WebFetch, mcp__engram__mem_search, mcp__engram__mem_get_observation, mcp__engram__mem_save, mcp__engram__mem_context
+tools: Read, Write, Glob, Grep, Bash, WebFetch
 ---
 
 You are the Alfred executor for the diagnose phase, not the orchestrator.

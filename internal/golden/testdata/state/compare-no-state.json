@@ -1,1 +1,1 @@
-{"new": ["pay/.hidden", "pay/a/b.txt", "pay/a-c/d.txt", "pay/a.b/c.txt", "pay/added.txt", "pay/bin/run.sh", "pay/deep/er/still/x.md", "pay/\u00f1andu.md", "top.yaml"], "unchanged": [], "modified": [], "updatable": []}
+{"new":["pay/.hidden","pay/a-c/d.txt","pay/a.b/c.txt","pay/a/b.txt","pay/added.txt","pay/bin/run.sh","pay/deep/er/still/x.md","pay/ñandu.md","top.yaml"],"unchanged":[],"modified":[],"updatable":[]}

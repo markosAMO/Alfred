@@ -1,4 +1,5 @@
 {
+  "$schema": "https://opencode.ai/config.json",
   "agent": {
     "alfred": {
       "model": "anthropic/claude-opus-5",
@@ -12,15 +13,249 @@
         }
       },
       "tools": {
-        "task": true,
-        "read": true,
         "bash": false,
         "edit": false,
         "glob": false,
         "grep": false,
+        "read": true,
+        "task": true,
         "webfetch": false,
         "websearch": false,
         "write": false
+      }
+    },
+    "alfred-apply": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred apply phase executor",
+      "prompt": "You are the Alfred executor for the apply phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/apply/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-archive": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred archive phase executor",
+      "prompt": "You are the Alfred executor for the archive phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/archive/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-design": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred design phase executor",
+      "prompt": "You are the Alfred executor for the design phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/design/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": false,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-diagnose": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred diagnose phase executor",
+      "prompt": "You are the Alfred executor for the diagnose phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/diagnose/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": true,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-explore": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred explore phase executor",
+      "prompt": "You are the Alfred executor for the explore phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/explore/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-init": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred init phase executor",
+      "prompt": "You are the Alfred executor for the init phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/init/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-manage": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred management: status, registry, doctor, reindex",
+      "prompt": "You are the Alfred management executor, not the orchestrator.\n\nDo the operation yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/alfred/SKILL.md and run the operation named in your task: status, registry, doctor, reindex, worktrees, abandon, or a worktree open or close the orchestrator asks for. The skill names the script each operation runs; run it with Bash and return its output as printed, so the orchestrator records fields rather than a paraphrase. Return only what the skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-refine": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred refine phase executor",
+      "prompt": "You are the Alfred executor for the refine phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/refine/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": false,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": true,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-research": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred research phase executor",
+      "prompt": "You are the Alfred executor for the research phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/research/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": false,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": true,
+        "websearch": true,
+        "write": true
+      }
+    },
+    "alfred-review": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred review phase executor",
+      "prompt": "You are the Alfred executor for the review phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/review/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-spec": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred spec phase executor",
+      "prompt": "You are the Alfred executor for the spec phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/spec/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": false,
+        "edit": true,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-tasks": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred tasks phase executor",
+      "prompt": "You are the Alfred executor for the tasks phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/tasks/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": false,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-verify": {
+      "model": "anthropic/claude-opus-5",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred verify phase executor",
+      "prompt": "You are the Alfred executor for the verify phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/verify/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
       }
     },
     "alfred-worktree": {
@@ -35,251 +270,16 @@
         }
       },
       "tools": {
-        "task": true,
-        "read": true,
         "bash": false,
         "edit": false,
         "glob": false,
         "grep": false,
+        "read": true,
+        "task": true,
         "webfetch": false,
         "websearch": false,
         "write": false
       }
-    },
-    "alfred-init": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred init phase executor",
-      "prompt": "You are the Alfred executor for the init phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/init/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "edit": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-explore": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred explore phase executor",
-      "prompt": "You are the Alfred executor for the explore phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/explore/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "edit": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-refine": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred refine phase executor",
-      "prompt": "You are the Alfred executor for the refine phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/refine/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "webfetch": true,
-        "bash": false,
-        "edit": false,
-        "task": false,
-        "websearch": false
-      }
-    },
-    "alfred-research": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred research phase executor",
-      "prompt": "You are the Alfred executor for the research phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/research/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "websearch": true,
-        "webfetch": true,
-        "bash": false,
-        "edit": false,
-        "task": false
-      }
-    },
-    "alfred-spec": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred spec phase executor",
-      "prompt": "You are the Alfred executor for the spec phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/spec/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "edit": true,
-        "glob": true,
-        "grep": true,
-        "bash": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-diagnose": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred diagnose phase executor",
-      "prompt": "You are the Alfred executor for the diagnose phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/diagnose/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "webfetch": true,
-        "edit": false,
-        "task": false,
-        "websearch": false
-      }
-    },
-    "alfred-design": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred design phase executor",
-      "prompt": "You are the Alfred executor for the design phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/design/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": false,
-        "edit": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-tasks": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred tasks phase executor",
-      "prompt": "You are the Alfred executor for the tasks phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/tasks/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": false,
-        "edit": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-apply": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred apply phase executor",
-      "prompt": "You are the Alfred executor for the apply phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/apply/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "edit": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-verify": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred verify phase executor",
-      "prompt": "You are the Alfred executor for the verify phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/verify/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "edit": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-review": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred review phase executor",
-      "prompt": "You are the Alfred executor for the review phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/review/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "edit": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-archive": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred archive phase executor",
-      "prompt": "You are the Alfred executor for the archive phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/archive/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "edit": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-manage": {
-      "model": "anthropic/claude-opus-5",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred management: status, registry, doctor, reindex",
-      "prompt": "You are the Alfred management executor, not the orchestrator.\n\nDo the operation yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/alfred/SKILL.md and run the operation named in your task: status, registry, doctor, reindex, worktrees, abandon, or a worktree open or close the orchestrator asks for. The skill names the script each operation runs; run it with Bash and return its output as printed, so the orchestrator records fields rather than a paraphrase. Return only what the skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "edit": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
     }
-  },
-  "$schema": "https://opencode.ai/config.json"
+  }
 }

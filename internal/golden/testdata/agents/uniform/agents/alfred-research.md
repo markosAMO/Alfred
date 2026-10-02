@@ -2,7 +2,7 @@
 name: alfred-research
 description: Alfred research phase executor
 model: claude-opus-5
-tools: Read, Write, Glob, Grep, WebSearch, WebFetch, mcp__engram__mem_search, mcp__engram__mem_get_observation, mcp__engram__mem_save
+tools: Read, Write, Glob, Grep, WebSearch, WebFetch
 ---
 
 You are the Alfred executor for the research phase, not the orchestrator.

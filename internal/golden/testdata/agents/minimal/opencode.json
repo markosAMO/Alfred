@@ -1,4 +1,5 @@
 {
+  "$schema": "https://opencode.ai/config.json",
   "agent": {
     "alfred": {
       "model": "solo-model",
@@ -12,15 +13,69 @@
         }
       },
       "tools": {
-        "task": true,
-        "read": true,
         "bash": false,
         "edit": false,
         "glob": false,
         "grep": false,
+        "read": true,
+        "task": true,
         "webfetch": false,
         "websearch": false,
         "write": false
+      }
+    },
+    "alfred-apply": {
+      "model": "solo-model",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred apply phase executor",
+      "prompt": "You are the Alfred executor for the apply phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/apply/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-manage": {
+      "model": "solo-model",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred management: status, registry, doctor, reindex",
+      "prompt": "You are the Alfred management executor, not the orchestrator.\n\nDo the operation yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/alfred/SKILL.md and run the operation named in your task: status, registry, doctor, reindex, worktrees, abandon, or a worktree open or close the orchestrator asks for. The skill names the script each operation runs; run it with Bash and return its output as printed, so the orchestrator records fields rather than a paraphrase. Return only what the skill's completion section specifies.",
+      "tools": {
+        "bash": true,
+        "edit": false,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
+      }
+    },
+    "alfred-spec": {
+      "model": "solo-model",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Alfred spec phase executor",
+      "prompt": "You are the Alfred executor for the spec phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/spec/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "tools": {
+        "bash": false,
+        "edit": true,
+        "glob": true,
+        "grep": true,
+        "read": true,
+        "task": false,
+        "webfetch": false,
+        "websearch": false,
+        "write": true
       }
     },
     "alfred-worktree": {
@@ -35,71 +90,16 @@
         }
       },
       "tools": {
-        "task": true,
-        "read": true,
         "bash": false,
         "edit": false,
         "glob": false,
         "grep": false,
+        "read": true,
+        "task": true,
         "webfetch": false,
         "websearch": false,
         "write": false
       }
-    },
-    "alfred-spec": {
-      "model": "solo-model",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred spec phase executor",
-      "prompt": "You are the Alfred executor for the spec phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/spec/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "edit": true,
-        "glob": true,
-        "grep": true,
-        "bash": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-apply": {
-      "model": "solo-model",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred apply phase executor",
-      "prompt": "You are the Alfred executor for the apply phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/apply/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "edit": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
-    },
-    "alfred-manage": {
-      "model": "solo-model",
-      "mode": "subagent",
-      "hidden": true,
-      "description": "Alfred management: status, registry, doctor, reindex",
-      "prompt": "You are the Alfred management executor, not the orchestrator.\n\nDo the operation yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at /home/someone/.config/alfred/skills/alfred/SKILL.md and run the operation named in your task: status, registry, doctor, reindex, worktrees, abandon, or a worktree open or close the orchestrator asks for. The skill names the script each operation runs; run it with Bash and return its output as printed, so the orchestrator records fields rather than a paraphrase. Return only what the skill's completion section specifies.",
-      "tools": {
-        "read": true,
-        "write": true,
-        "glob": true,
-        "grep": true,
-        "bash": true,
-        "edit": false,
-        "task": false,
-        "webfetch": false,
-        "websearch": false
-      }
     }
-  },
-  "$schema": "https://opencode.ai/config.json"
+  }
 }

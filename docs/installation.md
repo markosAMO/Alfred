@@ -19,8 +19,8 @@ Use the HTTPS URL unless this machine already has an SSH key on the account. The
 is public, so HTTPS needs no credentials. If the clone did not preserve the executable bit,
 run `bash install.sh install` instead.
 
-The installer detects which agents are present, asks which model runs each phase, and
-writes:
+The installer detects which agents are present, asks which model runs each phase and
+whether to use Engram for memory, and writes:
 
 ```
 ~/.config/alfred/                      the skills, protocols, templates and adapters
@@ -138,7 +138,7 @@ initialised on its own. See `skills/_shared/workspace-protocol.md`.
 | `alfred: command not found` | there is no global command; run `./install.sh` from the clone |
 | `Permission denied (publickey)` on clone | no SSH key on this machine; clone over HTTPS |
 | `permission denied: ./install.sh` | the executable bit was lost; run `bash install.sh install` |
-| `python3 is required` | the installer uses python3 for JSON and hashes |
+| `go is required` | the installer builds its helper from `cmd/alfred`; install Go and run it again |
 | the orchestrator does not appear in the agent picker | that picker is OpenCode's; in Claude Code use `/alfred` |
 | `/alfred` is not offered in Claude Code | no agent was detected at install time, or the session predates it — restart Claude Code |
 

@@ -2,7 +2,7 @@
 //
 // One orchestrator that only delegates, and one subagent per phase that only executes.
 // Written for whichever agents are installed, from the same profile, so a model change is
-// made in one place. This is the port of scripts/generate_agents.py.
+// made in one place.
 //
 // The prompts live in prompts/*.tmpl rather than in string literals: they are prose, they
 // are the part most often edited, and a Go literal would have to escape the backticks that
@@ -11,13 +11,12 @@ package agents
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/markosAMO/alfred/internal/pyjson"
 )
 
 //go:embed prompts/*.tmpl
@@ -56,22 +55,30 @@ var phaseTools = map[string][]string{
 	"alfred":   {"Read", "Write", "Glob", "Grep", "Bash"},
 }
 
-// phaseMemory are the memory operations per phase, from memory/CONTRACT.md. Only what each
-// phase actually calls: a phase that never supersedes an entry has no use for mem_update.
-var phaseMemory = map[string][]string{
-	"init":     {"mem_save"},
-	"explore":  {"mem_save"},
-	"refine":   {"mem_search", "mem_get_observation", "mem_save", "mem_context"},
-	"research": {"mem_search", "mem_get_observation", "mem_save"},
-	"spec":     {"mem_search", "mem_get_observation", "mem_save"},
-	"diagnose": {"mem_search", "mem_get_observation", "mem_save", "mem_context"},
-	"design":   {"mem_search", "mem_get_observation", "mem_save"},
-	"tasks":    {"mem_search", "mem_get_observation", "mem_save"},
-	"apply":    {"mem_search", "mem_get_observation", "mem_save", "mem_update"},
-	"verify":   {"mem_search", "mem_get_observation", "mem_save"},
-	"review":   {"mem_search", "mem_get_observation", "mem_save"},
-	"archive":  {"mem_search", "mem_get_observation", "mem_save", "mem_update"},
-	"alfred":   {"mem_search", "mem_get_observation", "mem_save"},
+// MemoryTools is every memory tool the backend exposes, and every phase gets all of them.
+//
+// This used to be carved up per phase, from memory/CONTRACT.md, on the reasoning that a
+// phase which never supersedes an entry has no use for mem_update. The economy was real -
+// each declared tool is schema the agent carries before it reads a line - and it was the
+// wrong trade, for a reason an end-to-end run made plain.
+//
+// A phase cannot tell a tool it was not given from a backend that cannot do the thing. Both
+// read as absence from inside the phase. An archive run hit `judgment_required` on every
+// save and had no `mem_judge` to settle it, so it recorded six open conflicts and moved on -
+// correct behaviour under the contract, and a worse outcome than settling them, caused
+// entirely by a list written before `mem_judge` existed.
+//
+// That failure mode repeats every time the backend grows a tool: the carve-up is a copy of
+// the backend's surface that nothing keeps in step, and it degrades silently. The contract
+// in memory/CONTRACT.md governs which operations a phase *calls*; the tool list governs what
+// is *reachable*. Those are different questions and only the first belongs in a skill.
+var MemoryTools = []string{
+	"mem_search", "mem_get_observation", "mem_save", "mem_update", "mem_context",
+	"mem_save_prompt", "mem_suggest_topic_key", "mem_judge", "mem_review",
+	"mem_compare", "mem_capture_passive", "mem_session_start", "mem_session_end",
+	"mem_session_summary", "mem_current_project", "mem_list_projects",
+	"mem_merge_projects", "mem_pin", "mem_unpin", "mem_doctor",
+	"mem_stats", "mem_timeline", "mem_delete",
 }
 
 var defaultTools = []string{"Read", "Write", "Glob", "Grep"}
@@ -90,69 +97,76 @@ var opencodeNames = map[string]string{
 	"WebFetch": "webfetch", "WebSearch": "websearch",
 }
 
-// Profile is the model assignment, read with its key order intact because the order of
-// `phases` decides the order agents are written in.
-type Profile struct{ doc *pyjson.Value }
+// Profile is the model assignment.
+type Profile struct {
+	OrchestratorModel string              `json:"orchestrator"`
+	CoordinatorModel  string              `json:"coordinator"`
+	Manage            string              `json:"manage"`
+	Phases            map[string]string   `json:"phases"`
+	MemoryToolPrefix  string              `json:"memory_tool_prefix"`
+	Efforts           map[string]string   `json:"effort"`
+	ExtraTools        map[string][]string `json:"extra_tools"`
+}
 
 func LoadProfile(path string) (*Profile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	doc, err := pyjson.Decode(data)
-	if err != nil {
+	var p Profile
+	if err := json.Unmarshal(data, &p); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	if doc.Get("phases") == nil {
+	if p.Phases == nil {
 		return nil, fmt.Errorf("%s: no phases", path)
 	}
-	return &Profile{doc: doc}, nil
+	return &p, nil
 }
 
-func (p *Profile) Orchestrator() string { return p.doc.Get("orchestrator").StringOr("") }
+func (p *Profile) Orchestrator() string { return p.OrchestratorModel }
 
-// PhaseNames returns the phases in profile order.
-func (p *Profile) PhaseNames() []string { return p.doc.Get("phases").Keys() }
-
-// SortedPhaseNames returns the phases in name order, as the prompts list them.
-func (p *Profile) SortedPhaseNames() []string {
-	names := append([]string(nil), p.PhaseNames()...)
+// PhaseNames returns the phases in name order, so every run writes them the same way.
+func (p *Profile) PhaseNames() []string {
+	names := make([]string, 0, len(p.Phases))
+	for name := range p.Phases {
+		names = append(names, name)
+	}
 	sort.Strings(names)
 	return names
 }
 
-func (p *Profile) PhaseModel(phase string) string {
-	return p.doc.Get("phases").Get(phase).StringOr("")
-}
+func (p *Profile) PhaseModel(phase string) string { return p.Phases[phase] }
 
 // Coordinator is assigned separately: it relays and decides nothing.
 //
 // A profile written before the key existed falls back to the orchestrator's model rather
 // than to a guess: the previous behaviour, which is wrong only in being expensive.
 func (p *Profile) Coordinator() string {
-	if m := p.doc.Get("coordinator").StringOr(""); m != "" {
-		return m
+	if p.CoordinatorModel != "" {
+		return p.CoordinatorModel
 	}
 	return p.Orchestrator()
 }
 
 // ManageModel is used for bookkeeping operations: the init model is a sensible default.
 func (p *Profile) ManageModel() string {
-	if m := p.doc.Get("manage").StringOr(""); m != "" {
-		return m
+	if p.Manage != "" {
+		return p.Manage
 	}
-	if m := p.doc.Get("phases").Get("init").StringOr(""); m != "" {
+	if m := p.Phases["init"]; m != "" {
 		return m
 	}
 	return p.Orchestrator()
 }
 
-func (p *Profile) Effort(phase string) string {
-	return p.doc.Get("effort").Get(phase).StringOr("")
-}
+func (p *Profile) Effort(phase string) string { return p.Efforts[phase] }
 
 // Tools returns the base tools, the memory tools with the configured prefix, then the
 // per-project extras.
+//
+// Memory is opt-in: the installer asks, and writes the prefix only when the answer is yes.
+// A profile without the key gets no memory tools, since a tool with no server behind it is
+// schema carried for nothing.
 func (p *Profile) Tools(phase string) []string {
 	base, ok := phaseTools[phase]
 	if !ok {
@@ -160,17 +174,13 @@ func (p *Profile) Tools(phase string) []string {
 	}
 	tools := append([]string(nil), base...)
 
-	prefix := "mcp__engram__"
-	if v := p.doc.Get("memory_tool_prefix"); v != nil {
-		prefix = v.StringOr("")
-	}
-	if prefix != "" {
-		for _, name := range phaseMemory[phase] {
-			tools = append(tools, prefix+name)
+	if p.MemoryToolPrefix != "" {
+		for _, name := range MemoryTools {
+			tools = append(tools, p.MemoryToolPrefix+name)
 		}
 	}
 
-	return append(tools, p.doc.Get("extra_tools").Get(phase).Strings()...)
+	return append(tools, p.ExtraTools[phase]...)
 }
 
 // bareModel drops a vendor prefix: Claude Code names the model without one.

@@ -107,6 +107,37 @@ worktrees_value() {
     }' "$file" | tr -d '"'"'"
 }
 
+# One scalar from a top-level block of .alfred/config.yaml: config_value paths changes.
+# Same shape as worktrees_value, one nesting level up.
+config_value() {
+  local file="$main/.alfred/config.yaml"
+  [ -f "$file" ] || return 0
+  awk -v block="$1" -v key="$2" '
+    $0 ~ "^" block ":[ \t]*$" { inblock = 1; next }
+    inblock && /^[^ \t]/ { inblock = 0 }
+    inblock {
+      line = $0; sub(/^[ \t]+/, "", line)
+      if (index(line, key ":") == 1) { sub("^" key ":[ \t]*", "", line); print line; exit }
+    }' "$file" | tr -d '"'"'"
+}
+
+# Whether the Alfred documents are committed to this repository. Some repositories do not
+# accept them — a team that has not adopted Alfred, a fork nobody owns — and Alfred still
+# runs there, with its documents kept out of git deliberately. That mode changes what a
+# worktree has to be given, and what closing one is allowed to throw away.
+artifacts_committed() {
+  local value; value="$(config_value artifacts committed)"
+  [ "${value:-true}" != false ]
+}
+
+# The Alfred documents, in the order they are carried.
+artifact_paths() {
+  config_value paths architecture
+  config_value paths conventions
+  config_value paths master_specs
+  config_value paths changes
+}
+
 expand_home() { printf '%s' "${1/#\~/$HOME}"; }
 
 worktree_root() {
@@ -159,6 +190,53 @@ copy_files() {
   printf '%s' "${copied[*]:-}"
 }
 
+# Under artifacts.committed: false the Alfred documents are deliberately absent from git,
+# so a worktree created from a ref does not contain them and never will. Copying them is
+# the only way they reach the worktree, and without them every phase rediscovers, one
+# subagent at a time, that the repository has no architecture and no conventions.
+carry_artifacts() {
+  if artifacts_committed; then printf 'tracked'; return 0; fi
+  local item carried=()
+  while IFS= read -r item; do
+    [ -n "$item" ] || continue
+    [ -e "$main/$item" ] || continue
+    [ ! -e "$path/$item" ] || continue
+    mkdir -p "$(dirname "$path/$item")"
+    cp -R "$main/$item" "$path/$item"
+    carried+=("${item%/}")
+  done < <(artifact_paths)
+  local list="${carried[*]:-}"
+  printf 'copied\ncarried: [%s]' "${list// /, }"
+}
+
+# What a phase would otherwise discover for itself, one subagent at a time. The tool knows
+# it for free: it is standing in the worktree it just created.
+present() { [ -e "$path/$1" ] && printf present || printf missing; }
+
+print_preflight() {
+  printf 'architecture: %s\nconventions: %s\nconfig: %s\n' \
+    "$(present "$(config_value paths architecture)")" \
+    "$(present "$(config_value paths conventions)")" \
+    "$(present .alfred/config.yaml)"
+}
+
+# Alfred documents in the worktree that the main checkout does not already have, byte for
+# byte. Under artifacts.committed: false they are untracked, which means close discards
+# them and git has no copy: this is the list that would be lost. Empty once archive has
+# copied them back, which is what archive is required to do before asking for a close.
+unsynced_documents() {
+  artifacts_committed && return 0
+  local item file rel
+  while IFS= read -r item; do
+    item="${item%/}"
+    [ -n "$item" ] && [ -d "$path/$item" ] || continue
+    while IFS= read -r file; do
+      rel="${file#$path/}"
+      cmp -s "$file" "$main/$rel" || printf '%s\n' "$rel"
+    done < <(find "$path/$item" -type f)
+  done < <(artifact_paths)
+}
+
 # The log lives in the worktree's own git directory, so it is neither an untracked file in
 # the checkout nor something a later commit could sweep in.
 setup_log() { printf '%s/alfred-setup.log' "$(git -C "$path" rev-parse --path-format=absolute --git-dir)"; }
@@ -194,7 +272,8 @@ cmd_open() {
   if [ -n "$path" ]; then
     change="${change:-$(meta_get change)}"
     print_record "$(meta_get base)" existing
-    printf 'setup: kept\ncopied: []\n'
+    printf 'setup: kept\ncopied: []\nartifacts: %s\n' "$(carry_artifacts)"
+    print_preflight
     return 0
   fi
 
@@ -225,14 +304,16 @@ cmd_open() {
   # present and skips the entry that carries config.yaml and the skill registry. A copied
   # .alfred brings the main checkout's state files with it, and those belong to other
   # changes, so they are cleared rather than inherited.
-  local copied setup
+  local copied setup artifacts
   copied="$(copy_files)"
+  artifacts="$(carry_artifacts)"
   mkdir -p "$path/.alfred/state"
   find "$path/.alfred/state" -maxdepth 1 -name '*.yaml' -delete
   setup="$(run_setup)"
 
   print_record "$base" created
-  printf 'setup: %s\ncopied: [%s]\n' "$setup" "${copied// /, }"
+  printf 'setup: %s\ncopied: [%s]\nartifacts: %s\n' "$setup" "${copied// /, }" "$artifacts"
+  print_preflight
 }
 
 # The state file for this branch inside a worktree, if the orchestrator wrote one.
@@ -300,6 +381,11 @@ cmd_close() {
     git -C "$path" status --short --untracked-files=no >&2
     fail "$path has uncommitted changes to tracked files; commit them, or pass --force to discard them"
   fi
+  local unsynced; unsynced="$(unsynced_documents)"
+  if [ -n "$unsynced" ] && ! $force; then
+    printf '%s\n' "$unsynced" >&2
+    fail "$path holds Alfred documents the main checkout does not have, and they are not in git; archive copies them back before closing, or pass --force to discard them"
+  fi
   local untracked; untracked="$(untracked_count)"
   base="$(meta_get base)"; base="${base:-$(current_branch)}"
   local merged=false branch_result
@@ -313,16 +399,17 @@ cmd_close() {
     branch_result="kept (not merged into $base)"
   fi
   meta_clear
-  printf 'branch: %s\npath: %s\nremoved: true\nbranch_result: %s\nuntracked_discarded: %s\n' \
-    "$branch" "$path" "$branch_result" "${untracked:-0}"
+  printf 'branch: %s\npath: %s\nremoved: true\nbranch_result: %s\nuntracked_discarded: %s\ndocuments_discarded: %s\n' \
+    "$branch" "$path" "$branch_result" "${untracked:-0}" "$(printf '%s' "$unsynced" | grep -c . || true)"
 }
 
 cmd_abandon() {
   path="$(find_worktree)"
   [ -n "$path" ] || fail "no worktree for branch $branch" 1
   if ! $yes; then
-    printf 'branch: %s\npath: %s\nwould_remove: true\nuncommitted_changes: %s\nuntracked_files: %s\nbranch_kept: true\n' \
-      "$branch" "$path" "$(dirty && echo true || echo false)" "$(untracked_count)"
+    printf 'branch: %s\npath: %s\nwould_remove: true\nuncommitted_changes: %s\nuntracked_files: %s\nunsynced_documents: %s\nbranch_kept: true\n' \
+      "$branch" "$path" "$(dirty && echo true || echo false)" "$(untracked_count)" \
+      "$(unsynced_documents | grep -c . || true)"
     fail "abandon discards the worktree; pass --yes after the user confirmed" 4
   fi
   remove_worktree

@@ -29,14 +29,11 @@ func profileFrom(t *testing.T, body string) *Profile {
 	return p
 }
 
-func TestPhaseOrderFollowsTheProfileNotTheAlphabet(t *testing.T) {
+func TestPhaseNamesAreSorted(t *testing.T) {
 	p := profileFrom(t, minimalProfile)
 
-	if got := strings.Join(p.PhaseNames(), ","); got != "spec,apply,init" {
-		t.Errorf("PhaseNames = %s, want the profile's own order", got)
-	}
-	if got := strings.Join(p.SortedPhaseNames(), ","); got != "apply,init,spec" {
-		t.Errorf("SortedPhaseNames = %s", got)
+	if got := strings.Join(p.PhaseNames(), ","); got != "apply,init,spec" {
+		t.Errorf("PhaseNames = %s", got)
 	}
 }
 
@@ -44,11 +41,32 @@ func TestToolsComposeBaseMemoryAndExtras(t *testing.T) {
 	p := profileFrom(t, minimalProfile)
 
 	got := strings.Join(p.Tools("spec"), ", ")
-	want := "Read, Write, Edit, Glob, Grep, " +
-		"mcp__engram__mem_search, mcp__engram__mem_get_observation, mcp__engram__mem_save, " +
-		"mcp__atlassian__getJiraIssue"
+	memory := make([]string, len(MemoryTools))
+	for i, name := range MemoryTools {
+		memory[i] = "mcp__engram__" + name
+	}
+	want := "Read, Write, Edit, Glob, Grep, " + strings.Join(memory, ", ") +
+		", mcp__atlassian__getJiraIssue"
 	if got != want {
 		t.Errorf("Tools(spec) =\n  %s\nwant\n  %s", got, want)
+	}
+}
+
+// Every phase reaches every memory tool: a phase cannot tell a tool it was not given from a
+// backend that cannot do the thing.
+func TestEveryPhaseGetsEveryMemoryTool(t *testing.T) {
+	p := profileFrom(t, minimalProfile)
+
+	for _, phase := range []string{"init", "apply", "spec", "alfred"} {
+		got := map[string]bool{}
+		for _, tool := range p.Tools(phase) {
+			got[tool] = true
+		}
+		for _, name := range MemoryTools {
+			if !got["mcp__engram__"+name] {
+				t.Errorf("Tools(%s) is missing %s", phase, name)
+			}
+		}
 	}
 }
 
@@ -58,6 +76,17 @@ func TestToolsWithoutMemoryPrefixOmitsMemoryTools(t *testing.T) {
 	for _, tool := range p.Tools("spec") {
 		if strings.Contains(tool, "mem_") {
 			t.Errorf("an empty prefix should drop the memory tools, got %s", tool)
+		}
+	}
+}
+
+// Memory is opt-in: a profile that never answered the installer's question has none.
+func TestToolsWithoutAMemoryKeyHaveNoMemoryTools(t *testing.T) {
+	p := profileFrom(t, `{"orchestrator": "m", "phases": {"spec": "m"}}`)
+
+	for _, tool := range p.Tools("spec") {
+		if strings.Contains(tool, "mem_") {
+			t.Errorf("a profile without memory_tool_prefix should get no memory tools, got %s", tool)
 		}
 	}
 }
@@ -120,7 +149,7 @@ func TestLoadProfileRejectsAProfileWithoutPhases(t *testing.T) {
 func TestWorktreeIsRejectedAsAPhase(t *testing.T) {
 	p := profileFrom(t, `{"orchestrator": "m", "phases": {"worktree": "m"}}`)
 
-	if _, err := OpencodeConfig(p, "/skills"); err == nil {
+	if _, err := Opencode(p, "/skills"); err == nil {
 		t.Error("'worktree' is the fleet orchestrator and must not be accepted as a phase")
 	}
 }
@@ -129,8 +158,8 @@ func TestEveryPlaceholderIsResolved(t *testing.T) {
 	p := profileFrom(t, minimalProfile)
 
 	prompts := map[string]string{
-		"orchestrator": OrchestratorPrompt("/skills", p.SortedPhaseNames(), "`/alfred-worktree`"),
-		"fleet":        FleetPrompt("/skills", p.SortedPhaseNames()),
+		"orchestrator": OrchestratorPrompt("/skills", p.PhaseNames(), "`/alfred-worktree`"),
+		"fleet":        FleetPrompt("/skills", p.PhaseNames()),
 		"coordinator":  CoordinatorPrompt("/skills", "claude-opus-5"),
 		"subagent":     SubagentPrompt("spec", "/skills/spec/SKILL.md"),
 		"manage":       ManagePrompt("/skills/alfred/SKILL.md"),
@@ -154,24 +183,20 @@ func TestEveryPlaceholderIsResolved(t *testing.T) {
 	}
 }
 
-func TestOpencodeToolsAreExhaustiveAndSorted(t *testing.T) {
+func TestOpencodeToolsAreExhaustive(t *testing.T) {
 	entry := asBooleans([]string{"Read", "Bash"}, false)
 
-	if got := strings.Join(entry.Keys(), ","); got != "read,bash,edit,glob,grep,task,webfetch,websearch,write" {
-		t.Errorf("tool keys = %s", got)
-	}
 	// Every tool OpenCode knows about is named, so none is inherited by omission.
-	if len(entry.Keys()) != len(opencodeNames) {
-		t.Errorf("got %d tool flags, want %d", len(entry.Keys()), len(opencodeNames))
+	if len(entry) != len(opencodeNames) {
+		t.Errorf("got %d tool flags, want %d", len(entry), len(opencodeNames))
 	}
-	if entry.Get("read").B != true || entry.Get("write").B != false {
+	if !entry["read"] || !entry["bash"] || entry["write"] {
 		t.Error("declared tools should be true and the rest false")
 	}
-	// task is set last and overwrites whatever position it already held.
-	if entry.Get("task").B != false {
+	if entry["task"] {
 		t.Error("task should follow allowTask")
 	}
-	if asBooleans(nil, true).Get("task").B != true {
+	if !asBooleans(nil, true)["task"] {
 		t.Error("allowTask should enable task")
 	}
 }
@@ -180,14 +205,14 @@ func TestMergeOpencodeKeepsForeignAgentsAndReplacesAlfredOnes(t *testing.T) {
 	p := profileFrom(t, minimalProfile)
 	target := filepath.Join(t.TempDir(), "opencode.json")
 
-	existing := `{"$schema": "https://opencode.ai/config.json", "theme": "dark",` +
+	existing := `{"theme": "dark", "$schema": "https://opencode.ai/config.json",` +
 		` "agent": {"mine": {"model": "keep me"}, "alfred": {"model": "stale"},` +
-		` "alfred-spec": {"model": "stale"}}}`
+		` "alfred-gone": {"model": "stale"}, "alfred-spec": {"model": "stale"}, "zz": {}}}`
 	if err := os.WriteFile(target, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	config, err := OpencodeConfig(p, "/skills")
+	config, err := Opencode(p, "/skills")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,6 +237,29 @@ func TestMergeOpencodeKeepsForeignAgentsAndReplacesAlfredOnes(t *testing.T) {
 	}
 	if !strings.HasSuffix(text, "}\n") {
 		t.Error("the file should end with a newline")
+	}
+
+	// The file is OpenCode's: keys stay where they were, an Alfred agent is replaced in
+	// place, and one the profile no longer has is gone.
+	order := func(keys ...string) bool {
+		last := -1
+		for _, k := range keys {
+			i := strings.Index(text, k)
+			if i < last {
+				return false
+			}
+			last = i
+		}
+		return true
+	}
+	if !order(`"theme"`, `"$schema"`, `"agent"`) {
+		t.Error("top-level keys were reordered")
+	}
+	if !order(`"mine"`, `"alfred":`, `"alfred-spec"`, `"zz"`) {
+		t.Errorf("agents were reordered:\n%s", text)
+	}
+	if strings.Contains(text, `"alfred-gone"`) {
+		t.Error("an Alfred agent the profile no longer has should be removed")
 	}
 }
 

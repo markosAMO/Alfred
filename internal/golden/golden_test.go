@@ -1,10 +1,8 @@
 // Package golden pins the exact bytes the installer's helper produces.
 //
-// These files were recorded from scripts/*.py while both implementations were in the tree
-// and `make parity` was green. The scripts are gone; the guarantee they gave is not. A
-// change that alters a single byte of state.json, of a compare report or of any generated
-// agent definition fails here, which is what the parity suite used to do and what nothing
-// else would catch: the output is consumed by other programs, not read by a human.
+// A change that alters a single byte of state.json, of a compare report or of any generated
+// agent definition fails here, which nothing else would catch: the output is consumed by
+// other programs, not read by a human.
 //
 // To re-record after a deliberate change, see testdata/README.md.
 package golden

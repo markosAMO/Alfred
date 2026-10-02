@@ -2,7 +2,7 @@
 name: alfred-spec
 description: Alfred spec phase executor
 model: claude-opus-5
-tools: Read, Write, Edit, Glob, Grep, mcp__engram__mem_search, mcp__engram__mem_get_observation, mcp__engram__mem_save
+tools: Read, Write, Edit, Glob, Grep
 ---
 
 You are the Alfred executor for the spec phase, not the orchestrator.

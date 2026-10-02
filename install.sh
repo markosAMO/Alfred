@@ -10,7 +10,7 @@ set -euo pipefail
 
 SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ALFRED_HOME="${ALFRED_HOME:-$HOME/.config/alfred}"
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 PHASES=(init explore refine research spec diagnose design tasks apply verify review archive)
 PAYLOAD=(skills memory notify tracker templates defaults triggers bin alfred.config.yaml)
@@ -70,6 +70,78 @@ install_payload() {
   info "installed to $ALFRED_HOME"
 }
 
+# Engram is installed with Go, which the installer already requires for its helper, so the
+# memory backend adds no package manager. The version is pinned: the memory tools the agents
+# declare are Engram v3's, and an older server exposes fewer of them, which reads from inside
+# a phase as a backend that cannot do the thing.
+ENGRAM_MODULE="github.com/Gentleman-Programming/engram/v3/cmd/engram"
+ENGRAM_VERSION="v3.0.0"
+ENGRAM_MAJOR=3
+
+# go install writes to GOBIN, or GOPATH/bin, which a shell often does not have on PATH. It
+# goes first for this run, so the copy just installed is the one found and registered; the
+# registration records the absolute path, so the agents do not depend on PATH either.
+USER_PATH="$PATH"
+GO_BIN=""
+if command -v go >/dev/null 2>&1; then
+  GO_BIN="$(go env GOBIN 2>/dev/null)"
+  [ -n "$GO_BIN" ] || GO_BIN="$(go env GOPATH 2>/dev/null)/bin"
+  PATH="$GO_BIN:$PATH"
+fi
+
+engram_on_path() { command -v engram >/dev/null 2>&1; }
+
+# "engram 3.0.0" -> "3.0.0"; empty when it is absent or does not say.
+engram_version() {
+  engram_on_path || return 0
+  engram version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
+}
+
+engram_supported() {
+  local v; v="$(engram_version)"
+  [ -n "$v" ] && [ "${v%%.*}" -ge "$ENGRAM_MAJOR" ]
+}
+
+# Asked rather than done: it installs a program on the machine, outside Alfred's directory.
+offer_engram() {
+  local current answer
+  current="$(engram_version)"
+  info ""
+  if [ -n "$current" ]; then
+    info "  engram $current is installed; Alfred needs v$ENGRAM_MAJOR."
+  else
+    info "  engram is not installed."
+  fi
+  read -r -p "  install engram $ENGRAM_VERSION with go install? [Y/n]: " answer </dev/tty
+  if [[ ! "${answer:-y}" =~ ^[Yy] ]]; then
+    warn "memory is enabled without a usable engram; install it, then run: $0 update"
+    return 0
+  fi
+  install_engram
+}
+
+install_engram() {
+  command -v go >/dev/null 2>&1 || { warn "go is required to install engram"; return 0; }
+  info "installing engram $ENGRAM_VERSION"
+  if ! go install "$ENGRAM_MODULE@$ENGRAM_VERSION"; then
+    warn "could not install engram; run: go install $ENGRAM_MODULE@$ENGRAM_VERSION"
+    return 0
+  fi
+  # The shell remembers where it last found engram; the copy just installed is elsewhere.
+  hash -r
+
+  # Another engram earlier on the user's own PATH keeps answering in their shell. Alfred
+  # registers the one it installed, by absolute path, and says which one that is.
+  local shell_engram
+  shell_engram="$(PATH="$USER_PATH"; command -v engram 2>/dev/null || true)"
+  info "engram $(engram_version) installed at $GO_BIN/engram"
+  if [ -n "$shell_engram" ] && [ "$shell_engram" != "$GO_BIN/engram" ]; then
+    warn "your shell finds another engram first: $shell_engram; Alfred uses $GO_BIN/engram"
+  elif [ -z "$shell_engram" ]; then
+    info "add $GO_BIN to PATH to use the engram command yourself"
+  fi
+}
+
 ask_model() {
   local label="$1" default="$2" answer
   read -r -p "  $label [${default}]: " answer </dev/tty
@@ -125,10 +197,28 @@ setup_profile() {
     done
   fi
 
+  # Memory is a choice, not a default: every memory tool is schema each agent carries
+  # before it reads a line, which is worth paying only when a backend is there to answer.
+  info ""
+  info "  Memory. Engram is a local memory server, a single binary over SQLite, that lets"
+  info "  the phases recall past decisions, specifications and postmortems across changes."
+  info "  Alfred works without it, reading the documents directly at a higher token cost."
+  info "  With it, every agent is given Engram's memory tools and the server is registered."
+  info ""
+  # The default follows what is installed: yes when engram is on PATH, no otherwise.
+  local hint="y/N" use_memory="n" answer prefix=""
+  engram_on_path && { hint="Y/n"; use_memory="y"; }
+  read -r -p "  use Engram for memory? [$hint]: " answer </dev/tty
+  use_memory="${answer:-$use_memory}"
+  if [[ "$use_memory" =~ ^[Yy] ]]; then
+    prefix="mcp__engram__"
+    engram_supported || offer_engram
+  fi
+
   local joined
   joined="$(IFS=,; printf '%s' "${phase_models[*]}")"
-  printf '{"orchestrator": "%s", "coordinator": "%s", "phases": {%s}, "memory_tool_prefix": "mcp__engram__", "effort": {}, "extra_tools": {}}\n' \
-    "$orchestrator" "$coordinator" "$joined" > "$target"
+  printf '{"orchestrator": "%s", "coordinator": "%s", "phases": {%s}, "memory_tool_prefix": "%s", "effort": {}, "extra_tools": {}}\n' \
+    "$orchestrator" "$coordinator" "$joined" "$prefix" > "$target"
 
   require_runtime
   "$HELPER" json-valid "$target" || die "could not write a valid profile"
@@ -142,24 +232,58 @@ setup_profile() {
   info "               for example {\"refine\": [\"mcp__atlassian__getJiraIssue\"]}"
 }
 
-generate_agents() {
-  require_runtime
-  local targets=() agent
-
+# Where each detected agent keeps what the installer writes. Both the orchestrator
+# definitions and the memory server registration go to the same places, so they are built
+# once: an agent that gets one and not the other is the half-configured state that reads,
+# from inside a phase, as a backend that cannot do the thing.
+agent_targets() {
+  local agent
   while read -r agent; do
     [ -n "$agent" ] || continue
     case "$agent" in
-      opencode) targets+=("opencode=$HOME/.config/opencode/opencode.json") ;;
-      claude)   targets+=("claude=$HOME/.claude") ;;
+      opencode) printf '%s\n' "opencode=$HOME/.config/opencode/opencode.json" ;;
+      claude)   printf '%s\n' "claude=$HOME" ;;
     esac
   done < <(detect_agents)
+}
+
+generate_agents() {
+  require_runtime
+  local targets=() t
+  while read -r t; do [ -n "$t" ] && targets+=("$t"); done < <(agent_targets)
 
   if [ ${#targets[@]} -eq 0 ]; then
     warn "no supported agent found; skills are installed but no orchestrator was registered"
     return
   fi
 
-  "$HELPER" agents "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${targets[@]}"
+  # The helper takes the Claude home itself, not the parent.
+  local resolved=() x
+  for x in "${targets[@]}"; do
+    case "$x" in claude=*) resolved+=("claude=${x#claude=}/.claude") ;; *) resolved+=("$x") ;; esac
+  done
+
+  "$HELPER" agents "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${resolved[@]}"
+}
+
+# Whether the profile gives the agents memory tools. A profile without the key predates the
+# question and has none, which is what the helper reads it as too.
+memory_enabled() {
+  [ -n "$("$HELPER" json-get "$ALFRED_HOME/profile.json" memory_tool_prefix 2>/dev/null)" ]
+}
+
+# The agents declare every memory tool; this makes the server expose them. Both halves are
+# written by the installer because a registration pasted from a document is a step someone
+# skips, and the failure it causes is invisible: the phase sees no tool, which is exactly
+# what a backend that cannot do the thing looks like.
+register_memory() {
+  require_runtime
+  memory_enabled || return 0
+  local targets=() t
+  while read -r t; do [ -n "$t" ] && targets+=("$t"); done < <(agent_targets)
+  [ ${#targets[@]} -eq 0 ] && return 0
+
+  "$HELPER" memory apply "$ALFRED_HOME" "${targets[@]}" || true
 }
 
 record_state() {
@@ -177,6 +301,7 @@ cmd_install() {
   install_payload
   setup_profile
   generate_agents
+  register_memory
   record_state
   info ""
   info "Done. Open your agent, select the Alfred orchestrator, and run init in a repository."
@@ -204,6 +329,7 @@ cmd_update() {
 
   chmod +x "$ALFRED_HOME"/bin/*.sh
   generate_agents
+  register_memory
   record_state
 }
 
@@ -218,6 +344,13 @@ cmd_update() {
 # remedy is one line and harmless.
 session_permission_granted() {
   "$HELPER" session-permission "$HOME"
+}
+
+# The agents' half of the memory wiring. The helper is the authority on the list, so it is
+# asked rather than copied: a check carrying its own copy is one more thing to fall out of
+# step, which is the failure being checked for.
+agents_declare_every_memory_tool() {
+  "$HELPER" memory declared "$HOME/.claude/agents"
 }
 
 cmd_doctor() {
@@ -248,6 +381,22 @@ cmd_doctor() {
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
   check "worktree script installed"  "[ -x '$ALFRED_HOME/bin/worktree.sh' ]" "run: $0 update"
+
+  # Both halves of the memory wiring, checked separately because they fail separately and
+  # only one of them is visible from inside a run.
+  if memory_enabled; then
+    check "engram v$ENGRAM_MAJOR or newer" "engram_supported" \
+          "run: go install $ENGRAM_MODULE@$ENGRAM_VERSION, then: $0 update"
+    local mt=() m
+    while read -r m; do [ -n "$m" ] && mt+=("$m"); done < <(agent_targets)
+    check "memory server exposes every tool" \
+          "'$HELPER' memory check '$ALFRED_HOME' ${mt[*]}" \
+          "run: $0 update, which rewrites the registration with --tools=all"
+    check "agents declare every memory tool" "agents_declare_every_memory_tool" \
+          "run: $0 update, which regenerates the agent definitions"
+  else
+    info "  skip  memory not enabled (run: $0 models to enable it)"
+  fi
   check "sessions may be started"    "session_permission_granted" \
                                      "allow the start command once: /permissions in Claude Code, or add \"Bash(claude --bg:*)\" to permissions.allow in ~/.claude/settings.json"
 
@@ -269,7 +418,7 @@ cmd_status() {
 case "${1:-install}" in
   install) cmd_install ;;
   update)  cmd_update ;;
-  models)  setup_profile --force; generate_agents ;;
+  models)  setup_profile --force; generate_agents; register_memory ;;
   doctor)  cmd_doctor ;;
   status)  cmd_status ;;
   *)       die "usage: $0 [install|update|models|doctor|status]" ;;

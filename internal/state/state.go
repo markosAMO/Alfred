@@ -2,14 +2,13 @@
 //
 // A file whose hash still matches the one recorded at install time was not touched by the
 // user and may be replaced. A file whose hash differs was modified and is reported instead
-// of overwritten. This is the port of scripts/manage_state.py; the file ordering and the
-// JSON shape are reproduced exactly, because state.json written by one implementation is
-// read by the other while both are installed.
+// of overwritten.
 package state
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -19,15 +18,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"github.com/markosAMO/alfred/internal/pyjson"
 )
 
 // notManaged are written by the installation rather than shipped with it, so they are
 // never recorded and never replaced.
 var notManaged = map[string]bool{"state.json": true, "profile.json": true}
 
-// ManagedFiles lists the files Alfred owns, in the order pathlib.Path sorting produces.
+// ManagedFiles lists the files Alfred owns, sorted.
 //
 // Only the payload is installed: the repository also holds its own README, licence,
 // installer and documentation, none of which belong in an installation. Without this
@@ -45,8 +42,8 @@ func ManagedFiles(root string, payload []string) ([]string, error) {
 	for _, entry := range roots {
 		info, err := os.Stat(entry)
 		if err != nil {
-			// A payload item that is not there is skipped, as pathlib's is_file/is_dir
-			// pair does: the installer reports a missing item before it gets here.
+			// A payload item that is not there is skipped: the installer reports a missing
+			// item before it gets here.
 			continue
 		}
 
@@ -77,46 +74,17 @@ func ManagedFiles(root string, payload []string) ([]string, error) {
 		kept = append(kept, p)
 	}
 
-	sort.Slice(kept, func(i, j int) bool { return lessPath(kept[i], kept[j]) })
+	sort.Strings(kept)
 	return kept, nil
 }
 
 func hasGitPart(path string) bool {
-	for _, part := range pathParts(path) {
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
 		if part == ".git" {
 			return true
 		}
 	}
 	return false
-}
-
-// pathParts splits a path the way pathlib.PurePath.parts does: an absolute path keeps "/"
-// as its first component, and empty components are dropped.
-func pathParts(path string) []string {
-	var parts []string
-	if strings.HasPrefix(path, "/") {
-		parts = append(parts, "/")
-	}
-	for _, part := range strings.Split(path, string(filepath.Separator)) {
-		if part != "" && part != "." {
-			parts = append(parts, part)
-		}
-	}
-	return parts
-}
-
-// lessPath orders two paths as sorted() orders pathlib.Path objects: component by
-// component, not by the joined string. The two disagree whenever a name contains a byte
-// below "/" - "a-c" sorts before "a/b" as strings but after it as paths - and the order
-// decides the key order of state.json, so it has to be the path one.
-func lessPath(a, b string) bool {
-	pa, pb := pathParts(a), pathParts(b)
-	for i := 0; i < len(pa) && i < len(pb); i++ {
-		if pa[i] != pb[i] {
-			return pa[i] < pb[i]
-		}
-	}
-	return len(pa) < len(pb)
 }
 
 // SHA256 returns the hex digest of a file's contents.
@@ -135,8 +103,7 @@ func SHA256(path string) (string, error) {
 }
 
 // hashAll digests every path concurrently. Hashing is the whole cost of both commands and
-// the files are independent, so the work is spread over the machine's cores rather than
-// run one file at a time as the Python version did.
+// the files are independent, so the work is spread over the machine's cores.
 func hashAll(paths []string) (map[string]string, error) {
 	out := make(map[string]string, len(paths))
 	if len(paths) == 0 {
@@ -180,6 +147,12 @@ func hashAll(paths []string) (map[string]string, error) {
 	return out, firstErr
 }
 
+// File is state.json: the installed version and a hash per managed file.
+type File struct {
+	Version string            `json:"version"`
+	Files   map[string]string `json:"files"`
+}
+
 // Write records the version and a hash per managed file, and returns how many were
 // recorded.
 func Write(root, version string, payload []string) (int, error) {
@@ -193,21 +166,20 @@ func Write(root, version string, payload []string) (int, error) {
 		return 0, err
 	}
 
-	filesObj := pyjson.NewObject()
+	doc := File{Version: version, Files: make(map[string]string, len(files))}
 	for _, path := range files {
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return 0, err
 		}
-		filesObj.Set(rel, pyjson.NewString(sums[path]))
+		doc.Files[rel] = sums[path]
 	}
 
-	doc := pyjson.NewObject()
-	doc.Set("version", pyjson.NewString(version))
-	doc.Set("files", filesObj)
-
-	target := filepath.Join(root, "state.json")
-	if err := os.WriteFile(target, []byte(pyjson.Encode(doc, 2)+"\n"), 0o644); err != nil {
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return 0, err
+	}
+	if err := os.WriteFile(filepath.Join(root, "state.json"), append(data, '\n'), 0o644); err != nil {
 		return 0, err
 	}
 	return len(files), nil
@@ -215,22 +187,18 @@ func Write(root, version string, payload []string) (int, error) {
 
 // Report classifies every source file against what was installed.
 type Report struct {
-	New       []string
-	Unchanged []string
-	Modified  []string
-	Updatable []string
+	New       []string `json:"new"`
+	Unchanged []string `json:"unchanged"`
+	Modified  []string `json:"modified"`
+	Updatable []string `json:"updatable"`
 }
 
 // Compare classifies every source file against what was installed.
 func Compare(root, source string, payload []string) (*Report, error) {
-	recorded := map[string]string{}
+	var recorded File
 	if data, err := os.ReadFile(filepath.Join(root, "state.json")); err == nil {
-		doc, err := pyjson.Decode(data)
-		if err != nil {
+		if err := json.Unmarshal(data, &recorded); err != nil {
 			return nil, fmt.Errorf("reading state.json: %w", err)
-		}
-		for _, m := range doc.Get("files").Members() {
-			recorded[m.Key] = m.Val.StringOr("")
 		}
 	}
 
@@ -272,7 +240,7 @@ func Compare(root, source string, payload []string) (*Report, error) {
 		target := filepath.Join(root, rel)
 
 		got, present := installedSums[target]
-		was, wasRecorded := recorded[rel]
+		was, wasRecorded := recorded.Files[rel]
 		switch {
 		case !present:
 			report.New = append(report.New, rel)
@@ -288,24 +256,18 @@ func Compare(root, source string, payload []string) (*Report, error) {
 	return report, nil
 }
 
-// JSON renders the report in the key order the Python version emitted, so the installer
-// reads the same document from either implementation.
+// JSON renders the report on one line, every section present even when empty, so the
+// installer can read any of them without checking first.
 func (r *Report) JSON() string {
-	doc := pyjson.NewObject()
-	for _, section := range []struct {
-		key    string
-		values []string
-	}{
-		{"new", r.New},
-		{"unchanged", r.Unchanged},
-		{"modified", r.Modified},
-		{"updatable", r.Updatable},
-	} {
-		arr := pyjson.NewArray()
-		for _, v := range section.values {
-			arr.Arr = append(arr.Arr, pyjson.NewString(v))
+	out := Report{New: r.New, Unchanged: r.Unchanged, Modified: r.Modified, Updatable: r.Updatable}
+	for _, section := range []*[]string{&out.New, &out.Unchanged, &out.Modified, &out.Updatable} {
+		if *section == nil {
+			*section = []string{}
 		}
-		doc.Set(section.key, arr)
 	}
-	return pyjson.Encode(doc, 0)
+	data, err := json.Marshal(out)
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
 }

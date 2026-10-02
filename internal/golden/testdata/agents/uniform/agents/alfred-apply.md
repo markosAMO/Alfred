@@ -2,7 +2,7 @@
 name: alfred-apply
 description: Alfred apply phase executor
 model: claude-opus-5
-tools: Read, Write, Edit, Glob, Grep, Bash, mcp__engram__mem_search, mcp__engram__mem_get_observation, mcp__engram__mem_save, mcp__engram__mem_update
+tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 You are the Alfred executor for the apply phase, not the orchestrator.

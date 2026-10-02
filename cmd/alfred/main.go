@@ -1,11 +1,12 @@
 // Command alfred is the installer's helper: install bookkeeping, agent generation, and the
 // few JSON reads the shell script needs.
 //
-// It replaces every python3 invocation in install.sh, the two scripts and the five inline
-// snippets alike, so an installation needs no interpreter beyond the shell.
+// Bash has neither JSON nor sha256, so everything the installer needs of either is done
+// here, and an installation needs no interpreter beyond the shell.
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/markosAMO/alfred/internal/agents"
-	"github.com/markosAMO/alfred/internal/pyjson"
+	"github.com/markosAMO/alfred/internal/memory"
 	"github.com/markosAMO/alfred/internal/settings"
 	"github.com/markosAMO/alfred/internal/state"
 )
@@ -25,6 +26,9 @@ const usage = `usage: alfred <command> [arguments]
   state compare <home> <source> <payload>    classify source files against the install
   state apply <home> <source>                copy new and updatable files, report from stdin
   agents <profile> <skills-root> <kind=path>...   write the agent definitions
+  memory check <home> <kind=path>...         exit 0 when the backend exposes every tool
+  memory apply <home> <kind=path>...         register the backend, repairing a narrowed one
+  memory declared <agents-dir>               exit 0 when every agent declares every memory tool
   json-get <file|-> <key>                    print a top-level value, one line per item
   json-valid <file>                          exit 0 when the file parses as JSON
   session-permission <home>                  exit 0 when starting a session is permitted
@@ -57,6 +61,8 @@ func run(args []string) error {
 		return runState(args[1:])
 	case "agents":
 		return runAgents(args[1:])
+	case "memory":
+		return runMemory(args[1:])
 	case "json-get":
 		return runJSONGet(args[1:])
 	case "json-valid":
@@ -71,8 +77,7 @@ func run(args []string) error {
 	}
 }
 
-// splitPayload mirrors str.split(","): an empty string yields one empty field, which
-// selects the whole root, exactly as the Python version did.
+// splitPayload splits the comma-separated payload; an empty one selects the whole root.
 func splitPayload(raw string) []string {
 	if raw == "" {
 		return nil
@@ -126,14 +131,14 @@ func applyReport(home, source string) error {
 	if err != nil {
 		return err
 	}
-	doc, err := pyjson.Decode(data)
-	if err != nil {
+	var report state.Report
+	if err := json.Unmarshal(data, &report); err != nil {
 		return fmt.Errorf("reading report: %w", err)
 	}
 
 	count := 0
-	for _, section := range []string{"new", "updatable"} {
-		for _, rel := range doc.Get(section).Strings() {
+	for _, section := range [][]string{report.New, report.Updatable} {
+		for _, rel := range section {
 			src, err := under(source, rel)
 			if err != nil {
 				return err
@@ -149,7 +154,7 @@ func applyReport(home, source string) error {
 		}
 	}
 
-	fmt.Printf("%d files updated, %d left alone\n", count, len(doc.Get("modified").Strings()))
+	fmt.Printf("%d files updated, %d left alone\n", count, len(report.Modified))
 	return nil
 }
 
@@ -182,7 +187,7 @@ func copyFile(src, dst string) error {
 	if err := os.WriteFile(dst, data, info.Mode().Perm()); err != nil {
 		return err
 	}
-	// copy2 preserves the mode and the times; the mode is what makes bin/*.sh runnable.
+	// The mode is what makes bin/*.sh runnable.
 	return os.Chmod(dst, info.Mode().Perm())
 }
 
@@ -206,7 +211,7 @@ func runAgents(args []string) error {
 
 		switch kind {
 		case "opencode":
-			config, err := agents.OpencodeConfig(profile, skillsRoot)
+			config, err := agents.Opencode(profile, skillsRoot)
 			if err != nil {
 				return err
 			}
@@ -215,7 +220,7 @@ func runAgents(args []string) error {
 			}
 			written = append(written, fmt.Sprintf(
 				"opencode: %d subagents + alfred and alfred-worktree agents",
-				len(config.Get("agent").Members())-2))
+				len(config.Agent)-2))
 
 		case "claude":
 			count, err := agents.ClaudeAgents(profile, skillsRoot, path)
@@ -232,6 +237,41 @@ func runAgents(args []string) error {
 
 	fmt.Println(strings.Join(written, "\n"))
 	return nil
+}
+
+// runMemory exits with the number of problems found, so the installer's doctor can use it
+// as a check directly.
+func runMemory(args []string) error {
+	if len(args) == 0 {
+		return errors.New("memory: expected check, apply or declared")
+	}
+
+	switch args[0] {
+	case "check", "apply":
+		if len(args) < 2 {
+			return fmt.Errorf("memory %s: expected <home> and kind=path targets", args[0])
+		}
+		problems, err := memory.Register(os.Stdout, args[1], args[2:], args[0] == "apply")
+		if err != nil {
+			return err
+		}
+		if problems > 0 {
+			os.Exit(problems)
+		}
+		return nil
+
+	case "declared":
+		if len(args) != 2 {
+			return errors.New("memory declared: expected <agents-dir>")
+		}
+		if !memory.Declared(args[1]) {
+			os.Exit(1)
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("memory: unknown operation %s", args[0])
+	}
 }
 
 func runJSONGet(args []string) error {
@@ -252,26 +292,29 @@ func runJSONGet(args []string) error {
 		return err
 	}
 
-	doc, err := pyjson.Decode(data)
-	if err != nil {
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(data, &doc); err != nil {
 		return err
 	}
 
-	value := doc.Get(args[1])
-	if value == nil {
+	raw, ok := doc[args[1]]
+	if !ok {
 		return fmt.Errorf("json-get: no key %q", args[1])
 	}
 
-	switch value.Kind {
-	case pyjson.String:
-		fmt.Println(value.Str)
-	case pyjson.Array:
-		for _, item := range value.Strings() {
+	var str string
+	if err := json.Unmarshal(raw, &str); err == nil {
+		fmt.Println(str)
+		return nil
+	}
+	var items []string
+	if err := json.Unmarshal(raw, &items); err == nil {
+		for _, item := range items {
 			fmt.Println(item)
 		}
-	default:
-		fmt.Println(pyjson.Encode(value, 0))
+		return nil
 	}
+	fmt.Println(string(raw))
 	return nil
 }
 
@@ -283,8 +326,10 @@ func runJSONValid(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = pyjson.Decode(data)
-	return err
+	if !json.Valid(data) {
+		return fmt.Errorf("%s: not valid JSON", args[0])
+	}
+	return nil
 }
 
 func runSessionPermission(args []string) error {

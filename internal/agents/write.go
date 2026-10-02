@@ -8,147 +8,166 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/markosAMO/alfred/internal/pyjson"
+	"github.com/markosAMO/alfred/internal/jsonobj"
 )
 
 // asBooleans renders a tool list as OpenCode's per-tool flags: every tool it knows about
 // appears, enabled or disabled, so a tool is never inherited by omission.
-func asBooleans(tools []string, allowTask bool) *pyjson.Value {
-	entry := pyjson.NewObject()
-	enabled := map[string]bool{}
-
+func asBooleans(tools []string, allowTask bool) map[string]bool {
+	flags := make(map[string]bool, len(opencodeNames))
+	for _, name := range opencodeNames {
+		flags[name] = false
+	}
 	for _, tool := range tools {
 		if name, ok := opencodeNames[tool]; ok {
-			entry.Set(name, pyjson.NewBool(true))
-			enabled[name] = true
+			flags[name] = true
 		}
 	}
-
-	// Sorted: map iteration order varies per process, and an unsorted difference rewrites
-	// every agent's tool block on each run for no change at all.
-	rest := make([]string, 0, len(opencodeNames))
-	for _, name := range opencodeNames {
-		if !enabled[name] {
-			rest = append(rest, name)
-		}
-	}
-	sort.Strings(rest)
-	for _, name := range dedupe(rest) {
-		entry.Set(name, pyjson.NewBool(false))
-	}
-
-	entry.Set("task", pyjson.NewBool(allowTask))
-	return entry
+	flags["task"] = allowTask
+	return flags
 }
 
-func dedupe(values []string) []string {
-	out := values[:0]
-	for i, v := range values {
-		if i == 0 || v != values[i-1] {
-			out = append(out, v)
-		}
-	}
-	return out
+type opencodePermission struct {
+	Task map[string]string `json:"task"`
 }
 
-func taskPermission() *pyjson.Value {
-	task := pyjson.NewObject()
-	task.Set("*", pyjson.NewString("deny"))
-	task.Set("alfred-*", pyjson.NewString("allow"))
-
-	permission := pyjson.NewObject()
-	permission.Set("task", task)
-	return permission
+// opencodeAgent is one entry under `agent` in opencode.json.
+type opencodeAgent struct {
+	Model       string              `json:"model"`
+	Mode        string              `json:"mode"`
+	Hidden      bool                `json:"hidden,omitempty"`
+	Description string              `json:"description"`
+	Prompt      string              `json:"prompt"`
+	Permission  *opencodePermission `json:"permission,omitempty"`
+	Tools       map[string]bool     `json:"tools"`
 }
 
-// OpencodeConfig builds the generated half of opencode.json.
-func OpencodeConfig(p *Profile, skillsRoot string) (*pyjson.Value, error) {
-	sorted := p.SortedPhaseNames()
-	agent := pyjson.NewObject()
+// OpencodeConfig is the generated half of opencode.json.
+type OpencodeConfig struct {
+	Schema string                   `json:"$schema"`
+	Agent  map[string]opencodeAgent `json:"agent"`
+}
+
+const opencodeSchema = "https://opencode.ai/config.json"
+
+// Opencode builds the generated half of opencode.json.
+func Opencode(p *Profile, skillsRoot string) (*OpencodeConfig, error) {
+	phases := p.PhaseNames()
+	agent := map[string]opencodeAgent{}
 
 	// Two primary agents, the same pair Claude Code gets as two slash commands: one change
 	// in this checkout, or several at once with a worktree each. Both appear in the picker,
 	// so the choice is made by starting the run rather than by an argument to it.
-	primary := func(description, promptText string) *pyjson.Value {
-		entry := pyjson.NewObject()
-		entry.Set("model", pyjson.NewString(p.Orchestrator()))
-		entry.Set("mode", pyjson.NewString("primary"))
-		entry.Set("description", pyjson.NewString(description))
-		entry.Set("prompt", pyjson.NewString(promptText))
-		entry.Set("permission", taskPermission())
-		entry.Set("tools", asBooleans(orchestratorTools, true))
-		return entry
+	primary := func(description, promptText string) opencodeAgent {
+		return opencodeAgent{
+			Model:       p.Orchestrator(),
+			Mode:        "primary",
+			Description: description,
+			Prompt:      promptText,
+			Permission: &opencodePermission{
+				Task: map[string]string{"*": "deny", "alfred-*": "allow"},
+			},
+			Tools: asBooleans(orchestratorTools, true),
+		}
 	}
 
-	agent.Set("alfred", primary(
+	agent["alfred"] = primary(
 		"Alfred orchestrator: plans, routes and delegates. Never writes code.",
-		OrchestratorPrompt(skillsRoot, sorted, "the `alfred-worktree` agent")))
-	agent.Set("alfred-worktree", primary(
+		OrchestratorPrompt(skillsRoot, phases, "the `alfred-worktree` agent"))
+	agent["alfred-worktree"] = primary(
 		"Alfred orchestrator for several changes at once, one git worktree each.",
-		FleetPrompt(skillsRoot, sorted)))
+		FleetPrompt(skillsRoot, phases))
 
-	subagent := func(model, description, promptText string, tools []string) *pyjson.Value {
-		entry := pyjson.NewObject()
-		entry.Set("model", pyjson.NewString(model))
-		entry.Set("mode", pyjson.NewString("subagent"))
-		entry.Set("hidden", pyjson.NewBool(true))
-		entry.Set("description", pyjson.NewString(description))
-		entry.Set("prompt", pyjson.NewString(promptText))
-		entry.Set("tools", asBooleans(tools, false))
-		return entry
+	subagent := func(model, description, promptText string, tools []string) opencodeAgent {
+		return opencodeAgent{
+			Model:       model,
+			Mode:        "subagent",
+			Hidden:      true,
+			Description: description,
+			Prompt:      promptText,
+			Tools:       asBooleans(tools, false),
+		}
 	}
 
-	for _, phase := range p.PhaseNames() {
+	for _, phase := range phases {
 		if phase == "worktree" {
 			return nil, errors.New("profile: 'worktree' is the fleet orchestrator, not a phase")
 		}
 		skillPath := fmt.Sprintf("%s/%s/SKILL.md", skillsRoot, phase)
-		agent.Set("alfred-"+phase, subagent(
+		agent["alfred-"+phase] = subagent(
 			p.PhaseModel(phase),
 			"Alfred "+phase+" phase executor",
 			SubagentPrompt(phase, skillPath),
-			p.Tools(phase)))
+			p.Tools(phase))
 	}
 
-	agent.Set("alfred-manage", subagent(
+	agent["alfred-manage"] = subagent(
 		p.ManageModel(),
 		"Alfred management: status, registry, doctor, reindex",
 		ManagePrompt(skillsRoot+"/alfred/SKILL.md"),
-		p.Tools("alfred")))
+		p.Tools("alfred"))
 
-	config := pyjson.NewObject()
-	config.Set("$schema", pyjson.NewString("https://opencode.ai/config.json"))
-	config.Set("agent", agent)
-	return config, nil
+	return &OpencodeConfig{Schema: opencodeSchema, Agent: agent}, nil
 }
 
-// MergeOpencode replaces only the alfred-* agents, leaving any other agent untouched.
-func MergeOpencode(target string, generated *pyjson.Value) error {
-	existing := pyjson.NewObject()
+// MergeOpencode replaces only the alfred-* agents, leaving any other agent and any other
+// key untouched and where it was. An Alfred agent already in the file is replaced in place;
+// a new one is appended, and one the profile no longer has is removed.
+func MergeOpencode(target string, generated *OpencodeConfig) error {
+	existing := jsonobj.New()
 	if data, err := os.ReadFile(target); err == nil {
-		existing, err = pyjson.Decode(data)
-		if err != nil {
+		if existing, err = jsonobj.Parse(data); err != nil {
 			return fmt.Errorf("%s: %w", target, err)
 		}
 	}
 
-	agents := pyjson.NewObject()
-	for _, m := range existing.Get("agent").Members() {
-		if m.Key != "alfred" && !strings.HasPrefix(m.Key, "alfred-") {
-			agents.Set(m.Key, m.Val)
+	if _, ok := existing.Get("$schema"); !ok && existing.Len() == 0 {
+		// A new file starts with the schema, as OpenCode writes its own.
+		schema, err := jsonobj.Raw(generated.Schema)
+		if err != nil {
+			return err
+		}
+		existing.Set("$schema", schema)
+	}
+
+	agents := existing.Child("agent")
+	for _, name := range agents.Keys() {
+		_, kept := generated.Agent[name]
+		if !kept && (name == "alfred" || strings.HasPrefix(name, "alfred-")) {
+			agents.Delete(name)
 		}
 	}
-	for _, m := range generated.Get("agent").Members() {
-		agents.Set(m.Key, m.Val)
+
+	names := make([]string, 0, len(generated.Agent))
+	for name := range generated.Agent {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		raw, err := jsonobj.Raw(generated.Agent[name])
+		if err != nil {
+			return err
+		}
+		agents.Set(name, raw)
+	}
+	existing.SetChild("agent", agents)
+
+	if _, ok := existing.Get("$schema"); !ok {
+		schema, err := jsonobj.Raw(generated.Schema)
+		if err != nil {
+			return err
+		}
+		existing.Set("$schema", schema)
 	}
 
-	existing.Set("agent", agents)
-	existing.SetDefault("$schema", generated.Get("$schema"))
-
+	data, err := jsonobj.Format(existing)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(target, []byte(pyjson.Encode(existing, 2)+"\n"), 0o644)
+	return os.WriteFile(target, data, 0o644)
 }
 
 func effortLine(p *Profile, phase string) string {
@@ -202,9 +221,8 @@ func ClaudeAgents(p *Profile, skillsRoot, claudeHome string) (int, error) {
 		return 0, err
 	}
 
-	sorted := p.SortedPhaseNames()
 	if err := os.WriteFile(filepath.Join(commandsDir, "alfred.md"),
-		[]byte(claudeCommand(p, skillsRoot, sorted)), 0o644); err != nil {
+		[]byte(claudeCommand(p, skillsRoot, p.PhaseNames())), 0o644); err != nil {
 		return 0, err
 	}
 	if err := os.WriteFile(filepath.Join(commandsDir, "alfred-worktree.md"),
