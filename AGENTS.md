@@ -12,7 +12,8 @@ agents follow.
 
 Practical consequence: almost everything here is Markdown. The only code is the installer
 and the small tools under `bin/` that it installs, for the work an agent must not do by
-hand: creating and removing git worktrees.
+hand: creating and removing git worktrees, and turning a workflow into the commands an
+agent offers.
 
 ```
 ALFRED REPOSITORY (the mould)        TARGET PROJECT (where the parts come out)
@@ -29,27 +30,43 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `README.md` | Project presentation | For humans |
 | `install.sh` | Installer | Copies what is needed into the target project |
 | `bin/` | Tools installed with Alfred | `worktree.sh` creates, lists and removes the worktrees changes run in |
+| `bin/register.sh` | Registration from inside an agent | A workflow becomes a command only when something registers it, and that must work on a machine with no clone |
 | `cmd/alfred/`, `internal/` | The installer's Go helper | Writes the agent definitions, the memory server registration and the install bookkeeping |
+| `internal/workflow/` | Definition, scoped scan, validation, phase and model resolution | A workflow is read and checked once, at registration; nothing parses one during a run |
+| `internal/generated/` | The manifest of what registration wrote, and the local-exclude write | Removal follows what Alfred recorded generating, never a name prefix that would catch a file the user wrote |
 | `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
-| `skills/` | One directory per pipeline phase | The manual for each phase |
+| `workflows/` | The workflows Alfred ships, one directory each | A workflow is the recipe a run follows; `sdd` is the one shipped |
+| `skills/` | One directory per phase | The manual for each phase |
 | `skills/_shared/` | Rules common to every phase | Avoids repeating the same text in 13 files |
 | `memory/` | Backend-agnostic memory layer | Swap backends without touching any skill |
 | `notify/` | Backend-agnostic notification layer | Same pattern, for talking to the user |
 | `tracker/` | Backend-agnostic task tracker layer | Mirrors tasks to Jira, GitHub Issues, Linear or nothing |
 | `templates/docs/` | Templates for `spec.md`, `design.md`, … | The shape of the output, separate from the reasoning |
 | `templates/agent-pointers/` | `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, … | Three-line files redirecting to `AGENTS.md` |
+| `templates/workflow/` | The definition, rules file and example skill a new workflow starts from | `/alfred-add-workflow` writes a directory, not a file the user assembles by hand |
 | `defaults/` | The author's default architecture | What makes Alfred personal rather than generic |
 | `triggers/` | How the flow starts in each environment | OpenClaw, terminal, future entry points |
 | `docs/installation.md` | The two installation levels | Machine-level setup versus repository setup |
+| `docs/workflows.md` | What a workflow is and how to add one | The definition key by key, for a human writing one |
 | `docs/models.md` | Model assignment and profiles | Why phases run on different models |
 | `docs/artifacts.md` | Where Alfred's own documents live | A repository may not accept them, and Alfred still runs there |
 | `docs/ephemeral.md` | What a change leaves behind | The documents are how phases talk; keeping them afterwards is a separate decision |
 | `docs/` | Project documentation | For humans; agents do not read it |
 
-## The pipeline
+## The `sdd` workflow
+
+The pipeline below is one workflow's recipe, not Alfred's. It is `sdd`, the workflow Alfred
+ships: its phases, routes, entry points, parallel group and closing phase are declared in
+`workflows/sdd/workflow.json`, and the judgement about which route a request deserves is in
+`workflows/sdd/rules.md`. A workflow written by hand declares a different set and is no less
+a workflow for it, so nothing outside `workflows/sdd/` may assume these names. See
+`skills/_shared/workflow-protocol.md`.
+
+Setup and exploration belong to no workflow. `/alfred-init` and `/alfred-explore` are
+commands of their own and exist on a machine where no workflow registered at all.
 
 ```
-SETUP (once per project)
+SETUP (once per project, no workflow)
   init        structure + project architecture
   explore     existing repositories only: derives the architecture from the code
 
@@ -75,7 +92,9 @@ NAVIGATION
 
 ## Phase modes
 
-Two independent axes: *does it start on its own?* and *does it talk while working?*
+Two independent axes: *does it start on its own?* and *does it talk while working?* The
+phases named below are the shared library's, which is where `sdd` takes all of its own
+from; a workflow's own phase answers the same two questions in its own `SKILL.md`.
 
 | Mode | Starts on its own | Interacts | Phases |
 |---|---|---|---|
@@ -129,13 +148,20 @@ Every mode is overridable in `alfred.config.yaml`.
    once per machine; `init` sets up each repository from wherever it is run. An installer
    that must be copied into a repository cannot create that repository. See
    `docs/installation.md`.
-12. **Skills resolve local over global.** A repository may override one skill without
-   forking the rest. Resolution is recorded in the skill registry, including which source
-   each skill came from. See `skills/_shared/skill-resolver.md`.
+12. **Skills and workflows resolve local over global.** A repository may override one skill
+   without forking the rest, from `.alfred/skills/`, and may override a whole recipe the
+   same way, from `.alfred/workflows/<name>/`. Skill resolution is recorded in the skill
+   registry, including which source each skill came from; a workflow override is reported
+   by registration, which also states the command to reach it — a repository's workflow
+   colliding with a machine workflow of the same name is reached as `/alfred-<name>-local`,
+   because which scope a command resolves from first was never measured. See
+   `skills/_shared/skill-resolver.md` and `skills/_shared/workflow-protocol.md`.
 13. **The orchestrator does no work inline and reads almost nothing.** Its working set is
-   the request, the configuration, the pipeline state and the skill registry. It is the
-   only participant that lives for the whole run, so everything it reads it carries to the
-   end. See `skills/_shared/orchestrator-protocol.md`.
+   the request, the configuration, the pipeline state, the skill registry and the running
+   workflow's rules file, which the workflow supplies and whose absolute path the command
+   the run started from carries. It is the only participant that lives for the whole run,
+   so everything it reads it carries to the end. See
+   `skills/_shared/orchestrator-protocol.md`.
 14. **A route is proposed, never applied silently.** The orchestrator states which signals
    it matched and waits. The user can always shorten a route; the orchestrator never
    lengthens one without saying so. See `skills/_shared/routing.md`.
@@ -180,6 +206,23 @@ Every mode is overridable in `alfred.config.yaml`.
    `/alfred-worktree` each run in their own git worktree on their own branch, created and
    removed by `bin/worktree.sh`, never by an agent running git by hand. One change, one
    worktree, one branch. See `skills/_shared/worktree-protocol.md`.
+24. **A workflow belongs to the machine or to a repository, and nothing crosses.** The
+   machine's live in `~/.config/alfred/workflows/`, shipped and managed by hash, and in
+   `~/.config/alfred/custom/workflows/`, which the installer neither reads, writes nor
+   removes; a repository's live in `.alfred/workflows/`. Scope is a property of the roots
+   and targets a run is handed, never a branch inside it, so a machine-level operation
+   cannot write into a repository and a project-level one cannot write outside it. That is
+   what makes an update incapable of disturbing a repository's workflows, and it is why
+   `custom/` surviving an update needs no code. See
+   `skills/_shared/workflow-protocol.md`.
+25. **The structural facts of a run are read once, at registration.** The definition is
+   validated and rendered into the command, so nothing parses a workflow definition while a
+   change is running and the only workflow file a run opens is the rules file. A definition
+   edited after registration takes effect when registration runs again, and one corrupted
+   after registration changes nothing about a run in progress. A workflow whose phase
+   resolves nowhere, or whose routes name a phase it does not declare, is rejected there
+   rather than failing three phases into a change. See
+   `skills/_shared/workflow-protocol.md`.
 
 ## Commit conventions
 
@@ -199,3 +242,69 @@ Applies to this repository and to every project Alfred manages.
 2. Reference shared rules from `skills/_shared/` rather than repeating them.
 3. If the skill produces a document, its template belongs in `templates/docs/`.
 4. Register it in `alfred.config.yaml` when it is a pipeline phase.
+
+## Adding a workflow
+
+A workflow Alfred **ships** is a directory under `workflows/`. A workflow a user writes is
+not added here at all: `/alfred-add-workflow` writes it under
+`~/.config/alfred/custom/workflows/` for that machine, or under a repository's
+`.alfred/workflows/` for that repository alone.
+
+1. Create `workflows/<name>/workflow.json` from `templates/workflow/workflow.json`, with
+   the keys `docs/workflows.md` lists. It is JSON because the helper decodes it with
+   `encoding/json` and unknown keys are rejected; no comments, per rule 7.
+2. Write `workflows/<name>/rules.md`. Every signal a route matches, every branch a phase
+   takes and how a route changes mid-run belongs there, in prose, and in no second place —
+   a structural fact the definition already carries must not be restated in it.
+3. Declare no phase of its own. A shipped own phase would have to ship a model assignment,
+   and Alfred ships none; a shipped workflow reuses the library under `skills/`.
+4. Nothing is added to `PAYLOAD`: `install.sh` already installs `workflows` as a directory,
+   so a new one is copied and recorded by hash with no installer change.
+5. Run `./install.sh workflows` to rescan the roots and regenerate the commands, and read
+   the report: a workflow that was rejected says why, and a phase with no model is named.
+
+<!-- ALFRED:BEGIN — managed by alfred, do not edit by hand -->
+## Workflow
+
+This repository uses Alfred. Software work follows the pipeline; it does not start with
+code.
+
+### Before anything
+
+Read `.alfred/config.yaml`, then `docs/architecture.md` and `docs/code_conventions.md`.
+Resolve skills through `.alfred/skill-registry.md`; never read a skill by guessing its path.
+
+### Routing
+
+Choose a route and state the signals it was based on, then wait for the user to accept it.
+
+```
+behaviour unchanged        direct     apply · verify · review
+behaviour changes          pipeline   spec · design · tasks · apply · verify · review · archive
+request underspecified     full       refine · research · then the pipeline
+defect reported            diagnose   then spec or design
+```
+
+Never lengthen a route without saying so. The user may always shorten it.
+
+### Delegation
+
+Each phase runs as a subagent with an empty context, receiving paths rather than content.
+The orchestrator holds only the request, this configuration, the pipeline state and the
+registry, and does no work inline.
+
+### State
+
+`.alfred/state/{change}.yaml` records the phase, the route and the channel the run started
+from. `continue` resumes from it. State is updated only after a phase's document exists.
+
+### Language
+
+Neutral English, in documents and in messages alike, regardless of the language the
+request was written in. No persona and no regional voice.
+
+### Commits
+
+Conventional commits, no AI attribution of any kind, one commit per change once `verify` and
+`review` pass, staging only the files the work reported.
+<!-- ALFRED:END -->

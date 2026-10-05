@@ -1,5 +1,6 @@
 {"orchestrator": "anthropic/claude-opus-5",
   "coordinator": "anthropic/claude-haiku-4-5-20251001",
+  "default_workflow": "ventas",
   "phases": {"init": "anthropic/claude-opus-5", "explore": "anthropic/claude-opus-5",
     "refine": "anthropic/claude-opus-5", "research": "anthropic/claude-opus-5",
     "spec": "anthropic/claude-opus-5", "diagnose": "anthropic/claude-opus-5",

@@ -12,10 +12,20 @@ the user's request
 .alfred/config.yaml
 .alfred/state/{change}.yaml
 .alfred/skill-registry.md
+the running workflow's rules file, at the absolute path its command carries
 ```
+
+Five, and nothing else is added to them.
 
 The configuration is in that list for a reason beyond its own settings: it is what the
 orchestrator resolves every artifact locator from, below.
+
+The rules file is there because choosing a route is the one judgement the orchestrator
+makes itself, and that judgement belongs to the running workflow rather than to Alfred, per
+`skills/_shared/routing.md`. It is read before a route is proposed; a rules file that
+cannot be read stops the run, naming the file and the path, and no route is applied in its
+place. The workflow supplies it, and the path comes from the command the run started from,
+so the orchestrator never looks for it.
 
 Roughly two pages. That is the entire working set.
 
@@ -23,6 +33,13 @@ Roughly two pages. That is the entire working set.
 
 Specifications, designs, task lists, proposals, source files, diffs, test output, and the
 contents of memory entries.
+
+A workflow definition is not in the working set either, and the orchestrator opens none.
+The structural facts of the run — the routes, the entry points, what is dispatched
+together, what closes the change — were read and validated at registration and are in the
+command, per `skills/_shared/workflow-protocol.md`. A definition edited since then takes
+effect when registration runs again, and one corrupted since then changes nothing about a
+run in progress.
 
 A subagent reads those, uses them, and disappears with them. The orchestrator that reads
 them carries them for the rest of the session.
@@ -96,8 +113,9 @@ A subagent returns a one-paragraph summary and a list of changed files, per
 `subagent-protocol.md`. The orchestrator relays that. It does not fetch the diff to check,
 and does not paste subagent output into its own context to reason about it.
 
-`verify` and `review` exist to judge the work. An orchestrator re-reading the code to form
-its own opinion duplicates them and pays for it in context that the rest of the run needs.
+Judging the work is the job of whichever phases the running workflow has for it. An
+orchestrator re-reading the code to form its own opinion duplicates them and pays for it in
+context that the rest of the run needs.
 
 ## Inline work
 

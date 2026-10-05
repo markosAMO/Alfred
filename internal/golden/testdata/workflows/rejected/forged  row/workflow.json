@@ -1,0 +1,1 @@
+{"name": "forged", "title": "T", "description": "D", "rules": "rules.md", "phases": [{"name": "spec"}], "routes": {"only": ["spec"]}, "default_route": "only", "entry_points": {"default": "spec"}, "parallel": [], "closes": "spec"}

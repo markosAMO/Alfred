@@ -10,10 +10,15 @@ set -euo pipefail
 
 SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ALFRED_HOME="${ALFRED_HOME:-$HOME/.config/alfred}"
-VERSION="0.3.0"
+VERSION="0.4.0"
 
 PHASES=(init explore refine research spec diagnose design tasks apply verify review archive)
-PAYLOAD=(skills memory notify tracker templates defaults triggers bin alfred.config.yaml)
+PAYLOAD=(skills memory notify tracker templates defaults triggers workflows bin alfred.config.yaml)
+
+# The workflow /alfred runs when the profile does not say. Only sdd ships, so there is
+# nothing to choose at installation; a profile without the key is read as sdd too, which is
+# what reproduces today's /alfred on every installation that predates workflows.
+DEFAULT_WORKFLOW="sdd"
 
 info() { printf '%s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -26,8 +31,11 @@ die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 # Built from source on first use rather than shipped as a binary: a binary would have to be
 # built per platform and trusted, where the source is already here and `go build` is one
 # command. Nothing else in the payload needs a toolchain, so it stays out of PAYLOAD and
-# lives in .build/.
+# is built into .build/. The result is then installed, by install_helper, because the
+# registration tool has to reach it on a machine where the clone is gone.
 HELPER=""
+BUILD_ERROR=""
+WORKFLOW_ARGS=()
 
 setup_runtime() {
   [ -n "$HELPER" ] && return 0
@@ -37,16 +45,27 @@ setup_runtime() {
     return 0
   fi
 
-  command -v go >/dev/null 2>&1 || return 1
-  (cd "$SOURCE" && go build -o .build/alfred ./cmd/alfred) >/dev/null 2>&1 || return 1
+  if ! command -v go >/dev/null 2>&1; then
+    BUILD_ERROR="go is required; the installer builds its helper from cmd/alfred"
+    return 1
+  fi
 
+  # The compiler's own output is kept: "the build failed" names nothing a user can act on,
+  # and the installation stops here, so there is no later message to carry the reason.
+  if ! BUILD_ERROR="$( (cd "$SOURCE" && go build -o .build/alfred ./cmd/alfred) 2>&1 )"; then
+    BUILD_ERROR="could not build the helper from cmd/alfred:
+$BUILD_ERROR"
+    return 1
+  fi
+
+  BUILD_ERROR=""
   HELPER="$SOURCE/.build/alfred"
 }
 
 # Every command but doctor stops without a helper: it is the thing that does the work.
 # doctor reports instead, because reporting is what doctor is for.
 require_runtime() {
-  setup_runtime || die "go is required; the installer builds its helper from cmd/alfred"
+  setup_runtime || die "$BUILD_ERROR"
 }
 
 # Agents are detected rather than asked about: an agent that is not installed has nowhere
@@ -55,7 +74,9 @@ detect_agents() {
   local found=()
   command -v opencode >/dev/null 2>&1 && found+=(opencode)
   command -v claude   >/dev/null 2>&1 && found+=(claude)
-  [ -d "$HOME/.claude" ] && [[ ! " ${found[*]} " =~ " claude " ]] && found+=(claude)
+  # ${found[*]:-} rather than ${found[*]}: set -u treats an empty array as unset, and a
+  # machine with ~/.claude and no binary on PATH reaches here with nothing found yet.
+  [ -d "$HOME/.claude" ] && [[ ! " ${found[*]:-} " =~ " claude " ]] && found+=(claude)
   printf '%s\n' "${found[@]:-}"
 }
 
@@ -68,6 +89,24 @@ install_payload() {
   done
   chmod +x "$ALFRED_HOME"/bin/*.sh
   info "installed to $ALFRED_HOME"
+}
+
+# The one thing installed that the payload does not carry. bin/register.sh runs on machines
+# with no clone of Alfred, and it shells to this helper, so the helper has to be where the
+# installation is rather than in the .build/ of a directory the user may have deleted.
+#
+# It is the binary built from the source in this run. Nothing is fetched: a downloaded
+# binary would have to be built per platform and trusted, and the source is already here.
+install_helper() {
+  require_runtime
+  mkdir -p "$ALFRED_HOME/bin"
+
+  # Written beside the target and moved into place, because the copy being replaced may be
+  # the one currently running this registration.
+  local staged="$ALFRED_HOME/bin/.alfred.incoming"
+  cp "$HELPER" "$staged"
+  chmod +x "$staged"
+  mv -f "$staged" "$ALFRED_HOME/bin/alfred"
 }
 
 # Engram is installed with Go, which the installer already requires for its helper, so the
@@ -158,6 +197,14 @@ setup_profile() {
     return
   fi
 
+  # Carried over rather than asked for. Which workflow /alfred runs is a choice there is
+  # nothing to make at installation, because only sdd ships; once the user has edited it,
+  # re-running this to change a model must not quietly put it back.
+  require_runtime
+  local default_workflow=""
+  [ -f "$target" ] && default_workflow="$("$HELPER" json-get "$target" default_workflow 2>/dev/null || true)"
+  [ -n "$default_workflow" ] || default_workflow="$DEFAULT_WORKFLOW"
+
   info ""
   info "Model assignment. Use the identifier your agent expects, for example"
   info "anthropic/claude-opus-5 or ollama/qwen3.8-exec."
@@ -217,19 +264,20 @@ setup_profile() {
 
   local joined
   joined="$(IFS=,; printf '%s' "${phase_models[*]}")"
-  printf '{"orchestrator": "%s", "coordinator": "%s", "phases": {%s}, "memory_tool_prefix": "%s", "effort": {}, "extra_tools": {}}\n' \
-    "$orchestrator" "$coordinator" "$joined" "$prefix" > "$target"
+  printf '{"orchestrator": "%s", "coordinator": "%s", "phases": {%s}, "memory_tool_prefix": "%s", "default_workflow": "%s", "effort": {}, "extra_tools": {}}\n' \
+    "$orchestrator" "$coordinator" "$joined" "$prefix" "$default_workflow" > "$target"
 
-  require_runtime
   "$HELPER" json-valid "$target" || die "could not write a valid profile"
 
   info ""
   info "profile written to $target"
   info ""
   info "Optional, by editing that file:"
-  info "  effort       per phase, for example {\"spec\": \"high\", \"archive\": \"low\"}"
-  info "  extra_tools  per phase, for tools outside the base set"
-  info "               for example {\"refine\": [\"mcp__atlassian__getJiraIssue\"]}"
+  info "  effort            per phase, for example {\"spec\": \"high\", \"archive\": \"low\"}"
+  info "  extra_tools       per phase, for tools outside the base set"
+  info "                    for example {\"refine\": [\"mcp__atlassian__getJiraIssue\"]}"
+  info "  default_workflow  the workflow /alfred runs; currently $default_workflow"
+  info "                    then run: $0 workflows"
 }
 
 # Where each detected agent keeps what the installer writes. Both the orchestrator
@@ -247,15 +295,17 @@ agent_targets() {
   done < <(detect_agents)
 }
 
-generate_agents() {
-  require_runtime
+# The roots and write targets of a machine-scope registration, one per line, in the order
+# the helper takes them. Machine scope only: a machine-level operation that registered a
+# repository's own workflows would have to go looking for repositories first.
+#
+# The custom root is passed although the installer never creates it. An absent root means
+# no custom workflows, which is how an update leaves them alone and still reports one that
+# stopped validating.
+workflow_args() {
   local targets=() t
   while read -r t; do [ -n "$t" ] && targets+=("$t"); done < <(agent_targets)
-
-  if [ ${#targets[@]} -eq 0 ]; then
-    warn "no supported agent found; skills are installed but no orchestrator was registered"
-    return
-  fi
+  [ ${#targets[@]} -eq 0 ] && return 1
 
   # The helper takes the Claude home itself, not the parent.
   local resolved=() x
@@ -263,7 +313,41 @@ generate_agents() {
     case "$x" in claude=*) resolved+=("claude=${x#claude=}/.claude") ;; *) resolved+=("$x") ;; esac
   done
 
-  "$HELPER" agents "$ALFRED_HOME/profile.json" "$ALFRED_HOME/skills" "${resolved[@]}"
+  printf '%s\n' \
+    "$ALFRED_HOME/profile.json" \
+    "$ALFRED_HOME/skills" \
+    "$ALFRED_HOME/workflows" \
+    "$ALFRED_HOME/custom/workflows" \
+    "$ALFRED_HOME/templates/workflow" \
+    "manifest=$ALFRED_HOME/generated.json" \
+    "${resolved[@]}"
+}
+
+read_workflow_args() {
+  local a
+  WORKFLOW_ARGS=()
+  while read -r a; do [ -n "$a" ] && WORKFLOW_ARGS+=("$a"); done < <(workflow_args)
+  [ ${#WORKFLOW_ARGS[@]} -gt 0 ]
+}
+
+register_workflows() {
+  require_runtime
+
+  if ! read_workflow_args; then
+    warn "no supported agent found; skills are installed but no command was registered"
+    return 0
+  fi
+
+  # A rejected workflow exits 1 with every other workflow registered, and that is reported
+  # rather than fatal: an update must not stop because a workflow the user wrote stopped
+  # validating. Being called wrongly is a different thing and does stop the run.
+  local status=0
+  "$HELPER" workflows machine apply "${WORKFLOW_ARGS[@]}" || status=$?
+  case "$status" in
+    0) ;;
+    1) warn "some workflows were not registered; the report above says which, and why" ;;
+    *) die "registration was called wrongly" ;;
+  esac
 }
 
 # Whether the profile gives the agents memory tools. A profile without the key predates the
@@ -299,8 +383,9 @@ cmd_install() {
 
   info "Alfred $VERSION"
   install_payload
+  install_helper
   setup_profile
-  generate_agents
+  register_workflows
   register_memory
   record_state
   info ""
@@ -328,9 +413,15 @@ cmd_update() {
   printf '%s' "$report" | "$HELPER" state apply "$ALFRED_HOME" "$SOURCE"
 
   chmod +x "$ALFRED_HOME"/bin/*.sh
-  generate_agents
+  install_helper
+  register_workflows
   register_memory
   record_state
+}
+
+cmd_workflows() {
+  [ -d "$ALFRED_HOME" ] || die "not installed; run: $0 install"
+  register_workflows
 }
 
 # `/alfred-worktree` starts a session per change by running the agent's CLI, and an agent
@@ -351,6 +442,25 @@ session_permission_granted() {
 # step, which is the failure being checked for.
 agents_declare_every_memory_tool() {
   "$HELPER" memory declared "$HOME/.claude/agents"
+}
+
+# Both halves of workflow registration, for the same reason the memory wiring has two
+# checks: a workflow installed with no command cannot be reached, a command whose workflow
+# is gone dispatches phases that resolve nowhere, and neither is visible from inside a run.
+#
+# The first half has an exit code of its own, which is what `check` is for. The second has
+# none, so the report is read: a command the next run would remove is a command nothing
+# claims any more.
+every_workflow_has_a_command() {
+  read_workflow_args || return 1
+  "$HELPER" workflows machine check "${WORKFLOW_ARGS[@]}"
+}
+
+no_command_outlives_its_workflow() {
+  read_workflow_args || return 1
+  local report
+  report="$("$HELPER" workflows machine report "${WORKFLOW_ARGS[@]}" || true)"
+  ! printf '%s\n' "$report" | grep -q '^  removed  '
 }
 
 cmd_doctor() {
@@ -381,6 +491,21 @@ cmd_doctor() {
   done
   check "all ${#PHASES[@]} skills resolvable" "[ $missing -eq 0 ]" "reinstall: $0 install"
   check "worktree script installed"  "[ -x '$ALFRED_HOME/bin/worktree.sh' ]" "run: $0 update"
+  check "helper installed"           "[ -x '$ALFRED_HOME/bin/alfred' ]" "run: $0 update"
+
+  # Both halves of workflow registration, skipped rather than failed when there is nothing
+  # to ask or nowhere to register: the two checks above already name those, and asking again
+  # here reports one fault as three.
+  if [ -z "$HELPER" ]; then
+    info "  skip  workflow registration (no helper to ask)"
+  elif ! read_workflow_args; then
+    info "  skip  workflow registration (no agent detected)"
+  else
+    check "every workflow has a command" "every_workflow_has_a_command" \
+          "run: $0 workflows, which registers them and names any it rejects"
+    check "no command outlives its workflow" "no_command_outlives_its_workflow" \
+          "run: $0 workflows, which removes the commands of workflows that are gone"
+  fi
 
   # Both halves of the memory wiring, checked separately because they fail separately and
   # only one of them is visible from inside a run.
@@ -418,8 +543,9 @@ cmd_status() {
 case "${1:-install}" in
   install) cmd_install ;;
   update)  cmd_update ;;
-  models)  setup_profile --force; generate_agents; register_memory ;;
+  models)  setup_profile --force; register_workflows; register_memory ;;
+  workflows) cmd_workflows ;;
   doctor)  cmd_doctor ;;
   status)  cmd_status ;;
-  *)       die "usage: $0 [install|update|models|doctor|status]" ;;
+  *)       die "usage: $0 [install|update|models|workflows|doctor|status]" ;;
 esac

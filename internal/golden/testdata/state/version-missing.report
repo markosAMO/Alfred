@@ -1,0 +1,6 @@
+exit 1
+
+--- stdout
+
+--- stderr
+error: no installation at <work>; run: install.sh install

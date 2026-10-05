@@ -15,6 +15,7 @@ One file per change, under `paths.pipeline_state`.
 change: login-google
 title: Login with Google
 type: feature
+workflow: sdd
 entry_point: refine
 origin_channel: openclaw
 created_at: 2026-09-13T04:20:00Z
@@ -52,8 +53,9 @@ main_checkout: null
 
 | Field | Purpose |
 |---|---|
-| `type` | `feature` or `bug`; decides which entry point applies |
-| `entry_point` | `refine` or `diagnose` |
+| `type` | which of the workflow's entry points applies |
+| `workflow` | the workflow the change runs under; its routes, groups and closing phase are the ones in force |
+| `entry_point` | the phase the change entered at, one the workflow declares |
 | `origin_channel` | where the run started, so blocking questions return there; for a change in its own session it names the coordinator |
 | `current_phase` | what `continue` resumes |
 | `status` | `running`, `waiting_for_input`, `waiting_for_confirmation`, `completed`, `failed` |
@@ -64,9 +66,28 @@ main_checkout: null
 | `base` | the ref the branch was created from |
 | `main_checkout` | the repository the worktree belongs to, where `.alfred/config.yaml` lives |
 
-The four worktree fields are copied from what `worktree.sh open` printed, and are what
-`archive` needs to close the worktree once the change is committed. See
+The four worktree fields are copied from what `worktree.sh open` printed, and are what the
+closing phase needs to close the worktree once the change is committed. See
 `skills/_shared/worktree-protocol.md`.
+
+## The workflow a change runs under
+
+`workflow` is written by the first phase of the change, from what the orchestrator passed
+it, and never changes afterwards. No phase derives it: the orchestrator is the only
+participant that knows which command the run started from, and a phase guessing would pick
+whichever workflow looks like the one it belongs to.
+
+It is in the file because a state file is read by a run that did not start the change.
+`continue` resumes under that workflow's rules and routes and dispatches the phase that
+workflow's route says is next, which it can only do by being told which workflow that is.
+Without the field, a change started under one recipe would be resumed under whichever one
+the resuming command happened to carry — a substitution nothing would report, because
+every phase name involved would still resolve.
+
+A workflow named here and available in neither the repository nor the machine stops
+`continue`, which reports which workflow the change needs and resumes nothing. The change
+is not lost: installing or restoring that workflow makes it resumable again, and that is a
+better outcome than finishing it under rules nobody chose for it.
 
 ## Phase status
 
@@ -96,10 +117,12 @@ State exists so `continue` can resume a change. A change that closed has nothing
 and its state file stops describing anything: every phase reads `completed`, and the row
 `continue` would act on is the absence of a next one.
 
-`archive` removes it, under `artifacts.state_on_completion: delete`.
+The phase the workflow declares as its closing one removes it, under
+`artifacts.state_on_completion: delete`. Which phase that is differs between workflows and
+changes nothing here, per `skills/_shared/workflow-protocol.md`.
 
 ```
-the change closed        archive deletes .alfred/state/{change}.yaml
+the change closed        the closing phase deletes .alfred/state/{change}.yaml
 anything else            the file stays
 ```
 
@@ -108,16 +131,16 @@ implying:
 
 ```
 a phase failed                          state stays, carrying the reason
-verify failed or review blocked         archive never ran, so state stays
+a phase before the closing one blocked  closing never ran, so state stays
 the change was abandoned                nothing closed it, so state stays
-archive closed incomplete work          state stays, and the record says why
+the closing phase closed open work      state stays, and what it wrote says why
 ```
 
-The last one is the one that looks wrong and is not. `archive` can close a change that did
-not finish, when the user asks for it explicitly. The record then reports what was left
-open, per its Result section, and the state file stays because open work is work somebody
-may come back to. Deleting it would leave the record saying "three tasks unfinished" and
-nothing able to resume them.
+The last one is the one that looks wrong and is not. A change that did not finish can be
+closed, when the user asks for it explicitly. What the closing phase writes then reports
+what was left open, and the state file stays because open work is work somebody may come
+back to. Deleting it would leave a record saying "three tasks unfinished" and nothing able
+to resume them.
 
 Deletion is staged with the commit that closes the change, so the file disappears from the
 repository and from the working tree together. A state file deleted on disk but still

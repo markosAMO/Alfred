@@ -1,0 +1,27 @@
+{
+  "name": "sdd",
+  "title": "Spec-driven development",
+  "description": "A request becomes a specification, a design, tasks, code, verification and a merged delta",
+  "rules": "rules.md",
+  "phases": [
+    {"name": "refine"},
+    {"name": "research"},
+    {"name": "spec"},
+    {"name": "diagnose"},
+    {"name": "design"},
+    {"name": "tasks"},
+    {"name": "apply"},
+    {"name": "verify"},
+    {"name": "review"},
+    {"name": "archive"}
+  ],
+  "routes": {
+    "direct": ["apply", "verify", "review"],
+    "pipeline": ["spec", "design", "tasks", "apply", "verify", "review", "archive"],
+    "full": ["refine", "research", "spec", "design", "tasks", "apply", "verify", "review", "archive"]
+  },
+  "default_route": "pipeline",
+  "entry_points": {"feature": "refine", "bug": "diagnose"},
+  "parallel": [["verify", "review"]],
+  "closes": "archive"
+}

@@ -148,12 +148,18 @@ recorded rather than worked around. Alfred then writes the exclusions to
 `artifacts.local_exclude`, `.git/info/exclude` by default:
 
 ```
-.alfred/
-docs/changes/
-docs/specs/
-docs/architecture.md
-docs/code_conventions.md
+/.alfred/
+/docs/changes/
+/docs/specs/
+/docs/architecture.md
+/docs/code_conventions.md
 ```
+
+Every pattern is anchored to the repository root, because that is what is meant: the
+repository's own directories, not a directory of that name at any depth under it.
+Unanchored, `.alfred/` hides a vendored dependency carrying one and `docs/specs/` hides a
+test fixture, and a file git is ignoring is a file that cannot be staged and never appears
+in `git status`.
 
 That file is per-clone and is not itself tracked, so keeping Alfred out of a repository
 costs the repository no commit. Writing the same lines to `.gitignore` would be a change to
@@ -289,6 +295,49 @@ otherwise pull the registry back in.
 Left out, the registry shows up as an untracked file after every run and `archive` reports a
 working tree it cannot explain.
 
+## Register the repository's workflows
+
+The last thing this phase does. A repository may bring workflows of its own under
+`.alfred/workflows/`, each available in this repository and nowhere else, per
+`skills/_shared/workflow-protocol.md`. Registration is what turns one into a command, and it
+runs here because setting the repository up is the first moment there is a repository to
+register: installing and updating the machine never walk into one, and a workflow nobody
+registered is a directory with no way in.
+
+```
+~/.config/alfred/bin/register.sh --project <repository>
+```
+
+It detects the agents installed on this machine, validates every workflow it finds, writes
+the commands and the subagents their phases need inside the repository, and prints what it
+registered.
+
+Relay that report as printed. It names the command each workflow is reached by, and that name
+is not always the workflow's: a repository workflow carrying the name of one of the machine's
+is reached as `/alfred-<name>-local`, and its own phases take the same distinguishing
+form, so that `/alfred-<name>` in this repository still reaches the machine's. Which
+definition runs is not in question — the repository's does, here — and the report is the
+only thing that says which name reaches it.
+
+A repository that defines no workflow has nothing to register. Nothing is written inside it
+and the machine's workflows stay available here as they are everywhere else. Say that, rather
+than reporting a success that created nothing.
+
+A workflow that is rejected is reported with its reason and does not undo the setup: every
+other workflow registers, and registration runs again once the definition is fixed, through
+the `workflows` operation of `skills/alfred/SKILL.md`.
+
+The exclusions are written by that run and not by this phase, per rule 22 in the package
+`AGENTS.md`: an exclusion a document asks somebody to add is one somebody skips. Under
+`artifacts.committed: false` every path it wrote inside the repository is appended to
+`artifacts.local_exclude`, beside the lines written above. Under `true` the commands are the
+repository's to commit and only the generation manifest is held back, because it records this
+machine's absolute paths and the model each phase runs on, which are wrong in every other
+clone.
+
+That run reads `.alfred/config.yaml` for both settings, which is why it comes after the
+configuration is written rather than beside it.
+
 ## Completion
 
 Follow `skills/_shared/phase-protocol.md`. Report what exists now and what the first command
@@ -298,4 +347,5 @@ would be.
 initialised: docs/, .alfred/, AGENTS.md + 4 pointers
 architecture: from defaults, edited
 memory: engram · tracker: none · profile: mixed
+workflows: none of its own; the machine's are available here
 ```

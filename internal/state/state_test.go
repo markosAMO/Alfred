@@ -141,6 +141,50 @@ func TestWriteRecordsHashes(t *testing.T) {
 	}
 }
 
+// The helper the installation builds is copied to bin/alfred, so it is written by the
+// installation rather than shipped with it and is never recorded. It is matched by its
+// relative path and not by its base name, because a name rule would exclude any payload
+// file that ever carried the name.
+func TestManagedFilesExcludesTheInstalledHelperByPath(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "bin/alfred"), "a binary")
+	writeFile(t, filepath.Join(root, "bin/worktree.sh"), "#!/usr/bin/env bash")
+	writeFile(t, filepath.Join(root, "workflows/alfred"), "a payload file of the same name")
+
+	files, err := ManagedFiles(root, []string{"bin", "workflows"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := rels(t, root, files)
+
+	want := []string{"bin/worktree.sh", "workflows/alfred"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("ManagedFiles =\n  %v\nwant\n  %v", got, want)
+	}
+}
+
+func TestWriteNeverHashesTheInstalledHelper(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "bin/alfred"), "a binary")
+	writeFile(t, filepath.Join(root, "bin/worktree.sh"), "#!/usr/bin/env bash")
+
+	count, err := Write(root, "9.9.9", []string{"bin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("recorded %d files, want only bin/worktree.sh", count)
+	}
+
+	data, err := os.ReadFile(filepath.Join(root, "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"bin/alfred"`) {
+		t.Error("bin/alfred should not be recorded")
+	}
+}
+
 func TestCompareClassifiesEveryOutcome(t *testing.T) {
 	source := tree(t)
 	home := t.TempDir()
@@ -219,6 +263,114 @@ func TestReportJSONShapeAndEmptySections(t *testing.T) {
 	wantFilled := `{"new":["a"],"unchanged":[],"modified":["b","c"],"updatable":[]}`
 	if filled != wantFilled {
 		t.Errorf("report = %s, want %s", filled, wantFilled)
+	}
+}
+
+// The clone is gone: nothing but the installation directory is left, and the version has
+// to come out of it. Write is the only thing that ever put the number there, so the test
+// asks Write for it and then asks Version back.
+func TestVersionReportsTheVersionThatWasInstalled(t *testing.T) {
+	home := tree(t)
+	if _, err := Write(home, "0.4.0", []string{"pay"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Version(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "0.4.0" {
+		t.Errorf("Version = %q, want %q", got, "0.4.0")
+	}
+}
+
+// An update refreshes the installed copy, and the number the helper reports has to be the
+// one that run installed rather than the one before it.
+func TestVersionMatchesTheVersionThatWasJustInstalled(t *testing.T) {
+	home := tree(t)
+	if _, err := Write(home, "0.3.0", []string{"pay"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Write(home, "0.4.0", []string{"pay"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Version(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "0.4.0" {
+		t.Errorf("Version = %q, want the version the second install recorded, %q", got, "0.4.0")
+	}
+}
+
+func TestVersionWithNoInstallationReportsAndNamesTheOperation(t *testing.T) {
+	home := t.TempDir()
+
+	got, err := Version(home)
+	if err == nil {
+		t.Fatalf("Version = %q, want an error where nothing is installed", got)
+	}
+	if got != "" {
+		t.Errorf("Version = %q, want no version at all", got)
+	}
+	for _, want := range []string{"no installation", home, "install.sh install"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err, want)
+		}
+	}
+}
+
+// A state.json with no version is the same answer as no state.json: there is no number to
+// trust here. Reporting "unknown" would be worse than failing, because the only reason to
+// ask is to compare the answer with something.
+func TestVersionWithAStateFileCarryingNoVersion(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, filepath.Join(home, "state.json"), `{"files":{}}`)
+
+	got, err := Version(home)
+	if err == nil {
+		t.Fatalf("Version = %q, want an error where no version was recorded", got)
+	}
+	if got != "" {
+		t.Errorf("Version = %q, want no version at all", got)
+	}
+	for _, want := range []string{"no installation", home, "install.sh install"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err, want)
+		}
+	}
+}
+
+// A state.json that cannot be read for any reason other than being absent is a failure
+// rather than "no installation here": something is installed and the read went wrong, and
+// saying so is the difference between "run install" and "look at this file".
+func TestVersionWithAnUnreadableStateFile(t *testing.T) {
+	home := t.TempDir()
+	if err := os.Mkdir(filepath.Join(home, "state.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Version(home)
+	if err == nil {
+		t.Fatal("an unreadable state.json should be an error")
+	}
+	if !strings.Contains(err.Error(), "state.json") {
+		t.Errorf("error %q does not name the file it failed on", err)
+	}
+	if strings.Contains(err.Error(), "no installation") {
+		t.Errorf("error %q should not claim nothing is installed", err)
+	}
+}
+
+func TestVersionWithAMalformedStateFile(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, filepath.Join(home, "state.json"), "{not json")
+
+	if _, err := Version(home); err == nil {
+		t.Fatal("a malformed state.json should be an error, not an empty version")
+	} else if !strings.Contains(err.Error(), "state.json") {
+		t.Errorf("error %q does not name the file it failed on", err)
 	}
 }
 

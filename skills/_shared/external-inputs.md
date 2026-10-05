@@ -32,7 +32,7 @@ docs/changes/{change}/inputs/
 Committed with the change, like every other artifact.
 
 Under `memory.documents: ephemeral` the inputs are working material like the rest: they are
-removed when `archive` closes the change, and memory is where they survive. What the record
+removed when the change is closed, and memory is where they survive. What the record
 keeps of them is the citation — what the material was and where it came from — not the
 material itself.
 
@@ -43,12 +43,13 @@ in a change, because the rule below forbids summarising it.
 
 ## The request is material too
 
-`refine` writes the request down. When the route skips `refine` — the request was already
-clear, or the user shortened the route — nobody does, and the request travels as text: into
-the orchestrator's prompt, through it, and into the first phase that needs it.
+A route that opens with a phase whose job is to work the request into a document has the
+request written down as part of that. A route that starts past it — the request was already
+clear, or the user shortened the route — has nobody doing so, and the request travels as
+text: into the orchestrator's prompt, through it, and into the first phase that needs it.
 
 That is the one seam where content moves instead of a path, and it was observed in a run
-where `refine` was skipped. It is small, and it is the exception that erodes the rule: a
+whose opening phase was skipped. It is small, and it is the exception that erodes the rule: a
 request that passes through a prompt is a request the orchestrator now carries for the rest
 of the session, and a phase dispatched twice gets it in two shapes.
 
@@ -57,14 +58,21 @@ docs/changes/{change}/inputs/request.md
 ```
 
 Written when the route is accepted, from the user's words, verbatim and not summarised. Every
-phase downstream reads the path. A route that includes `refine` writes a proposal from it as
-usual; a route that does not still has the request in one place, spelled the same way each
-time it is read.
+phase downstream reads the path. A route that includes the phase which works the request into
+a document still produces that document as usual; a route that starts past it still has the
+request in one place, spelled the same way each time it is read.
 
 ## Who does it
 
-The phase that first receives the material: `refine` for a feature, `diagnose` for a defect.
-It is their first step, before any question is asked or any investigation starts.
+The phase that first receives the material, which is the one the running workflow's entry
+point names for that kind of request. It is that phase's first step, before any question is
+asked or any investigation starts.
+
+Nothing here names which phase that is. The entry points are the workflow's, declared in its
+definition and carried by the command, and its rules file is what says which phase receives
+the material for which kind of request, per `skills/_shared/workflow-protocol.md`. A phase
+that is not the one named does not materialise anything, whatever arrives attached to the
+work it was handed.
 
 The orchestrator does not do it. Reading a card would put its contents in the context that
 lives for the whole run, which is the one place they must not be — see
@@ -78,7 +86,8 @@ and linked issue titles.
 
 A summary is an irreversible decision made before anyone knows what will matter. The phase
 that needs the detail three steps later cannot recover it, and the rule says it cannot go
-back to the source. Summarising is what `refine` and `spec` do afterwards, from the full text.
+back to the source. Summarising is what the phases downstream do afterwards, from the full
+text.
 
 ## Shape
 
@@ -87,7 +96,7 @@ back to the source. Summarising is what `refine` and `spec` do afterwards, from 
 source: https://jira.example.com/browse/PROJ-1487
 type: tracker_card
 fetched_at: 2026-09-15T10:04:00Z
-fetched_by: refine
+fetched_by: {phase}
 ---
 
 # PROJ-1487 — Payment retries duplicate charges
@@ -119,8 +128,8 @@ Each materialised input is indexed like any other artifact, under
 
 ## What the later phases see
 
-`refine` and `diagnose` cite the inputs they used. `spec`, `design` and every phase after
-them read the materialised text and nothing else.
+The phase that materialised the inputs cites the ones it used. Every phase after it reads
+the materialised text and nothing else.
 
 A phase that finds the material insufficient says so and stops. It does not fetch the
 source to fill the gap: the gap is reported, and bringing in more material is a decision the

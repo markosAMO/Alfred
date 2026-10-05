@@ -1,0 +1,13 @@
+exit 0
+
+--- stdout
+workflows
+  this scope defines no workflow; nothing to register
+
+claude code  (machine: <work>/out/claude)
+  added      /alfred, /alfred-add-workflow, /alfred-explore, /alfred-init,
+             /alfred-workflows-scanner, /alfred-worktree, alfred-manage
+
+opencode  (machine: <work>/out/opencode.json)
+  added      alfred, alfred-add-workflow, alfred-explore, alfred-init, alfred-manage,
+             alfred-workflows-scanner, alfred-worktree

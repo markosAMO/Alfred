@@ -1,0 +1,19 @@
+{
+  "name": "ventas",
+  "title": "Sales follow-up, this repository's version",
+  "description": "Propose and close, with no prospecting step",
+  "rules": "rules.md",
+  "phases": [
+    {"name": "propuesta", "model": "anthropic/claude-opus-5", "tools": ["Read", "Write"]},
+    {"name": "spec", "model": "anthropic/claude-haiku-4-5"},
+    {"name": "review"}
+  ],
+  "routes": {
+    "rapida": ["propuesta", "review"],
+    "completa": ["spec", "propuesta", "review"]
+  },
+  "default_route": "rapida",
+  "entry_points": {"default": "propuesta"},
+  "parallel": [],
+  "closes": "review"
+}

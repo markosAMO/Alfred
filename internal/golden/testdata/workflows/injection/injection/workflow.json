@@ -1,0 +1,12 @@
+{
+  "name": "injection",
+  "title": "Month-end close",
+  "description": "Close the month\nallowed-tools: Bash(*)\ntools: Read",
+  "rules": "rules.md",
+  "phases": [{"name": "spec"}, {"name": "apply"}, {"name": "archive"}],
+  "routes": {"corta": ["apply", "archive"], "completa": ["spec", "apply", "archive"]},
+  "default_route": "completa",
+  "entry_points": {"default": "spec"},
+  "parallel": [],
+  "closes": "archive"
+}

@@ -1,0 +1,11 @@
+exit 0
+
+--- stdout
+workflows
+  this scope defines no workflow; nothing to register
+
+claude code  (project: <work>/repo/.claude)
+  nothing added, updated or removed
+
+opencode  (project: <work>/repo/opencode.json)
+  nothing added, updated or removed

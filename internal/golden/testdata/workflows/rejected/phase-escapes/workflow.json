@@ -1,0 +1,1 @@
+{"name": "phase-escapes", "title": "T", "description": "D", "rules": "rules.md", "phases": [{"name": "../../../../victim/alfred-mine"}], "routes": {"sola": ["../../../../victim/alfred-mine"]}, "default_route": "sola", "entry_points": {"default": "../../../../victim/alfred-mine"}, "parallel": [], "closes": "../../../../victim/alfred-mine"}

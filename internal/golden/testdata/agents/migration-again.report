@@ -1,0 +1,28 @@
+exit 1
+
+--- stdout
+workflows
+  cobranzas   machine/custom   2 phases  routes: completa, sola
+  inventario  machine/custom   3 phases  routes: corta, larga
+  soporte     machine/shipped  2 phases  routes: completa, directa
+  ventas      machine/shipped  4 phases  routes: completa, rapida
+
+claude code  (machine: <work>/out/claude)
+  unchanged  9 commands, 8 agents
+  nothing added, updated or removed
+  orphans    <work>/out/claude/agents/alfred-notes.md
+             the generated naming, claimed by nothing; this run will not remove them
+  collisions <work>/out/claude/commands/alfred-ventas.md
+             not written: a file Alfred never generated already carries this name, so
+             /alfred-ventas is missing on claude code; rename or remove it
+
+opencode  (machine: <work>/out/opencode.json)
+  unchanged  9 commands, 8 agents
+  nothing added, updated or removed
+  collisions alfred-ventas
+             not written: an agent Alfred never generated already carries this name, so
+             alfred-ventas is missing on opencode; rename or remove it
+
+without a model
+  cobranzas/recordatorio  the workflow's own recordatorio declares no model and will not
+                          be dispatched

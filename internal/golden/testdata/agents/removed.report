@@ -1,0 +1,24 @@
+exit 1
+
+--- stdout
+workflows
+  cobranzas   machine/custom   2 phases  routes: completa, sola
+  inventario  machine/custom   3 phases  routes: corta, larga
+  soporte     machine/shipped  2 phases  routes: completa, directa
+
+claude code  (machine: <work>/out/claude)
+  updated    /alfred, /alfred-cobranzas, /alfred-inventario, /alfred-soporte,
+             /alfred-worktree
+  removed    alfred-review, alfred-ventas-propuesta, alfred-ventas-prospectar,
+             alfred-ventas-seguimiento, /alfred-ventas
+  unchanged  4 commands, 4 agents
+
+opencode  (machine: <work>/out/opencode.json)
+  updated    alfred, alfred-cobranzas, alfred-inventario, alfred-soporte, alfred-worktree
+  removed    alfred-review, alfred-ventas, alfred-ventas-propuesta,
+             alfred-ventas-prospectar, alfred-ventas-seguimiento
+  unchanged  4 commands, 4 agents
+
+without a model
+  cobranzas/recordatorio  the workflow's own recordatorio declares no model and will not
+                          be dispatched

@@ -1,0 +1,19 @@
+{
+  "name": "{name}",
+  "title": "{title}",
+  "description": "{description}",
+  "rules": "rules.md",
+  "phases": [
+    {"name": "{phase-1}", "model": "{vendor/model}", "tools": ["Read", "Write", "Glob", "Grep"]},
+    {"name": "{phase-2}", "model": "{vendor/model}"},
+    {"name": "{shared-phase}"}
+  ],
+  "routes": {
+    "{route-1}": ["{phase-2}", "{shared-phase}"],
+    "{route-2}": ["{phase-1}", "{phase-2}", "{shared-phase}"]
+  },
+  "default_route": "{route-2}",
+  "entry_points": {"{kind of request}": "{phase-1}"},
+  "parallel": [],
+  "closes": "{shared-phase}"
+}

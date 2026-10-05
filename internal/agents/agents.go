@@ -102,6 +102,7 @@ type Profile struct {
 	OrchestratorModel string              `json:"orchestrator"`
 	CoordinatorModel  string              `json:"coordinator"`
 	Manage            string              `json:"manage"`
+	Default           string              `json:"default_workflow"`
 	Phases            map[string]string   `json:"phases"`
 	MemoryToolPrefix  string              `json:"memory_tool_prefix"`
 	Efforts           map[string]string   `json:"effort"`
@@ -161,6 +162,19 @@ func (p *Profile) ManageModel() string {
 
 func (p *Profile) Effort(phase string) string { return p.Efforts[phase] }
 
+// DefaultWorkflow is the workflow `/alfred` runs.
+//
+// A profile written before the key existed is read as `sdd`, which reproduces today's
+// `/alfred` on every installation that predates it. It lives here rather than in a
+// repository's configuration because registration is machine-level and runs with no
+// repository in sight.
+func (p *Profile) DefaultWorkflow() string {
+	if p.Default != "" {
+		return p.Default
+	}
+	return "sdd"
+}
+
 // Tools returns the base tools, the memory tools with the configured prefix, then the
 // per-project extras.
 //
@@ -172,15 +186,31 @@ func (p *Profile) Tools(phase string) []string {
 	if !ok {
 		base = defaultTools
 	}
-	tools := append([]string(nil), base...)
+	return append(p.withMemory(base), p.ExtraTools[phase]...)
+}
 
+// OwnTools is the tool set of a phase a workflow brought itself.
+//
+// The declared set replaces the base one, and the memory tools are still added, because
+// they are the installation's and a phase cannot tell a tool it was never granted from a
+// backend that cannot do the thing. The profile's per-phase extras are not: they are keyed
+// by a shared phase's name, and a workflow's own `review` is not the shared `review`. A
+// workflow that wants one of them declares it in `tools`.
+func (p *Profile) OwnTools(declared []string) []string {
+	if len(declared) == 0 {
+		declared = defaultTools
+	}
+	return p.withMemory(declared)
+}
+
+func (p *Profile) withMemory(base []string) []string {
+	tools := append([]string(nil), base...)
 	if p.MemoryToolPrefix != "" {
 		for _, name := range MemoryTools {
 			tools = append(tools, p.MemoryToolPrefix+name)
 		}
 	}
-
-	return append(tools, p.ExtraTools[phase]...)
+	return tools
 }
 
 // bareModel drops a vendor prefix: Claude Code names the model without one.
@@ -191,14 +221,6 @@ func bareModel(model string) string {
 	return model
 }
 
-func subagentList(phases []string) string {
-	names := make([]string, len(phases))
-	for i, phase := range phases {
-		names[i] = "alfred-" + phase
-	}
-	return strings.Join(names, ", ")
-}
-
 // worktreeTool: bin/ sits next to skills/ in the installation, so the tool path is derived
 // from the skills root rather than passed separately.
 func worktreeTool(skillsRoot string) string {
@@ -206,13 +228,18 @@ func worktreeTool(skillsRoot string) string {
 }
 
 // OrchestratorPrompt is the orchestrator for one change, in the checkout it was started
-// from. Written once for both agents: what differs is how the fleet orchestrator is named,
-// so that is the one thing passed in.
-func OrchestratorPrompt(skillsRoot string, phases []string, fleetEntry string) string {
-	return fill(prompt("orchestrator.tmpl"),
+// from. Everything outside the workflow section is mechanics and is the same under every
+// workflow; what differs per agent is how the fleet orchestrator is named, so that is the
+// one other thing passed in.
+//
+// The workflow section is substituted last, after every token this prompt declares. fill is
+// ReplaceAll applied in order, and a title or a description the user wrote holding `{{`
+// would otherwise be rewritten by a later pass of this same function.
+func OrchestratorPrompt(skillsRoot, workflowSection, fleetEntry string) string {
+	text := fill(prompt("orchestrator.tmpl"),
 		"{{SKILLS_ROOT}}", skillsRoot,
-		"{{SUBAGENTS}}", subagentList(phases),
 		"{{FLEET_ENTRY}}", fleetEntry)
+	return fill(text, "{{WORKFLOW}}", workflowSection)
 }
 
 // FleetPrompt is the same orchestrator, for several changes at once, one worktree each.
@@ -221,20 +248,27 @@ func OrchestratorPrompt(skillsRoot string, phases []string, fleetEntry string) s
 // is a list with a branch per line, the working set is one state file per change, and a
 // user who wants one change in the current checkout should not have to opt out of
 // worktrees to get it.
-func FleetPrompt(skillsRoot string, phases []string) string {
-	return fill(prompt("fleet.tmpl"),
+func FleetPrompt(skillsRoot, workflowSection string) string {
+	text := fill(prompt("fleet.tmpl"),
 		"{{SKILLS_ROOT}}", skillsRoot,
-		"{{SUBAGENTS}}", subagentList(phases),
 		"{{TOOL}}", worktreeTool(skillsRoot))
+	return fill(text, "{{WORKFLOW}}", workflowSection)
 }
 
 // CoordinatorPrompt is the worktree coordinator: it starts a session per change and routes
 // messages. The sessions it starts run the orchestrator's model, not its own.
-func CoordinatorPrompt(skillsRoot, sessionModel string) string {
-	return fill(prompt("coordinator.tmpl"),
+//
+// It carries the workflow section for those sessions rather than for itself. A session is
+// started bare, runs no workflow command and has no other source for the routes, the entry
+// points, the groups dispatched together or the closing phase; the coordinator relays the
+// section and acts on none of it. The section is substituted last, for the reason
+// OrchestratorPrompt gives.
+func CoordinatorPrompt(skillsRoot, sessionModel, workflowSection string) string {
+	text := fill(prompt("coordinator.tmpl"),
 		"{{SESSION_MODEL}}", sessionModel,
 		"{{SKILLS_ROOT}}", skillsRoot,
 		"{{TOOL}}", worktreeTool(skillsRoot))
+	return fill(text, "{{WORKFLOW}}", workflowSection)
 }
 
 func SubagentPrompt(phase, skillPath string) string {

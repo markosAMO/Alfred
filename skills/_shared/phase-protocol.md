@@ -27,8 +27,8 @@ Step 3 and step 5 both work from **locators**, which the orchestrator resolves a
 in. A locator is either a path or a memory key, already decided:
 
 ```
-keep, ephemeral    docs/changes/login-google/spec.md      a path
-pointer            alfred/login-google/spec               a key
+keep, ephemeral    docs/changes/login-google/{document}.md    a path
+pointer            alfred/login-google/{document}             a key
 ```
 
 The phase reads the file when the locator is a path and the entry when it is a key, and
@@ -70,7 +70,7 @@ document is missing is worse than no state: `continue` would skip the phase.
 A phase reports what it did in terms someone can check without asking it again.
 
 ```
-verify: 7 of 7 scenarios covered, 47 tests passing, coverage 100%
+{phase}: 7 of 7 scenarios covered, 47 tests passing, coverage 100%
 commands: bundle exec rspec, bundle exec rubocop
 state: .alfred/state/login-google.yaml
 context: 91k tokens
@@ -109,18 +109,30 @@ A phase marked `skippable` may be absent. Downstream phases handle a missing inp
 falling back to what exists, never by failing.
 
 ```
-spec with no proposal      the requirement comes from the user's request directly
-design with no research    proceed with what architecture.md already states
+a phase whose upstream document was never written
+    work from the user's request directly
+a phase whose investigation step was skipped
+    proceed with what architecture.md already states
 ```
 
 ## Phases that run together
 
-Two phases may be dispatched at once when neither reads what the other writes and their
-outputs are different files. `verify` and `review` are the pair this applies to: both read
-the code, neither writes it, and each writes its own report.
+Two phases may be dispatched at once when both conditions hold:
 
-Every other pair in the pipeline is sequential, because each one reads the document the
-previous one wrote.
+```
+neither reads what the other writes
+their outputs are different documents
+```
+
+Which pairs those are is a fact of the running workflow, declared in its definition as a
+group and carried by the command, per `skills/_shared/workflow-protocol.md`. No pair is
+named here, and a phase never infers that it runs alongside another from what the same two
+names do under some other workflow: the conditions are about what each phase reads and
+writes, and a workflow that gives one of them a different job breaks them without renaming
+anything.
+
+Every other pair is sequential, because each one reads the document the previous one
+wrote. A workflow that declares no group runs every phase on its own, in route order.
 
 Concurrency inside a phase is a different question, decided per task by file overlap. See
 `skills/apply/SKILL.md`.
@@ -138,10 +150,10 @@ A phase in `interactive` mode uses `ask()` and waits. A phase in `confirm` mode 
 neither, and must not block for input under any circumstance.
 
 `interactive` means a phase **may** ask, not that it must. A phase that reads its inputs and
-finds every decision already made — by `refine`, by the architecture, by the conventions —
-reports what it decided and proceeds. Manufacturing a question to satisfy the mode costs a
-round trip and teaches the user that the gates are ceremony, which is what makes them skip
-the one that mattered.
+finds every decision already made — by an earlier phase, by the architecture, by the
+conventions — reports what it decided and proceeds. Manufacturing a question to satisfy
+the mode costs a round trip and teaches the user that the gates are ceremony, which is what
+makes them skip the one that mattered.
 
 The same applies to `confirm`. It exists for the moment work becomes expensive to undo, and
 a confirmation of something already confirmed is noise wearing the costume of a safeguard.
@@ -159,10 +171,11 @@ A round trip is the expensive unit, not the question. It costs the user's attent
 a change running in its own session it also costs three conversations a turn each. Two
 questions in one round cost one of those; the same two, asked in sequence, cost two.
 
-Most of them should not be here at all. `refine` exists to settle what is being asked for
-before the pipeline commits to it, so a decision a later phase discovers is usually one
-`refine` could have levied — and a run that leaks decisions out through `research`, `spec`
-and `design` one at a time has turned a phase that batches by design into three that do not.
+Most of them should not be here at all. A workflow whose route opens with a phase that
+settles what is being asked for has already bought the round that settles it, so a decision
+a later phase discovers is usually one that phase could have levied — and a run that leaks
+decisions out one at a time through the phases after it has turned a phase that batches by
+design into three that do not.
 
 Waiting assumes the session the phase runs in is the one the user is looking at. When it is
 not — a change running in its own session, per `skills/_shared/worktree-protocol.md` — the

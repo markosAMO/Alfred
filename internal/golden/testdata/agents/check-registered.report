@@ -1,0 +1,9 @@
+exit 0
+
+--- stdout
+workflows
+  soporte  machine/shipped  2 phases  routes: completa, directa
+  ventas   machine/shipped  4 phases  routes: completa, rapida
+
+missing
+  every workflow of this scope has its command on every detected agent

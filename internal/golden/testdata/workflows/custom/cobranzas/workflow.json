@@ -1,0 +1,12 @@
+{
+  "name": "cobranzas",
+  "title": "Collections",
+  "description": "Chase an overdue invoice to payment",
+  "rules": "rules.md",
+  "phases": [{"name": "recordatorio"}, {"name": "spec"}],
+  "routes": {"sola": ["recordatorio"], "completa": ["recordatorio", "spec"]},
+  "default_route": "sola",
+  "entry_points": {"default": "recordatorio"},
+  "parallel": [],
+  "closes": "spec"
+}

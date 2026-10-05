@@ -1,0 +1,49 @@
+## The workflow: {{WORKFLOW_NAME}}
+
+{{WORKFLOW_TITLE}}
+
+These are the structural facts of `{{WORKFLOW_NAME}}`, read from its definition and validated when this command was registered. They are the whole of what a run under this command may do. Nothing below is re-derived while a change is running, and nothing outside this section adds to it.
+
+### Routes
+
+{{ROUTES}}
+
+The default route is `{{DEFAULT_ROUTE}}`. These are the only routes this workflow has; a name that is not in that list is not a route here.
+
+### Entry points
+
+{{ENTRY_POINTS}}
+
+An entry point is where a request of that kind joins its route. A kind of request this workflow declares no entry point for is one it does not handle; say so rather than starting somewhere plausible.
+
+### Dispatched together
+
+{{PARALLEL_GROUPS}}
+
+Everything else is dispatched one phase at a time, in route order.
+
+### Closing a change
+
+`{{CLOSING_PHASE}}` closes a change under this workflow. It is the phase that removes `.alfred/state/{change}.yaml` and stages the removal with the closing commit, and that closes the worktree when the change ran in one. No other phase closes a change, and a route that ends before this one leaves the change open.
+
+### Phases and the subagent that runs each
+
+{{PHASE_SUBAGENTS}}
+
+A phase listed as unavailable has no subagent, for the reason given beside it. A route that reaches one stops there, naming the phase and the reason. Nothing is substituted for it.
+
+### Rules
+
+The judgement this workflow applies - which route a request deserves, the signals that choose between them, which phase receives external material, and how a route changes mid-run - is prose, and it is here:
+
+```
+{{RULES_PATH}}
+```
+
+Read it before proposing a route. If it cannot be read, stop and name that path.
+
+### Other workflows available here
+
+{{OTHER_WORKFLOWS}}
+
+A request that belongs to one of those is reported with the workflow it belongs to, and is not run under this one.

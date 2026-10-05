@@ -3,13 +3,13 @@ name: alfred
 mode: interactive
 pipeline_phase: false
 reads: [config, skill_registry, state]
-writes: [skills, config, skill_registry]
+writes: [skills, workflows, config, skill_registry]
 ---
 
 # alfred
 
-Manage Alfred itself: inspect a repository's setup, update it, diagnose it, and author new
-skills.
+Manage Alfred itself: inspect a repository's setup, update it, diagnose it, register its
+workflows, and author new skills and workflows.
 
 This is not a pipeline phase. It never appears in a route. Its operations run in the
 `alfred-manage` subagent, which has a shell: the orchestrator delegates them like any phase
@@ -21,7 +21,7 @@ orchestrator asks, running `git.worktrees.tool` and returning its output as prin
 Report what is installed here and what is running.
 
 ```
-global skills     ~/.config/alfred/skills/     13 skills, version 0.3.0
+global skills     ~/.config/alfred/skills/     13 skills, version 0.4.0
 local overrides   .alfred/skills/              apply
 profile           mixed
 memory            engram, reachable
@@ -149,6 +149,9 @@ is every skill in the registry resolvable
 is the memory backend reachable, and does the registry match what is on disk
 is the test command in code_conventions.md runnable
 are the agent pointer files present and pointing at AGENTS.md
+is every workflow this repository defines registered on every agent installed here
+is any project-level Alfred command left by a workflow this repository no longer has
+under artifacts.committed: true: do the skill paths its commands carry exist on this machine
 is any state file referencing a change directory that no longer exists
 under pointer: does every address file row still resolve, and does state agree with it
 under ephemeral: does every closed change have a record, and is the state file gone
@@ -169,6 +172,25 @@ two clones in differently named directories accumulate two memories that never s
 other and both runs succeed. `doctor` reports the missing remote; `mem_merge_projects`
 merges what already diverged. See `memory/adapters/engram.md`.
 
+The three workflow checks are this repository's half of rule 22 in the package `AGENTS.md`,
+and the installation's own `doctor` checks the machine's half. Both halves or neither: a
+workflow with no command is indistinguishable from a workflow nobody wanted, and a command
+whose workflow is gone runs a recipe that no longer exists. The first is answered by the
+registration tool in its checking mode:
+
+```
+~/.config/alfred/bin/register.sh --project <repository> --check
+```
+
+It names every workflow of this repository with no command, and the agent it is missing on,
+and exits non-zero when it finds one. The remedy for all three is the `workflows` operation
+below.
+
+The last of them is a consequence of committing the generated commands rather than a fault in
+them: they carry this machine's absolute skill paths and its model identifiers, which resolve
+to nothing in another clone, and they cannot be made machine-neutral while a command
+carries a model. Registering in that clone rewrites them. See `docs/artifacts.md`.
+
 Each failure is reported with its remedy. A diagnostic that says something is wrong without
 saying what to do is a longer way of failing.
 
@@ -181,6 +203,93 @@ repository may genuinely not have written them — but a phase that is told cost
 a phase that discovers it costs a rediscovery per subagent. The document check is the one
 that prevents loss: under `artifacts.committed: false` nothing in git is holding those
 files, so a worktree removed before `archive` copied them back takes the only copy with it.
+
+## add-workflow
+
+Write a workflow the user has already accepted, and register it.
+
+The interview is a command of its own and happened before this: it settled the name, the
+phases, the routes, the default route, the entry points, the groups dispatched together, the
+closing phase, the rules and the model of every phase the workflow brings, showed the whole
+thing and waited. This operation writes it and decides nothing. It is given what it needs:
+
+```
+Operation:    add-workflow
+Templates:    the workflow templates directory
+Destination:  the workflow's directory, under the machine's custom root or a repository's
+Workflow:     the facts the user accepted, as they were accepted
+```
+
+```
+1  refuse a name that already exists in the destination's scope, or that is reserved
+2  create the destination directory
+3  write workflow.json from the template, as accepted, carrying the model of every phase
+   the workflow brings on that phase's entry
+4  write rules.md from the template, in the words the interview showed
+5  write skills/<phase>/SKILL.md from the template for every phase the workflow brings
+6  register that scope and return the report as printed
+```
+
+The templates are filled, never improvised. Two workflows written by hand in different shapes
+are two documents to keep in step with one validator, and the definition is checked key for
+key when registration reads it — see `docs/workflows.md`.
+
+**No model is chosen here.** A phase the user left without one is written without one, and
+registration names it as a phase with no model; nothing is carried over from another phase,
+from the shared library or from this operation's judgement. It is the one decision that costs
+money on every run, and it is the user's, taken when the workflow is created.
+
+The destination is passed in and never inferred. A workflow that belongs to one repository is
+the same files written under that repository's `.alfred/workflows/<name>` and registered for
+that repository; a workflow that belongs to the machine is written under its custom root and
+registered for the machine. Nothing is written under the shipped root, which the installation
+owns, and nothing in the Alfred package changes.
+
+```
+created: custom/workflows/billing, 2 own phases (draft, invoice)
+registered: /alfred-billing on claude code, alfred-billing on opencode
+```
+
+A workflow the report rejects was written and is not registered. Show the reason as printed,
+name the path the definition is at, and say that registration runs again through the
+operation below once it is fixed. A rejection is not a reason to delete what the user
+accepted.
+
+## workflows
+
+Register the workflows of one scope, in any of its three modes. Nothing is reimplemented
+here: the operation is the registration tool, and the report is the tool's.
+
+```
+~/.config/alfred/bin/register.sh                          the machine's workflows
+~/.config/alfred/bin/register.sh --project <repository>   the repository's own
+```
+
+```
+(no option)   validate every workflow of that scope, regenerate, report what changed
+--dry-run     the identical report, writing nothing
+--check       every workflow of that scope with no command; non-zero when any is found
+```
+
+Run `--dry-run` when the request asks what would change, and `--check` when it asks whether
+anything is missing. Return the output as printed rather than summarised: it names each
+workflow with its source and its routes, what was added, updated, removed and left unchanged
+per agent, and every phase that has no model. A run over a tree that changed in no way writes
+nothing and says so.
+
+Exit code 1 means a workflow was rejected, a phase has no model, a checked command is
+missing, or no supported agent was found. It is an answer, not a crash — every valid
+workflow still registered — and the report says which of them it was.
+
+**The scope is the user's request, never a guess.** A request about this repository registers
+this repository and leaves the machine alone; a request about the machine never reaches
+into a repository. Registering the wrong one writes commands where nobody asked for them.
+
+Run it after a workflow directory is created, edited or removed by hand, after a repository
+starts overriding one of the machine's, and whenever a command is missing or stale.
+Installing and updating Alfred already register the machine's workflows; this operation
+exists for the times when nothing is being installed, and `init` is what registers a
+repository's for the first time.
 
 ## worktrees
 

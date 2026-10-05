@@ -2,7 +2,6 @@
 name: refine
 mode: interactive
 skippable: true
-entry_point: new_feature
 reads: [architecture, conventions, tracker_card, memory]
 writes: [proposal]
 document: docs/changes/{change}/proposal.md
@@ -20,7 +19,7 @@ by the model guessing.
 
 ## When the orchestrator routes here
 
-A request goes to `refine` when any of these hold. Otherwise it goes straight to `spec`.
+A request needs this phase when any of these hold. Otherwise the route can start past it.
 
 - The failure behaviour is unstated. The request says what should happen when it works.
 - A domain term appears that is not defined in `architecture.md` or memory.
@@ -33,8 +32,13 @@ it wastes their time.
 
 When the request arrives as a tracker card, the same criteria apply to the card body.
 
-The decision is proposed and confirmed, never applied silently. The orchestrator names the
-signals it matched and offers to skip straight to `spec`. See `skills/_shared/routing.md`.
+The decision is proposed and confirmed, never applied silently, and the orchestrator names
+the signals it matched and lets the user take the shorter answer. Those mechanics hold under
+every workflow and are in `skills/_shared/routing.md`.
+
+What matching them is worth, and where the shorter answer goes instead, is the running
+workflow's and is written in its rules file. The list above is what this phase is for; the
+route it argues for belongs to the workflow that declares the routes.
 
 ## Materialise the inputs first
 
