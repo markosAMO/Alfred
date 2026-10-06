@@ -65,7 +65,7 @@ more and be less accurate.
 AGENTS.md
 .gitignore              from templates/workspace/gitignore
 docs/specs/
-docs/changes/
+.alfred/changes/
 .alfred/config.yaml     with the repository list
 .alfred/state/
 ```
@@ -116,7 +116,7 @@ GEMINI.md                     pointer
 docs/architecture.md
 docs/code_conventions.md
 docs/specs/
-docs/changes/
+.alfred/changes/
 .alfred/config.yaml
 .alfred/state/
 .alfred/skill-registry.md
@@ -149,7 +149,6 @@ recorded rather than worked around. Alfred then writes the exclusions to
 
 ```
 /.alfred/
-/docs/changes/
 /docs/specs/
 /docs/architecture.md
 /docs/code_conventions.md

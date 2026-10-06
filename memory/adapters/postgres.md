@@ -83,7 +83,7 @@ This adapter changes where the searchable copy lives. It does not change what is
 authoritative.
 
 ```
-docs/changes/login-google/spec.md    authoritative, in git, reviewed in a pull request
+.alfred/changes/login-google/spec.md    authoritative, in git, reviewed in a pull request
 alfred_memory row                    searchable copy
 ```
 

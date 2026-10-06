@@ -7,13 +7,67 @@ that depend on it.
 
 ```
 1  load state          read .alfred/state/{change}.yaml
-2  recover context     context() and recall() for what is already known
-3  read inputs         fetch() the artifacts this phase depends on
+2  read inputs         every locator the orchestrator passed, all at once, Handoff first
+3  recall              each memory type the orchestrator passed, for earlier changes
 4  do the work         the part that differs between phases
-5  write the document  at the locator the orchestrator passed, below
+5  write the artifact  at this phase's own locator, Handoff included, below
 6  update state        mark the phase completed in .alfred/state/{change}.yaml
 7  notify              phase_completed, or error
 ```
+
+These rules hold for every phase of every workflow, shipped or written by hand. A skill says
+how to do its work; it never says what to read or where to write, because that is the
+workflow's declaration and the orchestrator passes it.
+
+## Artifacts
+
+Every phase leaves exactly one artifact, named after the phase: `design` leaves `design`, a
+workflow's own `cotizar` leaves `cotizar`. The name is not configurable, so any phase can
+address another's output without being told what it is called.
+
+What a phase reads is configurable, and it is the only thing that is. The running workflow
+declares it per phase in its `workflow.json`, as `reads` (the artifacts of other phases, by
+phase name, and the project artifacts `architecture`, `conventions` and `specs`) and
+`recall` (memory types to search for what earlier changes concluded). Registration validates
+both and renders them into the command, and the orchestrator passes one locator per read.
+
+A phase reads what it was handed and nothing else. Reaching for an artifact the workflow did
+not declare is a hidden dependency that breaks under the next workflow that reuses the
+phase.
+
+## Starting from what the last phase left
+
+A phase does not rediscover what the phases before it already found. Step 2 reads the
+`## Handoff` section of every artifact it was handed before anything else, and treats it as
+given: the files and lines named there are where to look, the commands are how to check,
+and what is ruled out stays ruled out. The phase explores only what the handoffs leave
+open.
+
+Every locator is read in one parallel batch. Reading them one at a time costs a round trip
+per artifact to learn nothing the batch would not have.
+
+Step 3 recalls each type the orchestrator passed, with the area of the change as the query,
+and fetches the full entry of every candidate it acts on: a preview is for choosing, never
+for acting. A recall that returns nothing is a normal result.
+
+## The handoff
+
+Every artifact ends with a `## Handoff` section, written for the phases that read it. It is
+what this phase learned that the next one would otherwise pay to learn again:
+
+```markdown
+## Handoff
+code       app/auth/session.rb:40-88       where the token is issued; the change goes here
+           spec/auth/session_spec.rb       existing scenarios, reusable
+verified   bundle exec rspec spec/auth     31 examples, 0 failures (baseline)
+ruled out  the OmniAuth middleware         it never touches the token
+open       whether the migration is its own task
+```
+
+Paths with lines, commands with what they printed, and the dead ends, so nobody walks them
+twice. Fifteen lines at most: a handoff that restates the artifact above it is one nobody
+reads. A phase that found nothing worth handing on writes `none`, which tells the next
+phase that the artifact is the whole story.
 
 Steps 1 and 6 name the file because a phase has no other way to know it. There is one state
 file per change, named for the change and never for the phase, and when the change runs in a
@@ -23,12 +77,12 @@ records from what the orchestrator passed it, are in `skills/_shared/state-contr
 A phase that invents its own name breaks the only thing state exists for: `continue` looks
 the change up by name, and a file named after a phase is a file it will never find.
 
-Step 3 and step 5 both work from **locators**, which the orchestrator resolves and passes
+Step 2 and step 5 both work from **locators**, which the orchestrator resolves and passes
 in. A locator is either a path or a memory key, already decided:
 
 ```
-keep, ephemeral    docs/changes/login-google/{document}.md    a path
-pointer            alfred/login-google/{document}             a key
+keep, ephemeral    .alfred/changes/login-google/{phase}.md    a path
+pointer            alfred/login-google/{phase}             a key
 ```
 
 The phase reads the file when the locator is a path and the entry when it is a key, and
@@ -90,30 +144,20 @@ them being true.
 that decides whether a phase is worth what it does, and asking for it afterwards means
 asking every phase separately, out of band, for something each one already knew.
 
-## Inputs and outputs
-
-A phase declares what it reads and what it writes in its `SKILL.md` frontmatter. It reads
-nothing else.
-
-`document:` names the artifact, in every mode. It is what the orchestrator resolves the
-locator from: a path under `keep` and `ephemeral`, a key under `pointer`, per the naming
-rules in `memory/CONTRACT.md`. A phase never has two identities depending on configuration,
-and never resolves its own.
-
-A phase that reaches for an artifact it did not declare creates a hidden dependency that
-breaks when phases are skipped.
-
 ## Skipping
 
-A phase marked `skippable` may be absent. Downstream phases handle a missing input by
-falling back to what exists, never by failing.
+A route may leave a phase out. The orchestrator then passes its artifact as `<not
+produced>`, and a phase handles that by falling back to what exists, never by failing.
 
 ```
-a phase whose upstream document was never written
+a phase whose upstream artifact was not produced
     work from the user's request directly
-a phase whose investigation step was skipped
+a phase whose investigation phase did not run
     proceed with what architecture.md already states
 ```
+
+`<unresolved>` is different: the phase that writes it completed and the artifact cannot be
+found. That is a blocker, reported and never worked around.
 
 ## Phases that run together
 

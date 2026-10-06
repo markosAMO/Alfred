@@ -2,9 +2,6 @@
 name: verify
 mode: auto
 skippable: false
-reads: [spec, tasks, conventions, code]
-writes: [verify_report]
-document: docs/changes/{change}/verify-report.md
 next: [review]
 ---
 
@@ -33,7 +30,7 @@ code is not revisited twice.
 Scenario by scenario, from the specification. Not file by file, and not from the task list.
 
 ```
-for each scenario in alfred/{change}/spec
+for each scenario in the spec artifact
   is there a test that covers it?
   does that test actually assert the scenario's outcome?
   does it pass?
@@ -143,8 +140,7 @@ change that should go back to `design` rather than round the loop again.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/verify-report`, update state, notify `phase_completed` or `error`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state, notify `phase_completed` or `error`.
 
 ```
 verify: 7 of 7 scenarios covered, 47 tests passing, coverage 100%

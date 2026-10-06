@@ -17,7 +17,7 @@ agent offers.
 
 ```
 ALFRED REPOSITORY (the mould)        TARGET PROJECT (where the parts come out)
-skills/, templates/, defaults/   ──▶ .alfred/, docs/changes/, AGENTS.md
+skills/, templates/, defaults/   ──▶ .alfred/ (changes/ included), AGENTS.md
 ```
 
 Feature specs never live in Alfred. Alfred only knows how to create them.
@@ -167,7 +167,7 @@ Every mode is overridable in `alfred.config.yaml`.
    lengthens one without saying so. See `skills/_shared/routing.md`.
 15. **External material is fetched once and materialised as text.** A tracker card, a URL
    or a document from another system is read by the phase that receives it, written to
-   `docs/changes/{change}/inputs/` in full, and never fetched again. No later phase and no
+   `.alfred/changes/{change}/inputs/` in full, and never fetched again. No later phase and no
    subagent reaches the network for it. See `skills/_shared/external-inputs.md`.
 16. **Parallel execution requires disjoint files, not just independent tasks.** Subagents
    share one checkout with no locking between them, so two writing the same file leave one
@@ -195,7 +195,9 @@ Every mode is overridable in `alfred.config.yaml`.
    in. A phase that re-derives the mode disagrees with the run that launched it, silently,
    because reading the wrong store returns an empty result that looks like an artifact
    nobody wrote. Adding a storage mode is an orchestrator change and touches no phase. See
-   `Locators` in `memory/CONTRACT.md`.
+   `Locators` in `memory/CONTRACT.md`. Which artifacts it is handed is the running
+   workflow's `reads` and `recall`, never the skill's; every phase leaves one artifact,
+   named after itself and ending in a `## Handoff` the next phase starts from.
 22. **A capability is wired by the installer or it is not wired.** The agents declare every
    memory tool and the server exposes every memory tool, and `install`, `update` and
    `doctor` each write or check both halves. Neither is a command in a document for someone
@@ -237,11 +239,13 @@ Applies to this repository and to every project Alfred manages.
 
 ## Adding a skill
 
-1. Create `skills/<name>/SKILL.md` with frontmatter: `name`, `mode`, `skippable`,
-   `inputs`, `outputs`.
-2. Reference shared rules from `skills/_shared/` rather than repeating them.
-3. If the skill produces a document, its template belongs in `templates/docs/`.
-4. Register it in `alfred.config.yaml` when it is a pipeline phase.
+1. Create `skills/<name>/SKILL.md` with frontmatter: `name`, `mode`, `skippable`, `next`.
+2. Reference shared rules from `skills/_shared/` rather than repeating them. What the phase
+   reads and where it writes are not in the skill: the phase leaves an artifact named
+   after itself, and each workflow declares what it reads, per
+   `skills/_shared/phase-protocol.md`.
+3. Its artifact's template belongs in `templates/docs/`, ending in `## Handoff`.
+4. Add it to a workflow's `workflow.json`, with its `reads` and `recall`.
 
 ## Adding a workflow
 

@@ -1,9 +1,6 @@
 ---
 name: diagnose
 mode: interactive
-reads: [memory, architecture, master_specs, code, tests]
-writes: [diagnosis]
-document: docs/changes/{change}/diagnosis.md
 ---
 
 # diagnose
@@ -16,7 +13,7 @@ merging them produces a change that makes the symptom disappear.
 ## Materialise the inputs first
 
 A defect usually arrives with material attached: a ticket, an error report, a log, a
-conversation. Read each one once and write it to `docs/changes/{change}/inputs/` in full,
+conversation. Read each one once and write it to `.alfred/changes/{change}/inputs/` in full,
 per `skills/_shared/external-inputs.md`.
 
 Logs and stack traces are materialised verbatim. A summarised trace is a trace with the
@@ -25,7 +22,7 @@ line that mattered removed.
 ## Search memory first
 
 ```
-recall the symptom, in the terms someone would search for
+recall each type the workflow declares, with the symptom in the terms someone would search for
 ```
 
 Postmortems are written by `archive` for exactly this moment. A class of failure is
@@ -110,5 +107,4 @@ is not remembered as a certainty.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/diagnosis`, update state with the chosen route, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state with the chosen route, notify `phase_completed`.

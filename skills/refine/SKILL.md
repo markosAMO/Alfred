@@ -2,9 +2,6 @@
 name: refine
 mode: interactive
 skippable: true
-reads: [architecture, conventions, tracker_card, memory]
-writes: [proposal]
-document: docs/changes/{change}/proposal.md
 next: [research, spec]
 ---
 
@@ -47,7 +44,7 @@ documents in other systems.
 
 ```
 read each source once
-write it in full to docs/changes/{change}/inputs/
+write it in full to .alfred/changes/{change}/inputs/
 index it under alfred/{change}/input/{slug}
 ```
 
@@ -59,10 +56,9 @@ interview, `spec`, `design` and every subagent read the materialised text.
 Read what is already known, and never ask for it.
 
 ```
-fetch alfred/{change}/input/*        the material just materialised
-fetch alfred/project/architecture
-fetch alfred/project/conventions
-recall the feature area, for prior decisions and related changes
+inputs/                     the material just materialised
+architecture, conventions   when the workflow hands them
+recall                      the types the workflow declares, for prior decisions and related changes
 ```
 
 Asking which database the project uses, when `architecture.md` states it, teaches the user
@@ -172,8 +168,7 @@ in the code.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/proposal`, update state, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state, notify `phase_completed`.
 
 The proposal is prose describing intent. It contains no `SHALL`, no scenarios and no delta
 sections. Those belong to `spec`, and writing them here produces a requirement nobody

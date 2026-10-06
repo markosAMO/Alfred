@@ -4,10 +4,10 @@
   "description": "Prospect, propose, follow up and close",
   "rules": "rules.md",
   "phases": [
-    {"name": "prospectar", "model": "anthropic/claude-haiku-4-5"},
-    {"name": "propuesta", "model": "anthropic/claude-opus-5", "tools": ["Read", "Write", "WebFetch"]},
+    {"name": "prospectar", "model": "anthropic/claude-haiku-4-5", "reads": ["architecture"], "recall": ["prospectar"]},
+    {"name": "propuesta", "model": "anthropic/claude-opus-5", "tools": ["Read", "Write", "WebFetch"], "reads": ["prospectar", "conventions"]},
     {"name": "seguimiento", "model": "anthropic/claude-haiku-4-5"},
-    {"name": "review"}
+    {"name": "review", "reads": ["propuesta", "seguimiento"], "recall": ["review-findings"]}
   ],
   "routes": {
     "rapida": ["propuesta", "review"],

@@ -4,9 +4,10 @@
   "description": "{description}",
   "rules": "rules.md",
   "phases": [
-    {"name": "{phase-1}", "model": "{vendor/model}", "tools": ["Read", "Write", "Glob", "Grep"]},
-    {"name": "{phase-2}", "model": "{vendor/model}"},
-    {"name": "{shared-phase}"}
+    {"name": "{phase-1}", "model": "{vendor/model}", "tools": ["Read", "Write", "Glob", "Grep"],
+     "reads": ["architecture", "conventions"], "recall": ["{phase-1}"]},
+    {"name": "{phase-2}", "model": "{vendor/model}", "reads": ["{phase-1}", "conventions"]},
+    {"name": "{shared-phase}", "reads": ["{phase-1}", "{phase-2}"]}
   ],
   "routes": {
     "{route-1}": ["{phase-2}", "{shared-phase}"],

@@ -2,9 +2,6 @@
 name: research
 mode: auto
 skippable: true
-reads: [proposal, architecture, memory]
-writes: [research]
-document: docs/changes/{change}/research.md
 next: [spec]
 ---
 
@@ -74,5 +71,4 @@ assuming it was covered.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/research`, update state, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state, notify `phase_completed`.

@@ -51,6 +51,19 @@ var reservedPhases = map[string]bool{"init": true, "explore": true, "worktree": 
 
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
+// ProjectArtifacts are the documents a repository holds for every change, at the paths its
+// configuration names. A phase may read them; no phase writes one as its own document.
+var ProjectArtifacts = []string{"architecture", "conventions", "specs"}
+
+func isProjectArtifact(name string) bool {
+	for _, artifact := range ProjectArtifacts {
+		if artifact == name {
+			return true
+		}
+	}
+	return false
+}
+
 // modelPattern and toolPattern are what a phase may name as its own model and its own
 // tools. Both values are written straight onto a generated Claude Code subagent's
 // frontmatter, and at project scope a definition arrives with a clone and is registered by
@@ -87,6 +100,14 @@ type Phase struct {
 	Name  string   `json:"name"`
 	Model string   `json:"model,omitempty"`
 	Tools []string `json:"tools,omitempty"`
+
+	// Every phase leaves one artifact named after itself. Reads is what the phase is handed
+	// when it starts: the artifacts of other phases of this workflow, by phase name, or a
+	// project artifact. Recall is the memory types it searches for what earlier changes
+	// concluded. Both are this workflow's, not the skill's: a shared phase reads different
+	// things under different workflows.
+	Reads  []string `json:"reads,omitempty"`
+	Recall []string `json:"recall,omitempty"`
 
 	// Workflow is reserved for a step that triggers another workflow. It is refused by
 	// validation with that reason, so a definition written today — which carries no such
@@ -214,7 +235,10 @@ func (d *Definition) validate(raw map[string]json.RawMessage, dirName string) er
 	if err := d.validatePhases(); err != nil {
 		return err
 	}
-	return d.validateReferences()
+	if err := d.validateReferences(); err != nil {
+		return err
+	}
+	return d.validateArtifacts()
 }
 
 // validateDeclared is the one check that reads presence rather than value, and a value
@@ -352,7 +376,7 @@ func (d *Definition) validatePhases() error {
 		// arrived with a clone. It answers to the pattern the workflow's own name does.
 		case !namePattern.MatchString(phase.Name):
 			return fmt.Errorf("declares a phase named %q, which does not match %s", phase.Name, namePattern)
-		case reservedPhases[phase.Name]:
+		case reservedPhases[phase.Name], isProjectArtifact(phase.Name):
 			return fmt.Errorf("declares a phase named %q, which is reserved", phase.Name)
 		case seen[phase.Name]:
 			return fmt.Errorf("declares phase %q twice", phase.Name)
@@ -368,7 +392,54 @@ func (d *Definition) validatePhases() error {
 				return fmt.Errorf("phase %q declares a tool %q, which does not match %s", phase.Name, tool, toolPattern)
 			}
 		}
+		if err := validateArtifactNames(phase); err != nil {
+			return err
+		}
 		seen[phase.Name] = true
+	}
+	return nil
+}
+
+// validateArtifactNames holds every artifact and memory type a phase names to the name
+// pattern, because each becomes a path component and a memory key.
+func validateArtifactNames(phase Phase) error {
+	for _, key := range []string{"reads", "recall"} {
+		names := phase.Reads
+		if key == "recall" {
+			names = phase.Recall
+		}
+		seen := map[string]bool{}
+		for _, name := range names {
+			if !namePattern.MatchString(name) {
+				return fmt.Errorf("phase %q %s %q, which does not match %s", phase.Name, key, name, namePattern)
+			}
+			if seen[name] {
+				return fmt.Errorf("phase %q %s %q twice", phase.Name, key, name)
+			}
+			seen[name] = true
+		}
+	}
+	return nil
+}
+
+// validateArtifacts checks that every read names another phase of this workflow, whose
+// artifact it is, or a project artifact.
+func (d *Definition) validateArtifacts() error {
+	declared := make(map[string]bool, len(d.Phases))
+	for _, phase := range d.Phases {
+		declared[phase.Name] = true
+	}
+	for _, phase := range d.Phases {
+		for _, name := range phase.Reads {
+			switch {
+			case isProjectArtifact(name):
+			case name == phase.Name:
+				return fmt.Errorf("phase %q reads its own artifact", phase.Name)
+			case !declared[name]:
+				return fmt.Errorf("phase %q reads %q, which is neither one of its phases nor a project artifact (%s)",
+					phase.Name, name, strings.Join(ProjectArtifacts, ", "))
+			}
+		}
 	}
 	return nil
 }

@@ -20,7 +20,7 @@ replaced it, and it is the answer for a repository that wants the record of how 
 kept in the repository itself.
 
 ```
-docs/changes/login-google/spec.md        authoritative
+.alfred/changes/login-google/spec.md        authoritative
 alfred/login-google/spec                 searchable copy
 ```
 
@@ -33,7 +33,7 @@ Memory holds the change artifacts; the repository holds their addresses.
 
 ```
 alfred/login-google/spec                 authoritative
-docs/changes/login-google/README.md      where to find it
+.alfred/changes/login-google/README.md      where to find it
 ```
 
 `pointer` needs a backend that answers. `memory.required` reads as `true` under it whatever
@@ -55,14 +55,15 @@ and the master specifications it was merged into.
 
 ```
 during the run                      at close
-docs/changes/login-google/          docs/changes/login-google/
-  proposal.md                         record.md      the one document the change leaves
+.alfred/changes/login-google/          .alfred/changes/login-google/
+  refine.md                           record.md      the one document the change leaves
   research.md                         spec.md        the delta, kept
   spec.md                           docs/specs/                merged, as always
   design.md
   tasks.md                          .alfred/state/login-google.yaml    removed
-  verify-report.md
-  review-report.md
+  apply.md
+  verify.md
+  review.md
   inputs/
 ```
 
@@ -86,7 +87,7 @@ What is never removed, in this mode or any other: `paths.master_specs`,
 
 ## The address file
 
-Under `pointer`, `docs/changes/{change}/README.md` is written from
+Under `pointer`, `.alfred/changes/{change}/README.md` is written from
 `templates/docs/addresses.md` and carries one row per artifact, appended by each phase as
 it completes.
 
@@ -116,7 +117,7 @@ A phase never derives where an artifact is. The orchestrator resolves it from
 `memory.documents` and passes a **locator** per artifact, already resolved.
 
 ```
-keep, ephemeral    a path        docs/changes/login-google/spec.md
+keep, ephemeral    a path        .alfred/changes/login-google/spec.md
 pointer            a key         alfred/login-google/spec
 ```
 
@@ -132,9 +133,10 @@ result that looks like an artifact that was never written.
 It is also the orchestrator's job by construction. The configuration is already in its
 working set, per `skills/_shared/orchestrator-protocol.md`, and the phase's is empty.
 
-A required locator the orchestrator reports as `<unresolved>` means the artifact does not
-exist. The phase reports it as a blocker and stops. It never substitutes the other mode's
-copy, and never goes looking for one.
+A locator the orchestrator reports as `<unresolved>` means the phase that writes it
+completed and the artifact cannot be found. The phase reports it as a blocker and stops. It
+never substitutes the other mode's copy, and never goes looking for one. `<not produced>` is
+different: that phase did not run in this change, and the phase falls back to what exists.
 
 ## Operations
 
@@ -249,53 +251,47 @@ same channel that carries the real ones.
 
 ## Key naming
 
-Keys are deterministic, so any phase can address an artifact without searching for it.
+Keys are deterministic, so any phase can address an artifact without searching for it. A
+phase's artifact is keyed by the phase's name, under every workflow, so the scheme needs no
+list of artifact names and a workflow written by hand gets the same addressing as `sdd`.
 
 ```
 alfred/project/architecture
 alfred/project/conventions
-alfred/<change-name>/<artifact>
+alfred/<change-name>/<phase>
 alfred/area/<area>/review-findings
 alfred/postmortem/<slug>
 ```
 
-`<artifact>` is one of: `proposal`, `research`, `spec`, `design`, `tasks`, `diagnosis`,
-`verify-report`, `review-report`.
-
 ```
 alfred/login-google/spec
-alfred/login-google/design
+alfred/login-google/cotizar        a workflow's own phase, addressed the same way
 alfred/postmortem/payment-timeout-retry
 ```
 
 ## Types
 
+A phase's artifact is stored with its phase's name as its type: `design` is stored as
+`design`, `cotizar` as `cotizar`. That is what `recall` filters on when a later change asks
+what earlier ones concluded, so the type names the work rather than a category.
+
+Four types are Alfred's own and not any phase's artifact:
+
 | Type | Written by | Read by |
 |---|---|---|
-| `architecture` | `init`, `explore` | every phase |
-| `conventions` | `init`, `explore` | `apply`, `review` |
-| `proposal` | `refine` | `spec` |
-| `research` | `research` | `spec`, `design` |
-| `spec` | `spec` | `design`, `tasks`, `apply`, `verify`, `archive` |
-| `design` | `design` | `tasks`, `apply`, `review` |
-| `tasks` | `tasks` | `apply` |
-| `diagnosis` | `diagnose` | `spec`, `design` |
-| `verify-report` | `verify` | `archive` |
-| `review-report` | `review` | `archive` |
-| `review-findings` | `archive` | `apply`, `review` |
-| `postmortem` | `archive` | `diagnose` |
+| `architecture` | `init`, `explore` | any phase whose workflow declares it in `reads` |
+| `conventions` | `init`, `explore` | any phase whose workflow declares it in `reads` |
+| `review-findings` | the closing phase | any phase whose workflow declares it in `recall` |
+| `postmortem` | the closing phase, for a bug | any phase whose workflow declares it in `recall` |
 
-`postmortem` is the entry that makes a bug pay off twice: `diagnose` recalls it before
-investigating, so a class of failure is diagnosed once rather than every time it appears.
+`postmortem` is the entry that makes a bug pay off twice: a phase that recalls it before
+investigating diagnoses a class of failure once rather than every time it appears.
 
-**Every row of this table names a reader, and that is a requirement rather than a
-description.** An entry written by a phase that no phase reads is a cost with no return:
-it is paid on every change, it makes every `recall` rank against more noise, and it reads
-like working memory to anyone auditing the backend.
-
-`review-findings` is in the table because it was exactly that. `archive` wrote it, `review`
-and `archive` both said the findings "surface the next time that area is worked on", and no
-phase declared reading them — so they were written on every change and read on none.
+**Every type is written for a reader, and a workflow's `reads` and `recall` are where the
+reader is declared.** An entry no phase reads or recalls is a cost with no return: paid on
+every change, ranked against in every `recall`, and mistaken for working memory by anyone
+auditing the backend. `review-findings` was exactly that once — written on every change and
+read on none — until a workflow declared reading it.
 
 ## Passing artifacts to subagents
 
@@ -320,7 +316,7 @@ the files exist regardless.
 | `remember`, `update` | no-op, the file is already written |
 | `recall` | text search across `docs/` |
 | `fetch` | read the file |
-| `context` | most recently modified files under `docs/changes/` |
+| `context` | most recently modified files under `.alfred/changes/` |
 | `forget` | no-op |
 | `reindex` | no-op |
 

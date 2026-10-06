@@ -814,3 +814,70 @@ func TestValidateRulesRejectsAFileItCannotRead(t *testing.T) {
 		t.Errorf("error = %v, want it to say the file cannot be read", err)
 	}
 }
+
+func withReads(reads, recall []any) map[string]any {
+	definition := valid()
+	keys := map[string]any{"model": "anthropic/claude-haiku-4-5"}
+	if reads != nil {
+		keys["reads"] = reads
+	}
+	if recall != nil {
+		keys["recall"] = recall
+	}
+	definition["phases"] = []any{
+		map[string]any{"name": "prospectar", "model": "anthropic/claude-haiku-4-5"},
+		phase("propuesta", keys),
+		map[string]any{"name": "seguimiento", "model": "anthropic/claude-haiku-4-5"},
+		map[string]any{"name": "review"},
+	}
+	return definition
+}
+
+func TestDecodeAcceptsReadsOfOtherPhasesAndProjectArtifacts(t *testing.T) {
+	d, err := decodeMap(t, withReads([]any{"prospectar", "architecture", "conventions", "specs"}, []any{"postmortem"}), "ventas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Phases[1].Reads; len(got) != 4 || got[0] != "prospectar" {
+		t.Errorf("reads = %v", got)
+	}
+	if got := d.Phases[1].Recall; len(got) != 1 || got[0] != "postmortem" {
+		t.Errorf("recall = %v", got)
+	}
+}
+
+func TestDecodeRejectsAReadThatNamesNoArtifact(t *testing.T) {
+	cases := map[string]struct {
+		reads, recall []any
+		want          string
+	}{
+		"an unknown name": {[]any{"cotizar"}, nil,
+			`phase "propuesta" reads "cotizar", which is neither one of its phases nor a project artifact (architecture, conventions, specs)`},
+		"its own artifact": {[]any{"propuesta"}, nil, `phase "propuesta" reads its own artifact`},
+		"a read twice":     {[]any{"prospectar", "prospectar"}, nil, `phase "propuesta" reads "prospectar" twice`},
+		"a path":           {[]any{"../secret"}, nil, `phase "propuesta" reads "../secret", which does not match ^[a-z][a-z0-9-]*$`},
+		"a recall newline": {nil, []any{"postmortem\nmodel: x"}, `phase "propuesta" recall "postmortem\nmodel: x", which does not match ^[a-z][a-z0-9-]*$`},
+		"a recall twice":   {nil, []any{"design", "design"}, `phase "propuesta" recall "design" twice`},
+	}
+	for name, c := range cases {
+		_, err := decodeMap(t, withReads(c.reads, c.recall), "ventas")
+		if err == nil || err.Error() != c.want {
+			t.Errorf("%s: error = %v, want %q", name, err, c.want)
+		}
+	}
+}
+
+func TestDecodeRejectsAPhaseNamedAfterAProjectArtifact(t *testing.T) {
+	definition := valid()
+	definition["phases"] = []any{phase("architecture", nil)}
+	definition["routes"] = map[string]any{"sola": []any{"architecture"}}
+	definition["default_route"] = "sola"
+	definition["entry_points"] = map[string]any{"default": "architecture"}
+	definition["parallel"] = []any{}
+	definition["closes"] = "architecture"
+
+	want := `declares a phase named "architecture", which is reserved`
+	if _, err := decodeMap(t, definition, "ventas"); err == nil || err.Error() != want {
+		t.Errorf("error = %v, want %q", err, want)
+	}
+}

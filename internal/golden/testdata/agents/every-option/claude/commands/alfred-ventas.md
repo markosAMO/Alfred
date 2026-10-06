@@ -50,6 +50,25 @@ Everything else is dispatched one phase at a time, in route order.
 
 A phase listed as unavailable has no subagent, for the reason given beside it. A route that reaches one stops there, naming the phase and the reason. Nothing is substituted for it.
 
+### What each phase reads
+
+Every phase leaves one artifact, named after the phase. What each phase is handed when it starts is declared here, and nothing else is:
+
+  prospectar   reads architecture; recalls prospectar
+  propuesta    reads prospectar, conventions
+  seguimiento  reads nothing
+  review       reads propuesta, seguimiento; recalls review-findings
+
+When you dispatch a phase, pass it its own locator, one locator per name it reads, and the memory types it recalls. Resolve each locator from `.alfred/config.yaml`:
+
+```
+a phase's artifact, memory.documents keep or ephemeral   {paths.changes}{change}/{phase}.md
+a phase's artifact, memory.documents pointer             alfred/{change}/{phase}
+architecture, conventions, specs                         paths.architecture, paths.conventions, paths.master_specs
+```
+
+Pass `<not produced>` for an artifact whose phase has not run in this change, according to state: the phase works from what exists. Pass `<unresolved>` for one whose phase completed and whose artifact cannot be found: the phase stops and reports it.
+
 ### Rules
 
 The judgement this workflow applies - which route a request deserves, the signals that choose between them, which phase receives external material, and how a route changes mid-run - is prose, and it is here:
@@ -140,7 +159,7 @@ Delegating to <subagent>. This usually takes a few minutes.
 
 ## External material
 
-Do not read it yourself. A tracker card, a URL or a document in another system is fetched once by the phase that receives it, and written to docs/changes/{change}/inputs/ as text. Which phase receives it is this workflow's business, and its rules file says so.
+Do not read it yourself. A tracker card, a URL or a document in another system is fetched once by the phase that receives it, and written to .alfred/changes/{change}/inputs/ as text. Which phase receives it is this workflow's business, and its rules file says so.
 
 If the user pastes large material into the request, have the receiving phase write it to inputs/ before anything else, and refer to it by path from then on.
 
