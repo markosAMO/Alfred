@@ -185,7 +185,7 @@ at the workflow, rather than three phases into a change.
 ### What each phase reads
 
 Every phase leaves one artifact, named after the phase, at a locator the orchestrator
-resolves: `docs/changes/{change}/{phase}.md`, or the memory key `alfred/{change}/{phase}`
+resolves: `.alfred/changes/{change}/{phase}.md`, or the memory key `alfred/{change}/{phase}`
 under `memory.documents: pointer`. That part is not configurable, so any phase can address
 another's output.
 

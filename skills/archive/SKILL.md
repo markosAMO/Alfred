@@ -67,7 +67,7 @@ precedent, and the next investigation starts from a conclusion nobody proved.
 
 ## Features: merging the delta
 
-The delta in `docs/changes/{change}/spec.md` is folded into `paths.master_specs`.
+The delta in `.alfred/changes/{change}/spec.md` is folded into `paths.master_specs`.
 
 ```
 ADDED      the requirement is appended to its specification
@@ -100,7 +100,7 @@ Written from `templates/docs/record.md` to the locator the orchestrator passed, 
 resolves under `paths.change_records`.
 
 ```
-docs/changes/login-google/record.md
+.alfred/changes/login-google/record.md
 ```
 
 It is written for someone arriving from a master specification months later with no other
@@ -204,7 +204,7 @@ able to resume them. See `skills/_shared/state-contract.md`.
 ## Closing the address file
 
 Under `pointer`, every phase before this one appended a row to
-`docs/changes/{change}/README.md` as it completed. This phase closes it, from
+`.alfred/changes/{change}/README.md` as it completed. This phase closes it, from
 `templates/docs/addresses.md`: the remaining rows, and the postmortem key for a bug.
 
 It is not the description of the change — the record is, and it sits beside this file in
@@ -275,7 +275,7 @@ a configuration key was part of the work — observed twice in one run, both tim
 change incomplete in the commit.
 
 ```
-everything the change needs, excluding .alfred/ and docs/changes/
+everything the change needs, excluding .alfred/ and .alfred/changes/
 ```
 
 That exclusion scopes the work `apply` produced, which is code. Alfred's own documents are
@@ -310,7 +310,7 @@ registry is not: it is ignored, per `skills/_shared/skill-resolver.md`.
 ```
 feat(auth): sign in with Google
 
-Implements docs/changes/login-google/record.md.
+Implements .alfred/changes/login-google/record.md.
 3 requirements, 7 scenarios, 47 tests.
 ```
 

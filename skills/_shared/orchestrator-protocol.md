@@ -55,10 +55,10 @@ The orchestrator passes addresses, already resolved.
 
 ```
 Skill:   .alfred/skills/apply/SKILL.md
-Writes:  docs/changes/login-google/apply.md
-Task:    3 of docs/changes/login-google/tasks.md
-Spec:    docs/changes/login-google/spec.md
-Design:  docs/changes/login-google/design.md
+Writes:  .alfred/changes/login-google/apply.md
+Task:    3 of .alfred/changes/login-google/tasks.md
+Spec:    .alfred/changes/login-google/spec.md
+Design:  .alfred/changes/login-google/design.md
 Recall:  review-findings
 ```
 

@@ -39,7 +39,7 @@ appears in `git status`.
 
 git infers the anchor for any pattern carrying a directory in it, which is every concrete
 path registration writes but one, so the anchor is written where git would not infer it:
-`init` writes its five with a leading slash — `/.alfred/`, `/docs/changes/` — and
+`init` writes its four with a leading slash — `/.alfred/`, `/docs/specs/` — and
 registration adds one to `opencode.json`, the only path it writes with no directory in it.
 
 `init` writes the exclusions when it sets the mode. Nothing else in the pipeline behaves

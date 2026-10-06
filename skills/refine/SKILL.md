@@ -44,7 +44,7 @@ documents in other systems.
 
 ```
 read each source once
-write it in full to docs/changes/{change}/inputs/
+write it in full to .alfred/changes/{change}/inputs/
 index it under alfred/{change}/input/{slug}
 ```
 

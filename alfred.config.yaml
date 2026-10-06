@@ -4,8 +4,8 @@ paths:
   architecture: docs/architecture.md
   conventions: docs/code_conventions.md
   master_specs: docs/specs/
-  changes: docs/changes/
-  change_records: docs/changes/
+  changes: .alfred/changes/
+  change_records: .alfred/changes/
   pipeline_state: .alfred/state/
   skill_registry: .alfred/skill-registry.md
 

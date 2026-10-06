@@ -17,7 +17,7 @@ agent offers.
 
 ```
 ALFRED REPOSITORY (the mould)        TARGET PROJECT (where the parts come out)
-skills/, templates/, defaults/   ──▶ .alfred/, docs/changes/, AGENTS.md
+skills/, templates/, defaults/   ──▶ .alfred/ (changes/ included), AGENTS.md
 ```
 
 Feature specs never live in Alfred. Alfred only knows how to create them.
@@ -167,7 +167,7 @@ Every mode is overridable in `alfred.config.yaml`.
    lengthens one without saying so. See `skills/_shared/routing.md`.
 15. **External material is fetched once and materialised as text.** A tracker card, a URL
    or a document from another system is read by the phase that receives it, written to
-   `docs/changes/{change}/inputs/` in full, and never fetched again. No later phase and no
+   `.alfred/changes/{change}/inputs/` in full, and never fetched again. No later phase and no
    subagent reaches the network for it. See `skills/_shared/external-inputs.md`.
 16. **Parallel execution requires disjoint files, not just independent tasks.** Subagents
    share one checkout with no locking between them, so two writing the same file leave one

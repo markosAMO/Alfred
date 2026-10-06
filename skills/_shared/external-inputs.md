@@ -23,7 +23,7 @@ absorbed.
 ## Where it goes
 
 ```
-docs/changes/{change}/inputs/
+.alfred/changes/{change}/inputs/
   jira-PROJ-1487.md
   requirements-doc.md
   api-reference.md
@@ -54,7 +54,7 @@ request that passes through a prompt is a request the orchestrator now carries f
 of the session, and a phase dispatched twice gets it in two shapes.
 
 ```
-docs/changes/{change}/inputs/request.md
+.alfred/changes/{change}/inputs/request.md
 ```
 
 Written when the route is accepted, from the user's words, verbatim and not summarised. Every

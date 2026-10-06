@@ -157,7 +157,7 @@ Delegating to <subagent>. This usually takes a few minutes.
 
 ## External material
 
-Do not read it yourself. A tracker card, a URL or a document in another system is fetched once by the phase that receives it, and written to docs/changes/{change}/inputs/ as text. Which phase receives it is this workflow's business, and its rules file says so.
+Do not read it yourself. A tracker card, a URL or a document in another system is fetched once by the phase that receives it, and written to .alfred/changes/{change}/inputs/ as text. Which phase receives it is this workflow's business, and its rules file says so.
 
 If the user pastes large material into the request, have the receiving phase write it to inputs/ before anything else, and refer to it by path from then on.
 

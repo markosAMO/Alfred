@@ -58,5 +58,5 @@ Derived from the description as a slug, and confirmed.
 "add google sign-in"  ->  login-google
 ```
 
-The name is the directory under `docs/changes/` and the prefix of every memory key for the
+The name is the directory under `.alfred/changes/` and the prefix of every memory key for the
 change, so it is chosen once and never changes.

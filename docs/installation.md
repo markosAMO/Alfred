@@ -138,7 +138,7 @@ CLAUDE.md                 pointer to AGENTS.md
 docs/architecture.md
 docs/code_conventions.md
 docs/specs/
-docs/changes/
+.alfred/changes/
 .alfred/config.yaml
 .alfred/state/
 .alfred/skill-registry.md

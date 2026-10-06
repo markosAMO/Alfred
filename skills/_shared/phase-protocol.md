@@ -81,7 +81,7 @@ Step 2 and step 5 both work from **locators**, which the orchestrator resolves a
 in. A locator is either a path or a memory key, already decided:
 
 ```
-keep, ephemeral    docs/changes/login-google/{phase}.md    a path
+keep, ephemeral    .alfred/changes/login-google/{phase}.md    a path
 pointer            alfred/login-google/{phase}             a key
 ```
 

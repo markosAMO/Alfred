@@ -12,10 +12,10 @@ Addresses, not content. Each one is a locator the orchestrator already resolved,
 `skills/_shared/orchestrator-protocol.md`.
 
 ```
-Task:        3 of docs/changes/login-google/tasks.md
+Task:        3 of .alfred/changes/login-google/tasks.md
 Skill:       .alfred/skills/apply/SKILL.md
-Spec:        docs/changes/login-google/spec.md
-Design:      docs/changes/login-google/design.md
+Spec:        .alfred/changes/login-google/spec.md
+Design:      .alfred/changes/login-google/design.md
 Conventions: docs/code_conventions.md
 ```
 

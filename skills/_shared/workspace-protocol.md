@@ -41,12 +41,12 @@ implementation inside one repository. Both exist because they answer different q
 When workspace `tasks` runs, it writes each repository's slice into that repository.
 
 ```
-workspace/docs/changes/payment-flow/
+workspace/.alfred/changes/payment-flow/
   spec.md        the system requirement
   design.md      which repository does what
   tasks.md       the allocation
 
-api-billing/docs/changes/payment-flow/
+api-billing/.alfred/changes/payment-flow/
   spec.md        only this repository's part
   design.md
   tasks.md
@@ -60,10 +60,10 @@ its own, it still reads as a coherent change.
 Links run in both directions.
 
 ```yaml
-# api-billing/docs/changes/payment-flow/spec.md
+# api-billing/.alfred/changes/payment-flow/spec.md
 parent: workspace:payment-flow
 
-# workspace/docs/changes/payment-flow/tasks.md
+# workspace/.alfred/changes/payment-flow/tasks.md
 repos: [api-billing, api-users, front]
 ```
 

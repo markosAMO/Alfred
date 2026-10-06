@@ -20,7 +20,7 @@ replaced it, and it is the answer for a repository that wants the record of how 
 kept in the repository itself.
 
 ```
-docs/changes/login-google/spec.md        authoritative
+.alfred/changes/login-google/spec.md        authoritative
 alfred/login-google/spec                 searchable copy
 ```
 
@@ -33,7 +33,7 @@ Memory holds the change artifacts; the repository holds their addresses.
 
 ```
 alfred/login-google/spec                 authoritative
-docs/changes/login-google/README.md      where to find it
+.alfred/changes/login-google/README.md      where to find it
 ```
 
 `pointer` needs a backend that answers. `memory.required` reads as `true` under it whatever
@@ -55,7 +55,7 @@ and the master specifications it was merged into.
 
 ```
 during the run                      at close
-docs/changes/login-google/          docs/changes/login-google/
+.alfred/changes/login-google/          .alfred/changes/login-google/
   refine.md                           record.md      the one document the change leaves
   research.md                         spec.md        the delta, kept
   spec.md                           docs/specs/                merged, as always
@@ -87,7 +87,7 @@ What is never removed, in this mode or any other: `paths.master_specs`,
 
 ## The address file
 
-Under `pointer`, `docs/changes/{change}/README.md` is written from
+Under `pointer`, `.alfred/changes/{change}/README.md` is written from
 `templates/docs/addresses.md` and carries one row per artifact, appended by each phase as
 it completes.
 
@@ -117,7 +117,7 @@ A phase never derives where an artifact is. The orchestrator resolves it from
 `memory.documents` and passes a **locator** per artifact, already resolved.
 
 ```
-keep, ephemeral    a path        docs/changes/login-google/spec.md
+keep, ephemeral    a path        .alfred/changes/login-google/spec.md
 pointer            a key         alfred/login-google/spec
 ```
 
@@ -316,7 +316,7 @@ the files exist regardless.
 | `remember`, `update` | no-op, the file is already written |
 | `recall` | text search across `docs/` |
 | `fetch` | read the file |
-| `context` | most recently modified files under `docs/changes/` |
+| `context` | most recently modified files under `.alfred/changes/` |
 | `forget` | no-op |
 | `reindex` | no-op |
 

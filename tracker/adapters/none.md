@@ -4,7 +4,7 @@ tracker: none
 
 # No-tracker adapter
 
-The default. Tasks live in `docs/changes/{change}/tasks.md` and nowhere else.
+The default. Tasks live in `.alfred/changes/{change}/tasks.md` and nowhere else.
 
 ## Operation mapping
 

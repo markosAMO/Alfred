@@ -81,15 +81,15 @@ close, in `archive`, and never here — a change still open keeps every document
 written so far.
 
 Under `pointer` the change documents belong in memory and the repository keeps only their
-addresses, so a `docs/changes/` written while the repository was on `keep` is carrying
+addresses, so a `.alfred/changes/` written while the repository was on `keep` is carrying
 documents the configuration says should not be there. This is the operation that moves
 them, and the only one in Alfred that deletes a document.
 
 ```
-for each directory under docs/changes/
+for each directory under .alfred/changes/
   index every document in it, as above
   read each one back with fetch() and check the document is in what comes back
-  write docs/changes/{change}/README.md from templates/docs/addresses.md,
+  write .alfred/changes/{change}/README.md from templates/docs/addresses.md,
     one row per document, under the key it was indexed as
   delete the documents that file now names
 ```
