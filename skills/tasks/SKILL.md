@@ -2,9 +2,6 @@
 name: tasks
 mode: auto
 skippable: false
-reads: [spec, design, conventions]
-writes: [task_list]
-document: docs/changes/{change}/tasks.md
 next: [apply]
 ---
 
@@ -138,8 +135,7 @@ is visible rather than inferred.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/tasks`, update state with the task list and dependency graph, notify
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state with the task list and dependency graph, notify
 `phase_completed`.
 
 Report what the user checks:

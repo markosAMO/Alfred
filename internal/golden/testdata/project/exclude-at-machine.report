@@ -1,0 +1,55 @@
+exit 2
+
+--- stdout
+
+--- stderr
+workflows: exclude= is project scope only; machine scope has no repository
+usage: alfred <command> [arguments]
+
+  state write <home> <version> <payload>     record a hash per installed file
+  state compare <home> <source> <payload>    classify source files against the install
+  state apply <home> <source>                copy new and updatable files, report from stdin
+  workflows machine <mode> <roots> <kind=path>...   register the machine's workflows
+  workflows project <mode> <roots> <kind=path>...   register one repository's own
+  memory check <home> <kind=path>...         exit 0 when the backend exposes every tool
+  memory apply <home> <kind=path>...         register the backend, repairing a narrowed one
+  memory declared <agents-dir>               exit 0 when every agent declares every memory tool
+  json-get <file|-> <key>                    print a top-level value, one line per item
+  json-valid <file>                          exit 0 when the file parses as JSON
+  session-permission <home>                  exit 0 when starting a session is permitted
+  version [<home>]                           print the version the installation recorded
+
+<payload> is a comma-separated list of paths relative to the root.
+
+workflows takes the roots of one scope, positionally and in this order:
+
+  machine  <profile> <skills> <workflows> <custom> <templates>
+  project  <profile> <skills> <local-skills> <local-workflows> <machine-workflows> <machine-custom>
+
+  mode   apply    write the commands and the agents, and report what changed
+         report   the identical report, writing nothing
+         check    report every workflow of this scope with no registered command
+
+  kind   claude=<dir>              the agent's directory; commands/ and agents/ sit under it
+         opencode=<file>           the agent's configuration file
+         manifest=<file>           this scope's generated.json; required in every mode
+         root=<dir>                the repository an excluded path is written relative to
+         exclude=<file>            the local exclude file; every generated path is recorded
+         exclude-manifest=<file>   the same file, for the manifest's path alone
+
+root=, exclude= and exclude-manifest= are project scope only. exclude= and
+exclude-manifest= are alternatives, and either one needs root=: the first is
+artifacts.committed false, where nothing registration wrote is committed, and the second is
+artifacts.committed true, where only the manifest is kept out of git because it holds this
+machine's absolute paths.
+
+The machine roots given at project scope are read and never written. They are what tells a
+repository workflow that this machine already has a command of its name.
+
+workflows exits 0 when every workflow registered, every phase has a model and, under check,
+every command is present; 1 when a workflow was rejected, a phase has no model, a checked
+command is missing, or no supported agent was detected; 2 when it was called wrongly.
+
+version takes the installation directory; with none it reads ALFRED_HOME, falling back to
+~/.config/alfred. It prints what state.json records, on one line and with nothing else, and
+exits 1 when there is no installation there.

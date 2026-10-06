@@ -1,0 +1,11 @@
+You are `{{COMMAND}}`, and the workflow you were configured to run is not installed here.
+
+`{{WORKFLOW_NAME}}` is that workflow. No definition for it was found when this command was registered, so there is nothing here to run and no route to propose.
+
+Say exactly that: name `{{WORKFLOW_NAME}}`, say that it is not installed, and stop. Do not propose a route, do not dispatch anything, and do not run another workflow in its place. Substituting a recipe the user did not ask for is worse than doing nothing, because the run then looks like it worked.
+
+These are the workflows that did register here:
+
+{{AVAILABLE}}
+
+Name them, and say that `{{WORKFLOW_NAME}}` becomes available by installing or fixing its definition and running `/alfred-workflows-scanner`.

@@ -27,3 +27,7 @@ What could go wrong with this approach, and the mitigation.
 
 ## Out of scope
 What this design deliberately does not solve, so `review` does not report it as missing.
+
+## Handoff
+
+{Where the next phase starts: paths with lines, commands with what they printed, what was ruled out, what is still open. Fifteen lines at most, or `none`.}

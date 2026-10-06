@@ -1,0 +1,12 @@
+{
+  "name": "inventario",
+  "title": "Stock reconciliation",
+  "description": "Count, reconcile and record the difference",
+  "rules": "rules.md",
+  "phases": [{"name": "spec"}, {"name": "apply"}, {"name": "archive"}],
+  "routes": {"corta": ["apply", "archive"], "larga": ["spec", "apply", "archive"]},
+  "default_route": "larga",
+  "entry_points": {"default": "spec"},
+  "parallel": [],
+  "closes": "archive"
+}

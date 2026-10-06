@@ -1,0 +1,18 @@
+{
+  "name": "almacen",
+  "title": "Warehouse intake",
+  "description": "Receive a delivery, check it against the order and shelve it",
+  "rules": "rules.md",
+  "phases": [
+    {"name": "spec", "model": "anthropic/claude-haiku-4-5"},
+    {"name": "apply"}
+  ],
+  "routes": {
+    "corta": ["apply"],
+    "completa": ["spec", "apply"]
+  },
+  "default_route": "completa",
+  "entry_points": {"default": "spec"},
+  "parallel": [],
+  "closes": "apply"
+}

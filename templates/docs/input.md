@@ -2,7 +2,7 @@
 source: {url or system reference}
 type: {tracker_card | document | page | log | conversation}
 fetched_at: {ISO timestamp}
-fetched_by: {refine | diagnose}
+fetched_by: {phase}
 ---
 
 # {identifier} — {title}

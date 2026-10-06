@@ -1,0 +1,1 @@
+{"name": "Bad Name", "title": "T", "description": "D", "rules": "rules.md", "phases": [{"name": "spec"}], "routes": {"sola": ["spec"]}, "default_route": "sola", "entry_points": {"default": "spec"}, "parallel": [], "closes": "spec"}

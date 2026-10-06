@@ -1,0 +1,46 @@
+{
+  "agents": {
+    "claude": {
+      "files": {
+        "<work>/out/claude/agents/alfred-apply.md": "<sha256>",
+        "<work>/out/claude/agents/alfred-archive.md": "<sha256>",
+        "<work>/out/claude/agents/alfred-manage.md": "<sha256>",
+        "<work>/out/claude/agents/alfred-spec.md": "<sha256>",
+        "<work>/out/claude/agents/alfred-ventas-propuesta.md": "<sha256>",
+        "<work>/out/claude/agents/alfred-ventas-prospectar.md": "<sha256>",
+        "<work>/out/claude/agents/alfred-ventas-seguimiento.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-add-workflow.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-cobranzas.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-explore.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-init.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-inventario.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-soporte.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-ventas.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-workflows-scanner.md": "<sha256>",
+        "<work>/out/claude/commands/alfred-worktree.md": "<sha256>",
+        "<work>/out/claude/commands/alfred.md": "<sha256>"
+      }
+    },
+    "opencode": {
+      "keys": {
+        "alfred": "<sha256>",
+        "alfred-add-workflow": "<sha256>",
+        "alfred-apply": "<sha256>",
+        "alfred-archive": "<sha256>",
+        "alfred-cobranzas": "<sha256>",
+        "alfred-explore": "<sha256>",
+        "alfred-init": "<sha256>",
+        "alfred-inventario": "<sha256>",
+        "alfred-manage": "<sha256>",
+        "alfred-soporte": "<sha256>",
+        "alfred-spec": "<sha256>",
+        "alfred-ventas": "<sha256>",
+        "alfred-ventas-propuesta": "<sha256>",
+        "alfred-ventas-prospectar": "<sha256>",
+        "alfred-ventas-seguimiento": "<sha256>",
+        "alfred-workflows-scanner": "<sha256>",
+        "alfred-worktree": "<sha256>"
+      }
+    }
+  }
+}

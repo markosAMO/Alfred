@@ -1,0 +1,26 @@
+exit 1
+
+--- stdout
+workflows
+  cobranzas   machine/custom   2 phases  routes: completa, sola
+  inventario  machine/custom   3 phases  routes: corta, larga
+  soporte     machine/shipped  2 phases  routes: completa, directa
+  ventas      machine/shipped  4 phases  routes: completa, rapida
+
+claude code  (machine: <work>/out/claude)
+  added      /alfred, /alfred-add-workflow, /alfred-cobranzas, /alfred-explore,
+             /alfred-init, /alfred-inventario, /alfred-soporte, /alfred-ventas,
+             /alfred-workflows-scanner, /alfred-worktree, alfred-apply, alfred-archive,
+             alfred-manage, alfred-review, alfred-spec, alfred-ventas-propuesta,
+             alfred-ventas-prospectar, alfred-ventas-seguimiento
+
+opencode  (machine: <work>/out/opencode.json)
+  added      alfred, alfred-add-workflow, alfred-apply, alfred-archive, alfred-cobranzas,
+             alfred-explore, alfred-init, alfred-inventario, alfred-manage, alfred-review,
+             alfred-soporte, alfred-spec, alfred-ventas, alfred-ventas-propuesta,
+             alfred-ventas-prospectar, alfred-ventas-seguimiento,
+             alfred-workflows-scanner, alfred-worktree
+
+without a model
+  cobranzas/recordatorio  the workflow's own recordatorio declares no model and will not
+                          be dispatched

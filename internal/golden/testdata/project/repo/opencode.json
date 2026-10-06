@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-haiku-4-5",
+  "agent": {
+    "tests": {
+      "model": "anthropic/claude-haiku-4-5",
+      "description": "the repository's own agent, which registration never touches"
+    },
+    "alfred-stale": {
+      "model": "anthropic/claude-haiku-4-5",
+      "description": "carries the generated naming and is claimed by no manifest: an orphan on the key side"
+    }
+  }
+}

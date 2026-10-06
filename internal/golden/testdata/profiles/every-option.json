@@ -1,5 +1,6 @@
 {"orchestrator": "anthropic/claude-opus-5",
   "coordinator": "vendor/cheap", "manage": "vendor/mid",
+  "default_workflow": "soporte",
   "phases": {"spec": "vendor/big", "apply": "vendor/small", "init": "vendor/mid",
     "archive": "vendor/small"},
   "memory_tool_prefix": "mcp__custom__",

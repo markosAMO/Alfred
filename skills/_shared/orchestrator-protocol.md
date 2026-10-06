@@ -12,10 +12,20 @@ the user's request
 .alfred/config.yaml
 .alfred/state/{change}.yaml
 .alfred/skill-registry.md
+the running workflow's rules file, at the absolute path its command carries
 ```
+
+Five, and nothing else is added to them.
 
 The configuration is in that list for a reason beyond its own settings: it is what the
 orchestrator resolves every artifact locator from, below.
+
+The rules file is there because choosing a route is the one judgement the orchestrator
+makes itself, and that judgement belongs to the running workflow rather than to Alfred, per
+`skills/_shared/routing.md`. It is read before a route is proposed; a rules file that
+cannot be read stops the run, naming the file and the path, and no route is applied in its
+place. The workflow supplies it, and the path comes from the command the run started from,
+so the orchestrator never looks for it.
 
 Roughly two pages. That is the entire working set.
 
@@ -23,6 +33,13 @@ Roughly two pages. That is the entire working set.
 
 Specifications, designs, task lists, proposals, source files, diffs, test output, and the
 contents of memory entries.
+
+A workflow definition is not in the working set either, and the orchestrator opens none.
+The structural facts of the run — the routes, the entry points, what is dispatched
+together, what closes the change — were read and validated at registration and are in the
+command, per `skills/_shared/workflow-protocol.md`. A definition edited since then takes
+effect when registration runs again, and one corrupted since then changes nothing about a
+run in progress.
 
 A subagent reads those, uses them, and disappears with them. The orchestrator that reads
 them carries them for the rest of the session.
@@ -37,11 +54,18 @@ the run is not.
 The orchestrator passes addresses, already resolved.
 
 ```
-Skill:  .alfred/skills/apply/SKILL.md
-Task:   3 of docs/changes/login-google/tasks.md
-Spec:   docs/changes/login-google/spec.md
-Design: docs/changes/login-google/design.md
+Skill:   .alfred/skills/apply/SKILL.md
+Writes:  .alfred/changes/login-google/apply.md
+Task:    3 of .alfred/changes/login-google/tasks.md
+Spec:    .alfred/changes/login-google/spec.md
+Design:  .alfred/changes/login-google/design.md
+Recall:  review-findings
 ```
+
+What goes in that list is the running workflow's declaration, not the orchestrator's
+judgement and not the skill's: the command's `What each phase reads` names, per phase, the
+artifacts it reads and the memory types it recalls. The orchestrator passes exactly those,
+plus the phase's own locator, and never adds an artifact because it looks relevant.
 
 Each of those is a **locator**, and resolving it is the orchestrator's job alone. It holds
 `.alfred/config.yaml` already, so it is the only participant that knows what
@@ -49,8 +73,8 @@ Each of those is a **locator**, and resolving it is the orchestrator's job alone
 to find out.
 
 ```
-keep, ephemeral   a path under paths.changes
-pointer           a key, alfred/{change}/{artifact}
+keep, ephemeral   a path, {paths.changes}{change}/{phase}.md
+pointer           a key, alfred/{change}/{phase}
 ```
 
 A phase is never told the mode and never asked to work it out. Two things follow. Adding a
@@ -59,9 +83,10 @@ disagree with the repository about where its inputs are — the disagreement wou
 because reading the wrong store returns an empty result that looks exactly like an artifact
 nobody wrote.
 
-An artifact that does not exist is passed as `<unresolved>`, not omitted. The phase then
-reports a blocker naming it, instead of treating a missing line as an optional input it may
-proceed without. See `Locators` in `memory/CONTRACT.md`.
+An artifact is never omitted. One whose phase has not run in this change, according to
+state, is passed as `<not produced>`, and the phase falls back to what exists. One whose
+phase completed and that cannot be found is passed as `<unresolved>`, and the phase reports
+a blocker naming it. See `Locators` in `memory/CONTRACT.md`.
 
 It does not open any of them to decide what to send. `tasks.md` is read by the phase that
 dispatches from it, and the orchestrator learns the count and the dependency order from
@@ -96,8 +121,9 @@ A subagent returns a one-paragraph summary and a list of changed files, per
 `subagent-protocol.md`. The orchestrator relays that. It does not fetch the diff to check,
 and does not paste subagent output into its own context to reason about it.
 
-`verify` and `review` exist to judge the work. An orchestrator re-reading the code to form
-its own opinion duplicates them and pays for it in context that the rest of the run needs.
+Judging the work is the job of whichever phases the running workflow has for it. An
+orchestrator re-reading the code to form its own opinion duplicates them and pays for it in
+context that the rest of the run needs.
 
 ## Inline work
 

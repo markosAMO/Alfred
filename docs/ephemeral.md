@@ -5,14 +5,15 @@ them, they total roughly fifteen hundred lines, and they are written into the re
 the change is being made in.
 
 ```
-docs/changes/login-google/
-  proposal.md         refine
+.alfred/changes/login-google/
+  refine.md           refine
   research.md         research
   spec.md             spec
   design.md           design
   tasks.md            tasks
-  verify-report.md    verify
-  review-report.md    review
+  apply.md            apply
+  verify.md           verify
+  review.md           review
   inputs/             the material the change arrived with
 ```
 
@@ -51,14 +52,15 @@ written and read back.
 
 ```
 during the run                        at close
-docs/changes/login-google/            docs/changes/login-google/
-  proposal.md      removed              record.md    the one document the change leaves
+.alfred/changes/login-google/            .alfred/changes/login-google/
+  refine.md        removed              record.md    the one document the change leaves
   research.md      removed              spec.md      the delta, kept
   spec.md          kept
   design.md        removed            docs/specs/    merged, as always
   tasks.md         removed
-  verify-report.md removed            .alfred/state/login-google.yaml   removed
-  review-report.md removed
+  apply.md         removed
+  verify.md        removed            .alfred/state/login-google.yaml   removed
+  review.md        removed
   inputs/          removed
 ```
 
@@ -88,7 +90,7 @@ One document, written by `archive` from `templates/docs/record.md`, to a locatio
 
 ```yaml
 paths:
-  change_records: docs/changes/
+  change_records: .alfred/changes/
 ```
 
 It answers, for someone arriving months later from a master specification: what the system
@@ -116,8 +118,8 @@ wants the reasoning too, that is what `keep` is for.
 
 ```yaml
 paths:
-  changes: docs/changes/
-  change_records: docs/changes/
+  changes: .alfred/changes/
+  change_records: .alfred/changes/
 
 artifacts:
   retain: final_only

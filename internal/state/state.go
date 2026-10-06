@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -20,9 +21,17 @@ import (
 	"sync"
 )
 
-// notManaged are written by the installation rather than shipped with it, so they are
-// never recorded and never replaced.
-var notManaged = map[string]bool{"state.json": true, "profile.json": true}
+// notManagedName and notManagedPath are written by the installation rather than shipped
+// with it, so they are never recorded and never replaced.
+//
+// The two forms make two different claims. A base name excludes a file wherever it turns
+// up, which is right for the bookkeeping the installation writes at the root. A relative
+// path excludes one file in one place, which is what the installed helper needs: a name
+// rule for `alfred` would exclude any payload file that ever carried that name.
+var (
+	notManagedName = map[string]bool{"state.json": true, "profile.json": true}
+	notManagedPath = map[string]bool{"bin/alfred": true}
+)
 
 // ManagedFiles lists the files Alfred owns, sorted.
 //
@@ -68,7 +77,11 @@ func ManagedFiles(root string, payload []string) ([]string, error) {
 
 	kept := found[:0]
 	for _, p := range found {
-		if hasGitPart(p) || notManaged[filepath.Base(p)] {
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return nil, err
+		}
+		if hasGitPart(p) || notManagedName[filepath.Base(p)] || notManagedPath[filepath.ToSlash(rel)] {
 			continue
 		}
 		kept = append(kept, p)
@@ -183,6 +196,40 @@ func Write(root, version string, payload []string) (int, error) {
 		return 0, err
 	}
 	return len(files), nil
+}
+
+// Version returns the version string the installation at home recorded.
+//
+// The number comes from state.json and never from a value baked into the binary. The
+// question being asked is "what is installed here", which is the thing an update changes;
+// a build-time string answers "which binary is this", and the two differ exactly when it
+// matters — a helper copied by an older install and never refreshed would report its own
+// build while the payload beside it is a different one.
+//
+// An installation that cannot say which version it is reports nothing rather than
+// "unknown": the only reason to ask is to compare the answer with something, so a string
+// nobody can trust is worse than a failure.
+func Version(home string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(home, "state.json"))
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return "", notInstalled(home)
+	case err != nil:
+		return "", fmt.Errorf("reading state.json: %w", err)
+	}
+
+	var recorded File
+	if err := json.Unmarshal(data, &recorded); err != nil {
+		return "", fmt.Errorf("reading state.json: %w", err)
+	}
+	if recorded.Version == "" {
+		return "", notInstalled(home)
+	}
+	return recorded.Version, nil
+}
+
+func notInstalled(home string) error {
+	return fmt.Errorf("no installation at %s; run: install.sh install", home)
 }
 
 // Report classifies every source file against what was installed.

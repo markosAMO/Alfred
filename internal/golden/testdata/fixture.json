@@ -1,7 +1,6 @@
 {
   "payload": "pay,top.yaml",
   "version": "0.2.0",
-  "skills_root": "/home/someone/.config/alfred/skills",
   "files": {
     "pay/a/b.txt": "b",
     "pay/a-c/d.txt": "d",
@@ -22,5 +21,21 @@
   "source_edits": {
     "pay/a-c/d.txt": "a new release",
     "pay/added.txt": "added upstream"
-  }
+  },
+  "workflows": {
+    "shipped": "workflows/shipped",
+    "custom": "workflows/custom",
+    "rejected": "workflows/rejected",
+    "rejected_custom": "workflows/rejected-custom",
+    "collision": "workflows/collision",
+    "injection": "workflows/injection",
+    "absent": "workflows/none",
+    "removes": "ventas"
+  },
+  "project": {
+    "repo": "project/repo",
+    "bare": "project/bare",
+    "removes": "almacen"
+  },
+  "migration": "agents/migration"
 }

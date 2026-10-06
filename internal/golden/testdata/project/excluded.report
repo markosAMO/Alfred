@@ -1,0 +1,21 @@
+exit 0
+
+--- stdout
+workflows
+  almacen  project  2 phases  routes: completa, corta
+  ventas   project  3 phases  routes: completa, rapida
+           overrides the machine's ventas in this repository; use /alfred-ventas-local here, /alfred-ventas for the machine's
+
+claude code  (project: <work>/repo/.claude)
+  added      /alfred-almacen, /alfred-ventas-local, alfred-almacen-spec, alfred-apply,
+             alfred-review, alfred-ventas-local-propuesta, alfred-ventas-local-spec
+  orphans    <work>/repo/.claude/commands/alfred-stale.md
+             the generated naming, claimed by nothing; this run will not remove them
+
+opencode  (project: <work>/repo/opencode.json)
+  added      alfred-almacen, alfred-almacen-spec, alfred-apply, alfred-review,
+             alfred-ventas-local, alfred-ventas-local-propuesta, alfred-ventas-local-spec
+  orphans    alfred-stale
+             the generated naming, claimed by nothing; this run will not remove them
+
+excluded     9 paths recorded in .git/info/exclude

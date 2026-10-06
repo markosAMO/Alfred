@@ -31,6 +31,17 @@ That file is per-clone and is not itself tracked, so keeping Alfred out of the r
 does not require a commit to the repository. `.gitignore` would be a change to the very
 thing the mode exists to avoid changing.
 
+Every pattern written there is anchored to the repository root, so it excludes the
+repository's own `.alfred/` and not a directory of that name at any depth under it.
+Unanchored, it hides a vendored dependency's `.alfred/` or a test fixture under
+`docs/specs/` along with Alfred's, and a path git is ignoring cannot be staged and never
+appears in `git status`.
+
+git infers the anchor for any pattern carrying a directory in it, which is every concrete
+path registration writes but one, so the anchor is written where git would not infer it:
+`init` writes its four with a leading slash — `/.alfred/`, `/docs/specs/` — and
+registration adds one to `opencode.json`, the only path it writes with no directory in it.
+
 `init` writes the exclusions when it sets the mode. Nothing else in the pipeline behaves
 differently because of it, with three exceptions, all of them about who is holding the
 files.
@@ -71,6 +82,46 @@ rebuilds it from them at any time. Under `committed: false` it is the second cop
 Back up the main checkout's Alfred directories, or run with a memory backend, or both. The
 risk is not hypothetical: a worktree removed by hand, a directory cleaned up, a machine
 replaced, and the documents are gone with no history to recover them from.
+
+## What registration writes into a repository
+
+`artifacts.committed` governs one more thing, and it is not a document. A repository that
+defines a workflow of its own under `.alfred/workflows/` gets commands and agents generated
+**inside** it, one set per detected agent:
+
+```
+.claude/commands/alfred-<workflow>.md    the command for that workflow
+.claude/agents/alfred-<workflow>-*.md    a subagent per phase the workflow brings itself
+opencode.json                            the same agents, merged into what is already there
+.alfred/generated.json                   what was written, so a later run can remove it
+```
+
+A repository that defines no workflow of its own has none of this written into it, under
+either setting, and keeps every workflow the machine provides.
+
+Under `committed: false`, every path registration wrote is appended to
+`artifacts.local_exclude`, never to `.gitignore`, by the same rule and for the same reason
+as the documents. Under `committed: true` they are ordinary files and nothing is appended,
+with one exception: `.alfred/generated.json` is excluded in **both** modes, exactly as
+`.alfred/skill-registry.md` is. It records the hashes of files generated from one machine's
+model profile, so it is true of that machine and wrong on every other.
+
+### Committing them has a cost
+
+A generated command carries the model identifier chosen on the machine that generated it
+and absolute paths into that machine's installation. Committed, those are wrong for every
+other clone: a colleague who checks the repository out gets a command naming a model they
+may not have and skill paths that resolve to nothing.
+
+Nothing can make them machine-neutral while a command carries a model, so this is a
+trade-off rather than a defect to be fixed. `alfred doctor` reports a committed
+project-level command whose skill paths do not exist on this machine, which is what turns
+it from a silent wrong answer into a thing somebody can act on: re-register, and the files
+are rewritten for the machine they are on.
+
+If the repository's own workflow is something the team shares, commit the definition —
+`.alfred/workflows/<name>/workflow.json` and its `rules.md` are machine-neutral and are the
+real artefact — and let each clone generate its own commands by running registration.
 
 ## Which documents, and for how long
 
@@ -152,3 +203,13 @@ how the specifications stay true, and it happens on every change.
 Switching to `committed: true` is `git add` on the paths in `paths`, plus removing the
 lines `init` wrote to the local exclude file. Nothing in Alfred has to be migrated: the
 files are already where the tracked mode expects them.
+
+The local exclude file is append-only: registration adds a line for every path it writes
+and never takes one back, so a path that leaves the generated set keeps its line, and a
+repository flipping `artifacts.committed` from `false` to `true` has to remove the lines
+registration wrote by hand as well as the lines `init` wrote. Nothing in Alfred removes
+them for you.
+
+Leave `.alfred/generated.json` excluded, and decide separately about any generated command
+and agent: they are the one part of what Alfred writes that is specific to the machine
+that wrote it, and the section above is the trade-off.

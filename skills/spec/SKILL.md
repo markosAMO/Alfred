@@ -2,9 +2,6 @@
 name: spec
 mode: auto
 skippable: false
-reads: [proposal, diagnosis, architecture, master_specs, memory]
-writes: [delta_spec]
-document: docs/changes/{change}/spec.md
 next: [design]
 ---
 
@@ -22,12 +19,13 @@ it is inherited by every phase downstream, which will all agree with it.
 In order of preference, whichever exists:
 
 ```
-alfred/{change}/proposal     from refine
-alfred/{change}/diagnosis    from diagnose, when the change is a bug
-alfred/{change}/input/request when routing went straight here
+the refine artifact          the proposal, when refine ran
+the diagnose artifact        when the change is a bug
+inputs/request               when routing went straight here
 ```
 
-The third is a path like the other two. A request that reaches this phase as text in its
+The first two are whatever the workflow hands this phase; an artifact passed as `<not
+produced>` is skipped for the next. The third is a path like the other two. A request that reaches this phase as text in its
 prompt has been carried through the orchestrator to get here, and this phase is then the one
 writing it down — per `skills/_shared/external-inputs.md`, it is written when the route is
 accepted, before any phase is dispatched.
@@ -130,8 +128,7 @@ No estimates, no task breakdown, no priorities.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/spec`, update state, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state, notify `phase_completed`.
 
 Report the counts, because they are what the user checks at a glance:
 

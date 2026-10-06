@@ -1,8 +1,8 @@
 <!-- ALFRED:BEGIN — managed by alfred, do not edit by hand -->
 ## Workflow
 
-This repository uses Alfred. Software work follows the pipeline; it does not start with
-code.
+This repository uses Alfred. Software work follows the route of the workflow it runs under;
+it does not start with code.
 
 ### Before anything
 
@@ -11,22 +11,19 @@ Resolve skills through `.alfred/skill-registry.md`; never read a skill by guessi
 
 ### Routing
 
-Choose a route and state the signals it was based on, then wait for the user to accept it.
+The routes are the running workflow's, not this repository's: its command carries them and
+its rules file says which one a request deserves. This file declares none.
 
-```
-behaviour unchanged        direct     apply · verify · review
-behaviour changes          pipeline   spec · design · tasks · apply · verify · review · archive
-request underspecified     full       refine · research · then the pipeline
-defect reported            diagnose   then spec or design
-```
-
-Never lengthen a route without saying so. The user may always shorten it.
+Choose one of the routes the command carries, state the signals it was based on, and wait
+for the user to accept it. Never lengthen a route without saying so. The user may always
+shorten it. Asked for a route the workflow does not declare, say so and name the ones it
+does.
 
 ### Delegation
 
 Each phase runs as a subagent with an empty context, receiving paths rather than content.
-The orchestrator holds only the request, this configuration, the pipeline state and the
-registry, and does no work inline.
+The orchestrator holds five things — the request, this configuration, the pipeline state,
+the skill registry and the running workflow's rules file — and does no work inline.
 
 ### State
 
@@ -40,6 +37,7 @@ request was written in. No persona and no regional voice.
 
 ### Commits
 
-Conventional commits, no AI attribution of any kind, one commit per change once `verify` and
-`review` pass, staging only the files the work reported.
+Conventional commits, no AI attribution of any kind, one commit per change once the
+checks the running workflow declares for it have passed — its command names them, this
+file does not — staging only the files the work reported.
 <!-- ALFRED:END -->

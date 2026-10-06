@@ -1,74 +1,61 @@
 # Routing
 
 Before any phase runs, the orchestrator chooses a route, states why, and waits for the
-user to accept it.
+user to accept it. This file is the part of that which is true under every workflow.
 
-## The question
+## Where a route comes from
 
-> Does this change observable system behaviour?
+The routes of a run, the default among them, and where each kind of request enters are the
+running workflow's, declared in its definition and carried by the command the run started
+from, per `skills/_shared/workflow-protocol.md`. The judgement that chooses between them —
+the question to ask of a request, the signals each route matches, when a route changes
+mid-run — is that workflow's too, and is written in its rules file.
 
-Behaviour is what the system does as seen from outside: responses, stored data, messages a
-user reads, side effects. Not how the code is arranged.
-
-```
-No   renaming a symbol, extracting a function, formatting,
-     a dependency bump, a typo in a comment
-     -> direct route
-
-Yes  a new validation, a changed default, a new endpoint,
-     an error message a user reads, a changed response shape
-     -> pipeline
-```
-
-Counting files is the wrong test. A refactor touching thirty files changes nothing
-observable; adding one validation to one file changes behaviour. The count is a proxy for
-the question and gets both cases backwards.
-
-## Routes
+Nothing here decides a route. Two workflows answer the same request with different routes
+and both are right, because a route is a statement about one recipe and not about Alfred.
 
 ```
-direct     apply -> verify -> review -> commit
-pipeline   spec -> design -> tasks -> apply -> verify -> review -> archive
-full       refine -> research -> spec -> ...
+the routes there are         the workflow's definition, through the command
+which one this request gets  the workflow's rules file
+how it is proposed           this file
 ```
 
-`verify` and `review` run on every route. The direct route skips planning, never
-verification: a rename still has to compile, pass its tests and read well.
+## A route is proposed, never applied silently
 
-`archive` is skipped on the direct route because there is no delta to merge. Master specs
-describe behaviour, and behaviour did not change.
-
-Between `pipeline` and `full` sits nothing structural: `refine` and `research` are
-`skippable`, so the difference is which of them the routing decision includes.
-
-## Routing to refine
-
-`refine` is included when the request is underspecified against the signals in
-`skills/refine/SKILL.md`. Those signals are checkable, but they are not infallible, and a
-wrongly triggered interview costs the user four rounds of questions they did not need.
-
-So the decision is proposed, never applied silently.
+The orchestrator reads the running workflow's rules, proposes one of that workflow's
+routes, and waits. A route that cannot be chosen because the rules file cannot be read
+stops the run and names the file; none is applied in its place.
 
 ```
-This looks like a full run: no failure behaviour stated, more than one
-component affected, and the auth strategy is undecided.
+This looks like the longer of this workflow's two routes: the account has no
+contact on record, and the last three messages went unanswered.
 
-Start with the interview, or go straight to spec?
+Start there, or go straight to the shorter one?
 ```
 
-The user can always shorten the route. The orchestrator never lengthens it without
-saying so.
+The signals in that example are some workflow's, not Alfred's; what this file fixes is the
+shape of the proposal around them. Signals are checkable and they are not infallible, and a
+route wrongly proposed costs the user work they did not need. The proposal is what makes
+that correctable before it is paid for.
 
 ## Stating the route
 
 Every route decision names the signals it was based on. A route presented without its
 reasons cannot be corrected, because the user cannot see which input was wrong.
 
-## Changing route mid-run
+## Shortening and lengthening
 
-A direct route that turns out to change behaviour stops and proposes the pipeline from
-`spec`. Work already done is kept: the change exists, it simply needs a requirement
-written for it.
+The user can always shorten a route. The orchestrator never lengthens one without saying
+so.
 
-The reverse does not happen. A pipeline run is never silently downgraded, because the
-planning artifacts already exist and skipping them mid-run leaves a change half-specified.
+The asymmetry is deliberate. Shortening is the user declining work they judge unnecessary,
+and they are the one paying for it; lengthening is the orchestrator deciding the user
+needs more than they asked for, which is a judgement they are entitled to see before it
+runs.
+
+## A route the workflow does not have
+
+Asked for a route the running workflow does not declare, the orchestrator says it does not
+exist in this workflow and lists the ones that do. It never assembles one out of the
+phases: a route nobody declared has no rules file passage behind it and no group, entry
+point or closing phase checked against it.

@@ -42,3 +42,7 @@ What was asked and not answered. Carried into `spec`, never invented away.
 
 ## Assumptions
 What was taken from `architecture.md` or memory rather than asked.
+
+## Handoff
+
+{Where the next phase starts: paths with lines, commands with what they printed, what was ruled out, what is still open. Fifteen lines at most, or `none`.}

@@ -1,0 +1,1 @@
+{"name": "phase-nowhere", "title": "T", "description": "D", "rules": "rules.md", "phases": [{"name": "cotizar", "model": "vendor/small"}], "routes": {"sola": ["cotizar"]}, "default_route": "sola", "entry_points": {"default": "cotizar"}, "parallel": [], "closes": "cotizar"}

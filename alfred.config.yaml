@@ -1,11 +1,11 @@
-version: 0.3.0
+version: 0.4.0
 
 paths:
   architecture: docs/architecture.md
   conventions: docs/code_conventions.md
   master_specs: docs/specs/
-  changes: docs/changes/
-  change_records: docs/changes/
+  changes: .alfred/changes/
+  change_records: .alfred/changes/
   pipeline_state: .alfred/state/
   skill_registry: .alfred/skill-registry.md
 
@@ -69,6 +69,11 @@ skills:
   resolution: local_overrides_global
   resolver: skills/_shared/skill-resolver.md
 
+workflows:
+  local_root: .alfred/workflows/
+  resolution: local_overrides_global
+  protocol: skills/_shared/workflow-protocol.md
+
 tracker:
   backend: none
   adapter: tracker/adapters/none.md
@@ -87,17 +92,12 @@ testing:
   runner_defined_in: docs/code_conventions.md
 
 routing:
-  decided_by: observable_behaviour_change
   protocol: skills/_shared/routing.md
   proposed_to_user: always
-  routes:
-    direct: [apply, verify, review]
-    pipeline: [spec, design, tasks, apply, verify, review, archive]
-    full: [refine, research, spec, design, tasks, apply, verify, review, archive]
 
 orchestrator:
   protocol: skills/_shared/orchestrator-protocol.md
-  reads: [config, pipeline_state, skill_registry]
+  reads: [request, config, pipeline_state, skill_registry, workflow_rules]
   inline_work: false
 
 phases:
@@ -114,7 +114,6 @@ phases:
 
   refine:
     mode: interactive
-    entry_point: new_feature
     skippable: true
     produces: [proposal]
 
@@ -129,11 +128,7 @@ phases:
 
   diagnose:
     mode: interactive
-    entry_point: bug
     produces: [diagnosis]
-    routes_to:
-      behaviour_changed: spec
-      default: design
 
   design:
     mode: interactive
@@ -161,16 +156,13 @@ phases:
     mode: auto
     checks: spec_compliance
     produces: [verify_report]
-    runs_with: [review]
 
   review:
     mode: auto
     checks: code_quality
     agent: separate_from_author
     produces: [review_report]
-    runs_with: [verify]
 
   archive:
     mode: auto
     produces: [record, master_specs, postmortem]
-    removes: [working_documents, state]

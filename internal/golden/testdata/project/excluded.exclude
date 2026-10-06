@@ -1,0 +1,9 @@
+.alfred/generated.json
+.claude/agents/alfred-almacen-spec.md
+.claude/agents/alfred-apply.md
+.claude/agents/alfred-review.md
+.claude/agents/alfred-ventas-local-propuesta.md
+.claude/agents/alfred-ventas-local-spec.md
+.claude/commands/alfred-almacen.md
+.claude/commands/alfred-ventas-local.md
+/opencode.json

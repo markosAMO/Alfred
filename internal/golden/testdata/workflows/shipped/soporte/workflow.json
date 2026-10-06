@@ -1,0 +1,12 @@
+{
+  "name": "soporte",
+  "title": "Support triage",
+  "description": "Triage a report and ship the fix",
+  "rules": "rules.md",
+  "phases": [{"name": "spec"}, {"name": "apply"}],
+  "routes": {"directa": ["apply"], "completa": ["spec", "apply"]},
+  "default_route": "completa",
+  "entry_points": {"feature": "spec", "defect": "apply"},
+  "parallel": [],
+  "closes": "apply"
+}

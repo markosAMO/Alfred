@@ -1,0 +1,27 @@
+{
+  "name": "sdd",
+  "title": "Spec-driven development",
+  "description": "A request becomes a specification, a design, tasks, code, verification and a merged delta",
+  "rules": "rules.md",
+  "phases": [
+    {"name": "refine", "reads": ["architecture", "conventions"], "recall": ["refine", "design"]},
+    {"name": "research", "reads": ["refine", "architecture"], "recall": ["research"]},
+    {"name": "spec", "reads": ["refine", "diagnose", "research", "specs", "architecture"]},
+    {"name": "diagnose", "reads": ["specs", "architecture", "conventions"], "recall": ["postmortem"]},
+    {"name": "design", "reads": ["spec", "diagnose", "refine", "research", "architecture", "conventions"], "recall": ["design"]},
+    {"name": "tasks", "reads": ["spec", "design", "diagnose", "conventions"]},
+    {"name": "apply", "reads": ["tasks", "spec", "design", "conventions"], "recall": ["review-findings"]},
+    {"name": "verify", "reads": ["spec", "tasks", "apply", "conventions"]},
+    {"name": "review", "reads": ["design", "apply", "architecture", "conventions"], "recall": ["review-findings"]},
+    {"name": "archive", "reads": ["spec", "diagnose", "design", "apply", "verify", "review", "specs"]}
+  ],
+  "routes": {
+    "direct": ["apply", "verify", "review"],
+    "pipeline": ["spec", "design", "tasks", "apply", "verify", "review", "archive"],
+    "full": ["refine", "research", "spec", "design", "tasks", "apply", "verify", "review", "archive"]
+  },
+  "default_route": "pipeline",
+  "entry_points": {"feature": "refine", "bug": "diagnose"},
+  "parallel": [["verify", "review"]],
+  "closes": "archive"
+}

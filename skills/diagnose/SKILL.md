@@ -1,11 +1,6 @@
 ---
 name: diagnose
 mode: interactive
-entry_point: bug
-reads: [memory, architecture, master_specs, code, tests]
-writes: [diagnosis]
-document: docs/changes/{change}/diagnosis.md
-routes_to: {behaviour_changed: spec, default: design}
 ---
 
 # diagnose
@@ -18,7 +13,7 @@ merging them produces a change that makes the symptom disappear.
 ## Materialise the inputs first
 
 A defect usually arrives with material attached: a ticket, an error report, a log, a
-conversation. Read each one once and write it to `docs/changes/{change}/inputs/` in full,
+conversation. Read each one once and write it to `.alfred/changes/{change}/inputs/` in full,
 per `skills/_shared/external-inputs.md`.
 
 Logs and stack traces are materialised verbatim. A summarised trace is a trace with the
@@ -27,7 +22,7 @@ line that mattered removed.
 ## Search memory first
 
 ```
-recall the symptom, in the terms someone would search for
+recall each type the workflow declares, with the symptom in the terms someone would search for
 ```
 
 Postmortems are written by `archive` for exactly this moment. A class of failure is
@@ -72,19 +67,21 @@ Where a root cause would take longer to reach than the failure allows, record th
 fix as deliberate, with the cause still open. A workaround recorded as a workaround can be
 revisited. One recorded as a fix cannot.
 
-## Routing
+## The judgement this phase makes
 
 ```
 does the correct behaviour differ from what the master specs describe?
-  yes  -> spec, as a delta, then design
-  no   -> design directly
+  yes  -> the fix changes behaviour, and that is a requirement
+  no   -> the fix makes the code do what it already claimed
 ```
 
 Behaviour was always meant to work this way and did not: the code was wrong, the
 specification was right, nothing to write. Behaviour is now meant to differ: that is a
 requirement, and it is written down.
 
-The decision is stated and confirmed, per `skills/_shared/routing.md`.
+This phase answers the question and records the answer. Where each answer goes next is the
+running workflow's routing, written in its rules file; the decision is stated and confirmed
+rather than applied silently, per `skills/_shared/routing.md`.
 
 ## What it writes
 
@@ -101,8 +98,8 @@ The decision is stated and confirmed, per `skills/_shared/routing.md`.
 `Affected scope` names everything else reaching the same cause. A root cause found in one
 caller usually has others, and they fail next week.
 
-`Correct behaviour` is what should happen instead, stated concretely enough for `spec` or
-`design` to work from.
+`Correct behaviour` is what should happen instead, stated concretely enough for whichever
+phase the route reaches next to work from.
 
 `Confidence` is `confirmed` when reproduced and proven, `probable` when the evidence is
 consistent but unreproduced. It carries into the postmortem, so a fix that was a good guess
@@ -110,5 +107,4 @@ is not remembered as a certainty.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/diagnosis`, update state with the chosen route, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state with the chosen route, notify `phase_completed`.

@@ -2,10 +2,6 @@
 name: refine
 mode: interactive
 skippable: true
-entry_point: new_feature
-reads: [architecture, conventions, tracker_card, memory]
-writes: [proposal]
-document: docs/changes/{change}/proposal.md
 next: [research, spec]
 ---
 
@@ -20,7 +16,7 @@ by the model guessing.
 
 ## When the orchestrator routes here
 
-A request goes to `refine` when any of these hold. Otherwise it goes straight to `spec`.
+A request needs this phase when any of these hold. Otherwise the route can start past it.
 
 - The failure behaviour is unstated. The request says what should happen when it works.
 - A domain term appears that is not defined in `architecture.md` or memory.
@@ -33,8 +29,13 @@ it wastes their time.
 
 When the request arrives as a tracker card, the same criteria apply to the card body.
 
-The decision is proposed and confirmed, never applied silently. The orchestrator names the
-signals it matched and offers to skip straight to `spec`. See `skills/_shared/routing.md`.
+The decision is proposed and confirmed, never applied silently, and the orchestrator names
+the signals it matched and lets the user take the shorter answer. Those mechanics hold under
+every workflow and are in `skills/_shared/routing.md`.
+
+What matching them is worth, and where the shorter answer goes instead, is the running
+workflow's and is written in its rules file. The list above is what this phase is for; the
+route it argues for belongs to the workflow that declares the routes.
 
 ## Materialise the inputs first
 
@@ -43,7 +44,7 @@ documents in other systems.
 
 ```
 read each source once
-write it in full to docs/changes/{change}/inputs/
+write it in full to .alfred/changes/{change}/inputs/
 index it under alfred/{change}/input/{slug}
 ```
 
@@ -55,10 +56,9 @@ interview, `spec`, `design` and every subagent read the materialised text.
 Read what is already known, and never ask for it.
 
 ```
-fetch alfred/{change}/input/*        the material just materialised
-fetch alfred/project/architecture
-fetch alfred/project/conventions
-recall the feature area, for prior decisions and related changes
+inputs/                     the material just materialised
+architecture, conventions   when the workflow hands them
+recall                      the types the workflow declares, for prior decisions and related changes
 ```
 
 Asking which database the project uses, when `architecture.md` states it, teaches the user
@@ -168,8 +168,7 @@ in the code.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/proposal`, update state, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state, notify `phase_completed`.
 
 The proposal is prose describing intent. It contains no `SHALL`, no scenarios and no delta
 sections. Those belong to `spec`, and writing them here produces a requirement nobody

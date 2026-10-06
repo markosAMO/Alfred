@@ -1,0 +1,13 @@
+exit 1
+
+--- stdout
+workflows
+  soporte  machine/shipped  2 phases  routes: completa, directa
+  ventas   machine/shipped  4 phases  routes: completa, rapida
+
+missing
+  soporte  claude code  /alfred-soporte
+  soporte  opencode     alfred-soporte
+  ventas   claude code  /alfred-ventas
+  ventas   opencode     alfred-ventas
+  run `alfred workflows machine apply` with the same roots and targets

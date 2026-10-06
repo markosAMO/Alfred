@@ -223,6 +223,9 @@ func Register(out io.Writer, alfredHome string, targets []string, apply bool) (i
 		// is not there. `memory.required` decides whether that is fatal, at run time.
 		_, _ = fmt.Fprintf(out, "FAIL  %s is the configured backend and is not on PATH\n", backend)
 		_, _ = fmt.Fprintf(out, "      install it, or set memory.backend: none in %s/alfred.config.yaml\n", alfredHome)
+		//nolint:nilerr // the count is the diagnosis and the error is reserved for a check
+		// that could not run: an absent backend is a problem this function reports and
+		// counts, not a failure of the reporting.
 		return 1, nil
 	}
 

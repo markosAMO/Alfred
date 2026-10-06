@@ -20,7 +20,7 @@ them searchable; it does not hold them.
 | `update` | no-op, same reason |
 | `recall(query)` | text search across `docs/`, ranked by filename and heading matches |
 | `fetch(id)` | read the file, where the identifier is its path |
-| `context(scope)` | most recently modified files under `docs/changes/` |
+| `context(scope)` | most recently modified files under `.alfred/changes/` |
 | `forget` | no-op |
 | `reindex` | no-op |
 
@@ -30,8 +30,8 @@ Contract keys map onto paths.
 
 ```
 alfred/project/architecture     docs/architecture.md
-alfred/{change}/spec            docs/changes/{change}/spec.md
-alfred/postmortem/{slug}        docs/changes/*/diagnosis.md matching the slug
+alfred/{change}/spec            .alfred/changes/{change}/spec.md
+alfred/postmortem/{slug}        .alfred/changes/*/diagnose.md matching the slug
 ```
 
 ## What is lost
