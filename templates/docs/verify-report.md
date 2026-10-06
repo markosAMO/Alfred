@@ -33,3 +33,7 @@ A command that could not run is reported as such, never assumed to pass.
 
 ## Findings
 What failed, each with the scenario it belongs to.
+
+## Handoff
+
+{Where the next phase starts: paths with lines, commands with what they printed, what was ruled out, what is still open. Fifteen lines at most, or `none`.}

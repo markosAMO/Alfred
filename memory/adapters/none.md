@@ -31,7 +31,7 @@ Contract keys map onto paths.
 ```
 alfred/project/architecture     docs/architecture.md
 alfred/{change}/spec            docs/changes/{change}/spec.md
-alfred/postmortem/{slug}        docs/changes/*/diagnosis.md matching the slug
+alfred/postmortem/{slug}        docs/changes/*/diagnose.md matching the slug
 ```
 
 ## What is lost

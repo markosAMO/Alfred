@@ -269,3 +269,28 @@ func line(text, needle string) string {
 	}
 	return ""
 }
+
+// What each phase reads is the workflow's declaration, rendered once per phase, so the
+// orchestrator can hand a phase its locators without reading the phase's skill.
+func TestTheSectionNamesWhatEachPhaseReads(t *testing.T) {
+	r := Registered{Dir: "/w/ventas", Definition: &workflow.Definition{
+		Name: "ventas", Title: "Ventas", Description: "d", Rules: "rules.md",
+		Phases: []workflow.Phase{
+			{Name: "prospectar"},
+			{Name: "propuesta", Reads: []string{"prospectar", "architecture"}, Recall: []string{"propuesta"}},
+		},
+		Routes: map[string][]string{"r": {"prospectar", "propuesta"}}, DefaultRoute: "r",
+		EntryPoints: map[string]string{"default": "prospectar"}, Closes: "propuesta",
+	}}
+	section := workflowSection(r, []Registered{r}, map[string]string{})
+
+	for _, want := range []string{
+		"  prospectar  reads nothing\n",
+		"  propuesta   reads prospectar, architecture; recalls propuesta\n",
+		"alfred/{change}/{phase}",
+	} {
+		if !strings.Contains(section, want) {
+			t.Errorf("the section does not carry %q:\n%s", want, section)
+		}
+	}
+}

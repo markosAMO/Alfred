@@ -2,8 +2,6 @@
 name: {phase}
 mode: auto
 skippable: false
-reads: [{what this phase needs}]
-writes: [{what it produces}]
 next: [{the phase that usually follows}]
 ---
 
@@ -19,20 +17,26 @@ it is `model` on this phase's entry in `workflow.json`, which is what registrati
 
 ## Before starting
 
-What to read, by address. This phase runs as a subagent with an empty context and is handed
-paths, never content, so say which paths and what to take from each.
+What to take from each artifact this phase is handed. Which artifacts those are is not
+here: it is `reads` and `recall` on this phase's entry in `workflow.json`, and the
+orchestrator passes one locator for each. Every handed artifact ends with a `## Handoff`;
+start from it, per `skills/_shared/phase-protocol.md`.
 
 ```
-recall alfred/area/{area}/...    what a previous change of this kind concluded
+the {phase-1} artifact    what to take from it
 ```
-
-A recall that finds nothing is a normal result and not a reason to stop.
 
 ## The work
 
 The steps, in the order they are done, with the decision each one turns on. State what makes
 a step's answer wrong, not only what the step is: a step whose failure is undescribed is one
 that gets reported as done.
+
+## What it leaves
+
+This phase's artifact, named after the phase, at the locator it was handed. Name its
+sections, and end it with `## Handoff`: what the next phase would otherwise pay to find
+again.
 
 ## Scope
 

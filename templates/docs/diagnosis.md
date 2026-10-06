@@ -31,3 +31,7 @@ failure was not reproduced.
 ## Route
 `spec` when the correct behaviour differs from the master specifications, `design` when it
 does not.
+
+## Handoff
+
+{Where the next phase starts: paths with lines, commands with what they printed, what was ruled out, what is still open. Fifteen lines at most, or `none`.}

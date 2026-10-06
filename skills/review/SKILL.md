@@ -3,9 +3,6 @@ name: review
 mode: auto
 skippable: false
 agent: separate_from_author
-reads: [design, conventions, architecture, code, review_findings]
-writes: [review_report]
-document: docs/changes/{change}/review-report.md
 next: [archive]
 ---
 
@@ -19,7 +16,7 @@ spends a review on work already done.
 ## Before reviewing
 
 ```
-recall alfred/area/{area}/review-findings    what the last review of this area said
+recall each type the workflow declares, for what the last review of this area said
 ```
 
 A `should fix` nobody fixed is worth raising again, and raising it as a repeat is worth more
@@ -53,9 +50,8 @@ reviewer weaker than the implementer approves everything, and the phase becomes 
 
 ```
 the diff of the change
-docs/code_conventions.md
-alfred/{change}/design
-alfred/project/architecture
+conventions, architecture
+the design artifact, and the apply artifact for what changed and what was run
 ```
 
 The design is read to know what was intended, including its `Out of scope` section. Work
@@ -193,8 +189,7 @@ that spread is exactly the case a narrow read would miss.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/review-report`, update state, notify `phase_completed` or `error`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state, notify `phase_completed` or `error`.
 
 ```
 review: 0 blocking, 2 should fix, 3 suggestions

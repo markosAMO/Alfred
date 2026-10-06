@@ -6,13 +6,14 @@ the change is being made in.
 
 ```
 docs/changes/login-google/
-  proposal.md         refine
+  refine.md           refine
   research.md         research
   spec.md             spec
   design.md           design
   tasks.md            tasks
-  verify-report.md    verify
-  review-report.md    review
+  apply.md            apply
+  verify.md           verify
+  review.md           review
   inputs/             the material the change arrived with
 ```
 
@@ -52,13 +53,14 @@ written and read back.
 ```
 during the run                        at close
 docs/changes/login-google/            docs/changes/login-google/
-  proposal.md      removed              record.md    the one document the change leaves
+  refine.md        removed              record.md    the one document the change leaves
   research.md      removed              spec.md      the delta, kept
   spec.md          kept
   design.md        removed            docs/specs/    merged, as always
   tasks.md         removed
-  verify-report.md removed            .alfred/state/login-google.yaml   removed
-  review-report.md removed
+  apply.md         removed
+  verify.md        removed            .alfred/state/login-google.yaml   removed
+  review.md        removed
   inputs/          removed
 ```
 

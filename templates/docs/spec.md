@@ -35,3 +35,7 @@ Previously: {old behaviour}
 
 ## Assumptions
 Inherited from the proposal or the architecture, not decided here.
+
+## Handoff
+
+{Where the next phase starts: paths with lines, commands with what they printed, what was ruled out, what is still open. Fifteen lines at most, or `none`.}

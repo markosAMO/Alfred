@@ -48,6 +48,23 @@ Everything else is dispatched one phase at a time, in route order.
 
 A phase listed as unavailable has no subagent, for the reason given beside it. A route that reaches one stops there, naming the phase and the reason. Nothing is substituted for it.
 
+### What each phase reads
+
+Every phase leaves one artifact, named after the phase. What each phase is handed when it starts is declared here, and nothing else is:
+
+  recordatorio  reads nothing
+  spec          reads nothing
+
+When you dispatch a phase, pass it its own locator, one locator per name it reads, and the memory types it recalls. Resolve each locator from `.alfred/config.yaml`:
+
+```
+a phase's artifact, memory.documents keep or ephemeral   {paths.changes}{change}/{phase}.md
+a phase's artifact, memory.documents pointer             alfred/{change}/{phase}
+architecture, conventions, specs                         paths.architecture, paths.conventions, paths.master_specs
+```
+
+Pass `<not produced>` for an artifact whose phase has not run in this change, according to state: the phase works from what exists. Pass `<unresolved>` for one whose phase completed and whose artifact cannot be found: the phase stops and reports it.
+
 ### Rules
 
 The judgement this workflow applies - which route a request deserves, the signals that choose between them, which phase receives external material, and how a route changes mid-run - is prose, and it is here:

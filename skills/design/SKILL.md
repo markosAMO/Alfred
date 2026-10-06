@@ -2,9 +2,6 @@
 name: design
 mode: interactive
 skippable: false
-reads: [spec, diagnosis, architecture, conventions, research, memory]
-writes: [design]
-document: docs/changes/{change}/design.md
 next: [tasks]
 ---
 
@@ -19,11 +16,10 @@ writes no code.
 ## Before deciding
 
 ```
-fetch alfred/{change}/spec
-fetch alfred/{change}/proposal        for Architectural direction, when refine ran
-fetch alfred/project/architecture
-fetch alfred/project/conventions
-recall this area, for decisions already made
+the spec artifact, or diagnose when the change is a bug
+the refine artifact          for Architectural direction, when refine ran
+architecture, conventions
+recall                       the types the workflow declares, for decisions already made in this area
 ```
 
 The architecture document constrains this phase. A design that contradicts it is either
@@ -127,5 +123,4 @@ filled in here.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/design`, update state, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state, notify `phase_completed`.

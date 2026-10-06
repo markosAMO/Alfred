@@ -2,8 +2,6 @@
 name: apply
 mode: confirm
 skippable: false
-reads: [tasks, spec, design, conventions, review_findings]
-writes: [code]
 next: [verify]
 ---
 
@@ -17,7 +15,7 @@ does not write any of it itself.
 ## Before dispatching
 
 ```
-recall alfred/area/{area}/review-findings    for the areas the task list touches
+recall each type the workflow declares, for the areas the task list touches
 ```
 
 Past `should fix` findings are passed to the subagent whose task touches the file they are
@@ -46,9 +44,9 @@ Each subagent receives addresses, per `skills/_shared/subagent-protocol.md`.
 
 ```
 Skill:       .alfred/skills/apply/SKILL.md
-Task:        3 of alfred/{change}/tasks
-Spec:        alfred/{change}/spec
-Design:      alfred/{change}/design
+Task:        3 of the tasks artifact
+Spec:        the spec artifact
+Design:      the design artifact
 Conventions: docs/code_conventions.md
 ```
 
@@ -150,8 +148,27 @@ third time produces a third variation of the same misunderstanding.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: update state with per-task results, notify
-`phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update
+state with per-task results, notify `phase_completed`.
+
+The artifact is what the phases that judge the work start from, so they do not reconstruct
+it from the diff:
+
+```markdown
+## Tasks
+3  completed  app/auth/callback.rb, spec/auth/callback_spec.rb
+4  blocked    by 3's interface change; reason in state
+
+## Commands
+bundle exec rspec spec/auth      47 examples, 0 failures
+bundle exec rubocop app/auth     no offenses
+
+## Handoff
+```
+
+Per task, what it changed; the commands as run and what they printed; and in the handoff,
+the places a reviewer should look first and any decision a subagent made that the design
+did not.
 
 This phase does not commit. The commit happens in `archive`, once `verify` and `review`
 have passed, per `git.granularity: per_feature`.

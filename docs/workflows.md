@@ -182,6 +182,35 @@ A phase that resolves in no root of its scope **rejects the workflow at registra
 failure is the same either way; what differs is that this one happens while you are looking
 at the workflow, rather than three phases into a change.
 
+### What each phase reads
+
+Every phase leaves one artifact, named after the phase, at a locator the orchestrator
+resolves: `docs/changes/{change}/{phase}.md`, or the memory key `alfred/{change}/{phase}`
+under `memory.documents: pointer`. That part is not configurable, so any phase can address
+another's output.
+
+What a phase is handed when it starts is configurable, per phase, shared phases included:
+
+```json
+{"name": "design",
+ "reads": ["spec", "diagnose", "refine", "architecture", "conventions"],
+ "recall": ["design"]}
+```
+
+`reads` names the artifacts of other phases of this workflow, by phase name, and the
+project artifacts `architecture`, `conventions` and `specs`, which come from `paths.*` in
+the repository's configuration. `recall` names memory types searched for what earlier
+changes concluded: a phase's name finds its previous artifacts, and `postmortem` and
+`review-findings` are what the closing phase leaves behind. Both are optional; a phase with
+neither starts from the request alone.
+
+Registration refuses a read that names neither a phase of the workflow nor a project
+artifact, a phase reading its own artifact, and a name read or recalled twice. The command
+carries the declaration, and the orchestrator passes exactly those locators, `<not
+produced>` for an artifact whose phase did not run in the change, and nothing else. Every
+artifact ends with a `## Handoff` section the next phase starts from, per
+`skills/_shared/phase-protocol.md`.
+
 ### Models
 
 ```

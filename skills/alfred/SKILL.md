@@ -325,10 +325,10 @@ this way is not `failed`, it is gone, and `status` stops listing it.
 Author a skill and register it.
 
 ```
-skills/<name>/SKILL.md with frontmatter: name, mode, skippable, reads, writes, document, next
+skills/<name>/SKILL.md with frontmatter: name, mode, skippable, next
 shared rules referenced from skills/_shared/, never repeated
 a template in templates/docs/ when it produces a document
-an entry in the configuration when it is a pipeline phase
+an entry in the workflow's workflow.json, with what it reads and recalls
 ```
 
 A skill states what the phase does and why the constraints exist. It names no model, no

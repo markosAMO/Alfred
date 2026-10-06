@@ -29,3 +29,7 @@ Where each claim came from, with the version it applied to.
 
 ## Open
 What could not be resolved, so `design` decides knowing the gap.
+
+## Handoff
+
+{Where the next phase starts: paths with lines, commands with what they printed, what was ruled out, what is still open. Fifteen lines at most, or `none`.}

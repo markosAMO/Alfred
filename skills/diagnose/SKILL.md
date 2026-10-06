@@ -1,9 +1,6 @@
 ---
 name: diagnose
 mode: interactive
-reads: [memory, architecture, master_specs, code, tests]
-writes: [diagnosis]
-document: docs/changes/{change}/diagnosis.md
 ---
 
 # diagnose
@@ -25,7 +22,7 @@ line that mattered removed.
 ## Search memory first
 
 ```
-recall the symptom, in the terms someone would search for
+recall each type the workflow declares, with the symptom in the terms someone would search for
 ```
 
 Postmortems are written by `archive` for exactly this moment. A class of failure is
@@ -110,5 +107,4 @@ is not remembered as a certainty.
 
 ## Completion
 
-Follow `skills/_shared/phase-protocol.md`: write the document, index it under
-`alfred/{change}/diagnosis`, update state with the chosen route, notify `phase_completed`.
+Follow `skills/_shared/phase-protocol.md`: write the artifact with its `## Handoff`, update state with the chosen route, notify `phase_completed`.

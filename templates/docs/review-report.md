@@ -23,3 +23,7 @@ Real problems that do not have to stop this change. Carried into memory by `arch
 
 ## Suggestions
 Preference or possible future improvement. Never blocking.
+
+## Handoff
+
+{Where the next phase starts: paths with lines, commands with what they printed, what was ruled out, what is still open. Fifteen lines at most, or `none`.}

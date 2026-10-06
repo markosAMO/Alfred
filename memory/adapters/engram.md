@@ -101,7 +101,7 @@ which accepts the call, stores the entry, returns an id and *suggests* a key it 
 apply. Nothing fails. What you get is an entry that:
 
 ```
-cannot be fetched by key      alfred/{change}/verify-report resolves to nothing
+cannot be fetched by key      alfred/{change}/verify resolves to nothing
 does not replace on rewrite   the next remember() adds a second copy
 is reachable only by search   which the contract forbids relying on
 ```
@@ -114,9 +114,9 @@ So the key is passed on every call, and it is checked: the `mem_save` result ech
 entry it wrote, and a result whose `topic_key` is absent or different from the key asked for
 is a failed `remember`, reported through `notify`, not a warning to skip past.
 
-`type` is passed through from the contract's vocabulary unchanged — `spec`, `design`,
-`tasks`, `verify-report`, `review-report`, `proposal`, `research`, `diagnosis`,
-`postmortem`, `architecture`, `conventions`. Engram accepts each of them; its own native
+`type` is passed through from the contract unchanged — the phase's name for a phase's
+artifact (`spec`, `design`, a workflow's own `cotizar`), and `postmortem`, `review-findings`,
+`architecture`, `conventions`. Engram accepts each of them; its own native
 types (`decision`, `pattern`, `discovery`, `manual`) are what a human saving by hand uses,
 and a phase that reaches for one has thrown away the distinction `recall(query, type)`
 depends on. In the same run, **none of the eight artifacts carried a contract type** — a

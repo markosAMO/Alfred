@@ -460,6 +460,7 @@ func workflowSection(r Registered, all []Registered, missing map[string]string) 
 		"{{PARALLEL_GROUPS}}", groupLines(d),
 		"{{CLOSING_PHASE}}", d.Closes,
 		"{{PHASE_SUBAGENTS}}", phaseLines(d, r.Phases, missing),
+		"{{PHASE_READS}}", readLines(d),
 		"{{RULES_PATH}}", filepath.Join(r.Dir, d.Rules),
 		"{{OTHER_WORKFLOWS}}", otherLines(d.Name, all),
 		"{{WORKFLOW_TITLE}}", d.Title+"\n\n"+d.Description)
@@ -524,6 +525,29 @@ func phaseLines(d *workflow.Definition, resolved []workflow.Resolved, missing ma
 			continue
 		}
 		lines = append(lines, line+workflow.SubagentName(d.Name, phase)+"  ("+origin(phase.Origin)+")")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// readLines is one line per phase, in declaration order: the artifacts it reads and the
+// memory types it recalls.
+func readLines(d *workflow.Definition) string {
+	names := make([]string, len(d.Phases))
+	for i, phase := range d.Phases {
+		names[i] = phase.Name
+	}
+
+	lines := make([]string, 0, len(d.Phases))
+	for _, phase := range d.Phases {
+		reads := "nothing"
+		if len(phase.Reads) > 0 {
+			reads = strings.Join(phase.Reads, ", ")
+		}
+		line := "  " + pad(phase.Name, width(names)) + "  reads " + reads
+		if len(phase.Recall) > 0 {
+			line += "; recalls " + strings.Join(phase.Recall, ", ")
+		}
+		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
 }

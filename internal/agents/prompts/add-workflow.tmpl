@@ -38,6 +38,8 @@ Ask about one thing at a time and wait for the answer. Do not assemble the workf
 
 **The entry points.** At least one, each a kind of request and the phase it joins at. A kind of request with no entry point is one the workflow says it does not handle, which is a better answer than starting somewhere plausible.
 
+**What each phase reads.** Every phase leaves one artifact named after itself; what is configurable is what each phase is handed when it starts. For each phase, the artifacts of earlier phases it needs, by phase name, and which of the project artifacts `architecture`, `conventions` and `specs` it needs. Then the memory types it recalls for what earlier changes concluded: usually its own name, so a phase learns from its previous runs. Propose an answer from what each phase does and let the user correct it; a phase that reads nothing starts from the request alone. These are `reads` and `recall` on the phase's entry, shared phases included.
+
 **The groups dispatched together.** Two or more declared phases that neither read what the other writes and that answer independent questions. No group is the common answer: ask once, and accept it.
 
 **The closing phase**, which is required. It is the one that removes the change's state file and stages the removal with the closing commit, and that closes the worktree when the change ran in one. A workflow with no closing phase leaves every change it runs open.
@@ -61,6 +63,7 @@ Before anything is written, show the whole assembled workflow in one piece:
 ```
 the name, the title and the description
 every phase, in order, each marked shared or its own, with its model or "no model"
+  and what it reads and recalls
 every route, in full, with the default marked
 every entry point, with the kind of request that joins there
 every group dispatched together, or that there is none

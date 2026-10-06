@@ -54,11 +54,18 @@ the run is not.
 The orchestrator passes addresses, already resolved.
 
 ```
-Skill:  .alfred/skills/apply/SKILL.md
-Task:   3 of docs/changes/login-google/tasks.md
-Spec:   docs/changes/login-google/spec.md
-Design: docs/changes/login-google/design.md
+Skill:   .alfred/skills/apply/SKILL.md
+Writes:  docs/changes/login-google/apply.md
+Task:    3 of docs/changes/login-google/tasks.md
+Spec:    docs/changes/login-google/spec.md
+Design:  docs/changes/login-google/design.md
+Recall:  review-findings
 ```
+
+What goes in that list is the running workflow's declaration, not the orchestrator's
+judgement and not the skill's: the command's `What each phase reads` names, per phase, the
+artifacts it reads and the memory types it recalls. The orchestrator passes exactly those,
+plus the phase's own locator, and never adds an artifact because it looks relevant.
 
 Each of those is a **locator**, and resolving it is the orchestrator's job alone. It holds
 `.alfred/config.yaml` already, so it is the only participant that knows what
@@ -66,8 +73,8 @@ Each of those is a **locator**, and resolving it is the orchestrator's job alone
 to find out.
 
 ```
-keep, ephemeral   a path under paths.changes
-pointer           a key, alfred/{change}/{artifact}
+keep, ephemeral   a path, {paths.changes}{change}/{phase}.md
+pointer           a key, alfred/{change}/{phase}
 ```
 
 A phase is never told the mode and never asked to work it out. Two things follow. Adding a
@@ -76,9 +83,10 @@ disagree with the repository about where its inputs are — the disagreement wou
 because reading the wrong store returns an empty result that looks exactly like an artifact
 nobody wrote.
 
-An artifact that does not exist is passed as `<unresolved>`, not omitted. The phase then
-reports a blocker naming it, instead of treating a missing line as an optional input it may
-proceed without. See `Locators` in `memory/CONTRACT.md`.
+An artifact is never omitted. One whose phase has not run in this change, according to
+state, is passed as `<not produced>`, and the phase falls back to what exists. One whose
+phase completed and that cannot be found is passed as `<unresolved>`, and the phase reports
+a blocker naming it. See `Locators` in `memory/CONTRACT.md`.
 
 It does not open any of them to decide what to send. `tasks.md` is read by the phase that
 dispatches from it, and the orchestrator learns the count and the dependency order from

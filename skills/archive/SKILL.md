@@ -2,9 +2,6 @@
 name: archive
 mode: auto
 skippable: false
-reads: [spec, diagnosis, verify_report, review_report, master_specs]
-writes: [master_specs, record, postmortem, commit]
-document: {paths.change_records}/{change}/record.md
 next: []
 ---
 
@@ -37,7 +34,7 @@ Rank the sources before writing anything:
 ```
 1  the repository now: the code, the tests, what passes today
 2  facts the orchestrator carries about work done after the reports
-3  verify-report and review-report
+3  the verify and review artifacts
 4  the original request
 ```
 
@@ -52,11 +49,11 @@ answer; one resolved by guessing is an error nobody can find.
 Attribute what comes from a snapshot, rather than restating it as a present fact.
 
 ```
-per verify-report, at verification time: 47 tests passing
+per the verify artifact, at verification time: 47 tests passing
 ```
 
 Carry final numbers — test counts, warnings, uncovered lines — from the highest source that
-covers them. Numbers copied from `verify-report` after later work changed them are wrong in
+covers them. Numbers copied from the verify artifact after later work changed them are wrong in
 a document that outlives the change.
 
 ## Distinct failures stay distinct
@@ -85,7 +82,7 @@ becomes unreadable by the fifth change.
 The change directory stays, and the configuration decides what is in it.
 
 ```
-keep         the proposal, design, tasks and reports, plus the record
+keep         every phase's artifact, plus the record
 ephemeral    the record and the delta spec
 pointer      the address file, and the record
 ```
@@ -132,8 +129,7 @@ Under `artifacts.retain: final_only`, the working documents are removed once the
 exists.
 
 ```
-removed     proposal, research, design, tasks, diagnosis,
-            verify-report, review-report, inputs/
+removed     every phase's artifact of the change, {phase}.md, and inputs/
 kept        record.md
             spec.md, under artifacts.keep_delta_spec
             paths.master_specs, architecture.md, code_conventions.md
