@@ -27,15 +27,11 @@
     "custom": "workflows/custom",
     "rejected": "workflows/rejected",
     "rejected_custom": "workflows/rejected-custom",
-    "collision": "workflows/collision",
     "injection": "workflows/injection",
-    "absent": "workflows/none",
-    "removes": "ventas"
+    "absent": "workflows/none"
   },
   "project": {
     "repo": "project/repo",
-    "bare": "project/bare",
     "removes": "almacen"
-  },
-  "migration": "agents/migration"
+  }
 }

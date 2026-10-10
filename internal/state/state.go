@@ -1,8 +1,6 @@
-// Package state tracks which installed files Alfred manages, by content hash.
-//
-// A file whose hash still matches the one recorded at install time was not touched by the
-// user and may be replaced. A file whose hash differs was modified and is reported instead
-// of overwritten.
+// Package state tracks the files Alfred installed (state.json), by content hash. A file
+// whose hash still matches was not touched by the user and may be replaced; one whose hash
+// differs was modified and is reported instead of overwritten.
 package state
 
 import (
@@ -21,23 +19,16 @@ import (
 	"sync"
 )
 
-// notManagedName and notManagedPath are written by the installation rather than shipped
-// with it, so they are never recorded and never replaced.
-//
-// The two forms make two different claims. A base name excludes a file wherever it turns
-// up, which is right for the bookkeeping the installation writes at the root. A relative
-// path excludes one file in one place, which is what the installed helper needs: a name
-// rule for `alfred` would exclude any payload file that ever carried that name.
+// notManagedName (any file with that base name) and notManagedPath (one relative path) are
+// written by the installation, not shipped, so they are never recorded or replaced.
 var (
 	notManagedName = map[string]bool{"state.json": true, "profile.json": true}
 	notManagedPath = map[string]bool{"bin/alfred": true}
 )
 
-// ManagedFiles lists the files Alfred owns, sorted.
-//
-// Only the payload is installed: the repository also holds its own README, licence,
-// installer and documentation, none of which belong in an installation. Without this
-// filter an update copies the whole repository into the install directory.
+// ManagedFiles lists, sorted, the files under the payload items of root (or all of root when
+// payload is empty), skipping .git and unmanaged files. The payload filter keeps the
+// repository's own README, docs and installer out of the installation.
 func ManagedFiles(root string, payload []string) ([]string, error) {
 	roots := []string{root}
 	if len(payload) > 0 {
@@ -51,8 +42,7 @@ func ManagedFiles(root string, payload []string) ([]string, error) {
 	for _, entry := range roots {
 		info, err := os.Stat(entry)
 		if err != nil {
-			// A payload item that is not there is skipped: the installer reports a missing
-			// item before it gets here.
+			// Missing payload items are skipped; the installer reports them earlier.
 			continue
 		}
 
@@ -61,11 +51,11 @@ func ManagedFiles(root string, payload []string) ([]string, error) {
 			continue
 		}
 
-		err = filepath.WalkDir(entry, func(path string, d fs.DirEntry, err error) error {
+		err = filepath.WalkDir(entry, func(path string, dirEntry fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if !d.IsDir() {
+			if !dirEntry.IsDir() {
 				found = append(found, path)
 			}
 			return nil
@@ -76,21 +66,22 @@ func ManagedFiles(root string, payload []string) ([]string, error) {
 	}
 
 	kept := found[:0]
-	for _, p := range found {
-		rel, err := filepath.Rel(root, p)
+	for _, path := range found {
+		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return nil, err
 		}
-		if hasGitPart(p) || notManagedName[filepath.Base(p)] || notManagedPath[filepath.ToSlash(rel)] {
+		if hasGitPart(path) || notManagedName[filepath.Base(path)] || notManagedPath[filepath.ToSlash(rel)] {
 			continue
 		}
-		kept = append(kept, p)
+		kept = append(kept, path)
 	}
 
 	sort.Strings(kept)
 	return kept, nil
 }
 
+// hasGitPart reports whether any component of path is a .git directory.
 func hasGitPart(path string) bool {
 	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
 		if part == ".git" {
@@ -102,25 +93,25 @@ func hasGitPart(path string) bool {
 
 // SHA256 returns the hex digest of a file's contents.
 func SHA256(path string) (string, error) {
-	f, err := os.Open(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = f.Close() }()
+	defer func() { _ = file.Close() }()
 
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// hashAll digests every path concurrently. Hashing is the whole cost of both commands and
-// the files are independent, so the work is spread over the machine's cores.
+// hashAll returns the SHA-256 of every path, hashed concurrently across the machine's cores,
+// and the first error seen (if any).
 func hashAll(paths []string) (map[string]string, error) {
-	out := make(map[string]string, len(paths))
+	sums := make(map[string]string, len(paths))
 	if len(paths) == 0 {
-		return out, nil
+		return sums, nil
 	}
 
 	workers := min(runtime.GOMAXPROCS(0), len(paths))
@@ -144,7 +135,7 @@ func hashAll(paths []string) (map[string]string, error) {
 						firstErr = err
 					}
 				} else {
-					out[path] = sum
+					sums[path] = sum
 				}
 				mu.Unlock()
 			}
@@ -157,7 +148,7 @@ func hashAll(paths []string) (map[string]string, error) {
 	close(jobs)
 	wg.Wait()
 
-	return out, firstErr
+	return sums, firstErr
 }
 
 // File is state.json: the installed version and a hash per managed file.
@@ -166,8 +157,8 @@ type File struct {
 	Files   map[string]string `json:"files"`
 }
 
-// Write records the version and a hash per managed file, and returns how many were
-// recorded.
+// Write saves state.json at root with the version and a hash per managed file, and returns
+// how many files were recorded.
 func Write(root, version string, payload []string) (int, error) {
 	files, err := ManagedFiles(root, payload)
 	if err != nil {
@@ -179,16 +170,16 @@ func Write(root, version string, payload []string) (int, error) {
 		return 0, err
 	}
 
-	doc := File{Version: version, Files: make(map[string]string, len(files))}
+	stateFile := File{Version: version, Files: make(map[string]string, len(files))}
 	for _, path := range files {
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return 0, err
 		}
-		doc.Files[rel] = sums[path]
+		stateFile.Files[rel] = sums[path]
 	}
 
-	data, err := json.MarshalIndent(doc, "", "  ")
+	data, err := json.MarshalIndent(stateFile, "", "  ")
 	if err != nil {
 		return 0, err
 	}
@@ -198,17 +189,9 @@ func Write(root, version string, payload []string) (int, error) {
 	return len(files), nil
 }
 
-// Version returns the version string the installation at home recorded.
-//
-// The number comes from state.json and never from a value baked into the binary. The
-// question being asked is "what is installed here", which is the thing an update changes;
-// a build-time string answers "which binary is this", and the two differ exactly when it
-// matters — a helper copied by an older install and never refreshed would report its own
-// build while the payload beside it is a different one.
-//
-// An installation that cannot say which version it is reports nothing rather than
-// "unknown": the only reason to ask is to compare the answer with something, so a string
-// nobody can trust is worse than a failure.
+// Version returns the version recorded in home's state.json, not one baked into the binary,
+// because a stale helper binary may sit beside a newer payload. A missing version is an
+// error rather than "unknown", since callers compare the answer.
 func Version(home string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(home, "state.json"))
 	switch {
@@ -228,11 +211,13 @@ func Version(home string) (string, error) {
 	return recorded.Version, nil
 }
 
+// notInstalled is the error for a home with no usable installation record.
 func notInstalled(home string) error {
 	return fmt.Errorf("no installation at %s; run: install.sh install", home)
 }
 
-// Report classifies every source file against what was installed.
+// Report lists source files by status (relative paths): not installed yet, identical,
+// edited by the user since install, or safe to update.
 type Report struct {
 	New       []string `json:"new"`
 	Unchanged []string `json:"unchanged"`
@@ -240,7 +225,8 @@ type Report struct {
 	Updatable []string `json:"updatable"`
 }
 
-// Compare classifies every source file against what was installed.
+// Compare classifies every source file against what is installed at root. A file whose
+// installed hash differs from the recorded one is Modified, so user edits are not overwritten.
 func Compare(root, source string, payload []string) (*Report, error) {
 	var recorded File
 	if data, err := os.ReadFile(filepath.Join(root, "state.json")); err == nil {
@@ -254,21 +240,20 @@ func Compare(root, source string, payload []string) (*Report, error) {
 		return nil, err
 	}
 
-	// Both sides are hashed up front and in parallel, so each file is read once no matter
-	// how many of the branches below would have asked for its digest.
-	srcSums, err := hashAll(sources)
+	// Hash both sides up front, in parallel, so each file is read only once.
+	sourceSums, err := hashAll(sources)
 	if err != nil {
 		return nil, err
 	}
 
-	rels := make([]string, len(sources))
+	relPaths := make([]string, len(sources))
 	installed := make([]string, 0, len(sources))
-	for i, src := range sources {
-		rel, err := filepath.Rel(source, src)
+	for i, sourcePath := range sources {
+		rel, err := filepath.Rel(source, sourcePath)
 		if err != nil {
 			return nil, err
 		}
-		rels[i] = rel
+		relPaths[i] = rel
 
 		target := filepath.Join(root, rel)
 		if _, err := os.Stat(target); err == nil {
@@ -282,18 +267,18 @@ func Compare(root, source string, payload []string) (*Report, error) {
 	}
 
 	report := &Report{}
-	for i, src := range sources {
-		rel := rels[i]
+	for i, sourcePath := range sources {
+		rel := relPaths[i]
 		target := filepath.Join(root, rel)
 
-		got, present := installedSums[target]
-		was, wasRecorded := recorded.Files[rel]
+		installedSum, present := installedSums[target]
+		recordedSum, wasRecorded := recorded.Files[rel]
 		switch {
 		case !present:
 			report.New = append(report.New, rel)
-		case wasRecorded && got != was:
+		case wasRecorded && installedSum != recordedSum:
 			report.Modified = append(report.Modified, rel)
-		case got == srcSums[src]:
+		case installedSum == sourceSums[sourcePath]:
 			report.Unchanged = append(report.Unchanged, rel)
 		default:
 			report.Updatable = append(report.Updatable, rel)
@@ -303,16 +288,16 @@ func Compare(root, source string, payload []string) (*Report, error) {
 	return report, nil
 }
 
-// JSON renders the report on one line, every section present even when empty, so the
+// JSON renders the report on one line with every section present (empty as []), so the
 // installer can read any of them without checking first.
 func (r *Report) JSON() string {
-	out := Report{New: r.New, Unchanged: r.Unchanged, Modified: r.Modified, Updatable: r.Updatable}
-	for _, section := range []*[]string{&out.New, &out.Unchanged, &out.Modified, &out.Updatable} {
+	complete := Report{New: r.New, Unchanged: r.Unchanged, Modified: r.Modified, Updatable: r.Updatable}
+	for _, section := range []*[]string{&complete.New, &complete.Unchanged, &complete.Modified, &complete.Updatable} {
 		if *section == nil {
 			*section = []string{}
 		}
 	}
-	data, err := json.Marshal(out)
+	data, err := json.Marshal(complete)
 	if err != nil {
 		panic(err)
 	}

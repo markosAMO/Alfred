@@ -1,8 +1,6 @@
-// Package settings reads the agent's own settings files.
-//
-// It exists for one check: whether starting a session is permitted. The installer reads the
-// settings rather than trying the command, because starting a session to find out would
-// cost one, and a permission that is written down is the thing being asked about.
+// Package settings reads Claude Code's settings files to check whether starting a session
+// is permitted. It reads the settings instead of trying the command, because trying it
+// would start (and spend) a session.
 package settings
 
 import (
@@ -12,11 +10,8 @@ import (
 	"strings"
 )
 
-// SessionPermissionGranted reports whether any settings file allows the start command.
-//
-// A permissive mode can let the command through with no rule present, so a false here
-// means "this may stop you", not "this will" - which is the safe direction for a check
-// whose remedy is one line and harmless.
+// SessionPermissionGranted reports whether any user or project settings file allows a
+// `Bash(claude...` rule. false means "this may block you", not "this will".
 func SessionPermissionGranted(home string) bool {
 	candidates := []string{
 		filepath.Join(home, ".claude/settings.json"),

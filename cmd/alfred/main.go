@@ -1,8 +1,6 @@
-// Command alfred is the installer's helper: install bookkeeping, agent generation, and the
-// few JSON reads the shell script needs.
-//
-// Bash has neither JSON nor sha256, so everything the installer needs of either is done
-// here, and an installation needs no interpreter beyond the shell.
+// Command alfred is the installer's helper: install bookkeeping, workflow and agent
+// generation, memory registration, and the JSON reads the shell script needs. It exists so
+// an installation needs nothing beyond the shell (which has no JSON or sha256).
 package main
 
 import (
@@ -71,10 +69,11 @@ version takes the installation directory; with none it reads ALFRED_HOME, fallin
 ~/.config/alfred. It prints what state.json records, on one line and with nothing else, and
 exits 1 when there is no installation there.`
 
-// errUsage asks for the usage text on stderr and a non-zero exit, without the "error:"
+// errUsage makes main print the usage text on stderr and exit 2, without the "error:"
 // prefix a real failure carries.
 var errUsage = errors.New("usage")
 
+// main runs the command. Exit codes: 0 success, 1 failure, 2 called wrongly.
 func main() {
 	switch err := run(os.Args[1:]); {
 	case err == nil:
@@ -87,6 +86,7 @@ func main() {
 	}
 }
 
+// run dispatches to the subcommand named by the first argument.
 func run(args []string) error {
 	if len(args) == 0 {
 		return errUsage
@@ -123,6 +123,7 @@ func splitPayload(raw string) []string {
 	return strings.Split(raw, ",")
 }
 
+// runState handles `state write|compare|apply`.
 func runState(args []string) error {
 	if len(args) == 0 {
 		return errors.New("state: expected write, compare or apply")
@@ -162,8 +163,8 @@ func runState(args []string) error {
 	}
 }
 
-// applyReport copies every file the report calls new or updatable. A modified file is
-// never touched: that is the whole point of recording the hashes.
+// applyReport reads a state report from stdin and copies every New and Updatable file from
+// source to home. Modified files are never touched, so user edits survive.
 func applyReport(home, source string) error {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
@@ -177,15 +178,15 @@ func applyReport(home, source string) error {
 	count := 0
 	for _, section := range [][]string{report.New, report.Updatable} {
 		for _, rel := range section {
-			src, err := under(source, rel)
+			sourcePath, err := under(source, rel)
 			if err != nil {
 				return err
 			}
-			dst, err := under(home, rel)
+			destPath, err := under(home, rel)
 			if err != nil {
 				return err
 			}
-			if err := copyFile(src, dst); err != nil {
+			if err := copyFile(sourcePath, destPath); err != nil {
 				return err
 			}
 			count++
@@ -196,9 +197,8 @@ func applyReport(home, source string) error {
 	return nil
 }
 
-// under joins a relative path to a root and refuses anything that climbs out of it. The
-// report is a document rather than an argument, so a path inside it is not trusted to stay
-// where it belongs.
+// under joins a relative path to root and rejects any path that escapes it, because paths
+// read from the report on stdin are not trusted.
 func under(root, rel string) (string, error) {
 	joined := filepath.Join(root, rel)
 
@@ -209,38 +209,34 @@ func under(root, rel string) (string, error) {
 	return joined, nil
 }
 
-func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+// copyFile copies sourcePath to destPath, creating directories and keeping the permissions.
+func copyFile(sourcePath, destPath string) error {
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return err
 	}
 
-	info, err := os.Stat(src)
+	info, err := os.Stat(sourcePath)
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(src)
+	data, err := os.ReadFile(sourcePath)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(dst, data, info.Mode().Perm()); err != nil {
+	if err := os.WriteFile(destPath, data, info.Mode().Perm()); err != nil {
 		return err
 	}
-	// The mode is what makes bin/*.sh runnable.
-	return os.Chmod(dst, info.Mode().Perm())
+	// Chmod as well, since WriteFile keeps an existing file's mode; bin/*.sh must be runnable.
+	return os.Chmod(destPath, info.Mode().Perm())
 }
 
-// runWorkflows registers the workflows of one scope: scan the roots, validate and resolve
-// every definition, generate the commands and the subagents, write them into the targets of
-// that scope, and report.
-//
-// This is the only place that sees both internal/workflow and internal/agents. The second
-// imports the first, so the first cannot name the second's result, and translating one
-// into the other is therefore here. Every decision either way stays in the package it
-// belongs to: this function picks nothing and only passes values along.
+// runWorkflows registers the workflows of one scope: validate the definitions, generate
+// commands and subagents, write them (or only report) and print the report. It only
+// translates between internal/workflow and internal/agents; it makes no decisions itself.
 func runWorkflows(args []string) error {
 	request, err := workflow.Parse(args)
 	if err != nil {
-		// Called wrongly is exit 2, and the reason is worth more than the usage text alone.
+		// Called wrongly: print the reason, then exit 2 with the usage text.
 		fmt.Fprintln(os.Stderr, "workflows: "+err.Error())
 		return errUsage
 	}
@@ -305,27 +301,27 @@ func runWorkflows(args []string) error {
 	return nil
 }
 
+// generation converts the parsed request and accepted workflows into agents' input.
 func generation(request *workflow.Request, accepted []workflow.Accepted) agents.Generation {
-	g := agents.Generation{
+	input := agents.Generation{
 		Scope:     agents.Machine,
 		Skills:    request.Skills,
 		Templates: request.Templates,
 		Custom:    request.Custom,
 	}
 	if request.Scope == workflow.ScopeProject {
-		g.Scope = agents.Project
+		input.Scope = agents.Project
 	}
-	for _, one := range accepted {
-		g.Workflows = append(g.Workflows, agents.Registered{
-			Dir: one.Dir, Definition: one.Definition, Phases: one.Phases,
+	for _, definition := range accepted {
+		input.Workflows = append(input.Workflows, agents.Registered{
+			Dir: definition.Dir, Definition: definition.Definition, Phases: definition.Phases,
 		})
 	}
-	return g
+	return input
 }
 
-// registration is the one place the mode decides anything: apply writes, and both of the
-// others go through the same code with the writes gated off, so a report can never describe
-// a run that would not have happened.
+// registration writes the generated set in apply mode and only reports otherwise. Both go
+// through the same code, so a report always describes what apply would do.
 func registration(set *agents.Set, request *workflow.Request) (*agents.Written, error) {
 	targets := agents.Targets{
 		Claude:   request.Targets.Claude,
@@ -340,6 +336,7 @@ func registration(set *agents.Set, request *workflow.Request) (*agents.Written, 
 	return agents.Report(set, targets)
 }
 
+// agentLine converts one agent's change summary into a report line.
 func agentLine(change agents.Change) workflow.AgentLine {
 	line := workflow.AgentLine{
 		Agent:      change.Agent,
@@ -361,6 +358,7 @@ func agentLine(change agents.Change) workflow.AgentLine {
 	return line
 }
 
+// entryNames returns the names of the entries, in order.
 func entryNames(entries []agents.Entry) []string {
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -369,8 +367,8 @@ func entryNames(entries []agents.Entry) []string {
 	return names
 }
 
-// runMemory exits with the number of problems found, so the installer's doctor can use it
-// as a check directly.
+// runMemory handles `memory check|apply|declared`. check and apply exit with the number of
+// problems found, so the installer's doctor can use the exit code directly.
 func runMemory(args []string) error {
 	if len(args) == 0 {
 		return errors.New("memory: expected check, apply or declared")
@@ -404,6 +402,8 @@ func runMemory(args []string) error {
 	}
 }
 
+// runJSONGet prints a top-level value of a JSON object: a string as is, a string list one
+// item per line, anything else as raw JSON.
 func runJSONGet(args []string) error {
 	if len(args) != 2 {
 		return errors.New("json-get: expected <file|-> <key>")
@@ -422,19 +422,19 @@ func runJSONGet(args []string) error {
 		return err
 	}
 
-	var doc map[string]json.RawMessage
-	if err := json.Unmarshal(data, &doc); err != nil {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
 		return err
 	}
 
-	raw, ok := doc[args[1]]
+	raw, ok := object[args[1]]
 	if !ok {
 		return fmt.Errorf("json-get: no key %q", args[1])
 	}
 
-	var str string
-	if err := json.Unmarshal(raw, &str); err == nil {
-		fmt.Println(str)
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		fmt.Println(text)
 		return nil
 	}
 	var items []string
@@ -448,6 +448,7 @@ func runJSONGet(args []string) error {
 	return nil
 }
 
+// runJSONValid returns an error when the file does not parse as JSON.
 func runJSONValid(args []string) error {
 	if len(args) != 1 {
 		return errors.New("json-valid: expected <file>")
@@ -462,6 +463,7 @@ func runJSONValid(args []string) error {
 	return nil
 }
 
+// runSessionPermission exits 1 when no settings file permits starting a session.
 func runSessionPermission(args []string) error {
 	if len(args) != 1 {
 		return errors.New("session-permission: expected <home>")
@@ -472,9 +474,8 @@ func runSessionPermission(args []string) error {
 	return nil
 }
 
-// runVersion is the only command here the installer does not call, so it is the only one
-// that has to work out its own home. Every other command is handed one by the script that
-// knows it; this one answers a user on a machine with no clone, with nothing to hand.
+// runVersion prints the installed version. It is meant for users, not the installer, so it
+// resolves the home itself when none is given.
 func runVersion(args []string) error {
 	if len(args) > 1 {
 		return errors.New("version: expected an optional <home>")
@@ -499,15 +500,15 @@ func runVersion(args []string) error {
 	return nil
 }
 
-// alfredHome resolves the default installation directory the way install.sh does, which is
-// the only reason this binary reads an environment variable at all.
+// alfredHome resolves the default installation directory the way install.sh does:
+// $ALFRED_HOME, else ~/.config/alfred.
 func alfredHome() (string, error) {
 	if home := os.Getenv("ALFRED_HOME"); home != "" {
 		return home, nil
 	}
-	dir, err := os.UserHomeDir()
+	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolving the default home: %w", err)
 	}
-	return filepath.Join(dir, ".config", "alfred"), nil
+	return filepath.Join(userHome, ".config", "alfred"), nil
 }

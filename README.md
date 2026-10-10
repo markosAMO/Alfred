@@ -142,7 +142,7 @@ There is no package to download and no global `alfred` command.
 | | |
 |---|---|
 | `git` | to clone, and for the worktrees parallel changes run in |
-| `go` | the installer builds its helper from `cmd/alfred` on first use |
+| `go` | the installer builds its helper from `cmd/alfred` on every run |
 | An agent | Claude Code or OpenCode, already installed |
 
 The installer detects which agents are present and registers the orchestrator with each.
