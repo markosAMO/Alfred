@@ -1,16 +1,6 @@
-// Package memory registers the configured memory backend with every agent, and keeps it
-// whole.
-//
-// Two layers have to agree for a phase to reach a memory tool: the agent declares the tool,
-// and the MCP server exposes it. Package agents owns the first. This owns the second, and
-// checks the first from the outside, because the two fail differently and only one of them
-// is visible.
-//
-// An agent that declares a tool the server does not expose sees no tool at all, which from
-// inside a phase is indistinguishable from a backend that cannot do the thing - the failure
-// this whole arrangement exists to stop. So the registration is written by the installer
-// rather than pasted from a document, and a narrowed one already on disk is repaired rather
-// than reported.
+// Package memory registers the configured memory backend as an MCP server with every agent
+// and repairs a registration that is missing or narrowed to a subset of tools. It also checks
+// that agent definitions declare every memory tool, since a mismatch fails silently.
 package memory
 
 import (
@@ -28,21 +18,21 @@ import (
 	"github.com/markosAMO/alfred/internal/jsonobj"
 )
 
-// profile is every tool the backend exposes, never a subset. A subset is a copy of the
-// backend's surface that nothing keeps in step, and it degrades silently as the backend
-// grows.
+// profile is the --tools value: every tool, never a subset that would fall out of step as
+// the backend grows.
 const profile = "all"
 
-// ConfiguredBackend is the `memory.backend` value, read without a YAML parser.
+// ConfiguredBackend returns the `memory.backend` value from alfred.config.yaml, read line by
+// line without a YAML parser, or "" when it is absent.
 func ConfiguredBackend(alfredHome string) string {
-	f, err := os.Open(filepath.Join(alfredHome, "alfred.config.yaml"))
+	file, err := os.Open(filepath.Join(alfredHome, "alfred.config.yaml"))
 	if err != nil {
 		return ""
 	}
-	defer func() { _ = f.Close() }()
+	defer func() { _ = file.Close() }()
 
 	inMemory := false
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "memory:") {
@@ -63,7 +53,8 @@ func ConfiguredBackend(alfredHome string) string {
 	return ""
 }
 
-// binary is the absolute path, because an agent does not inherit the shell's PATH.
+// binary returns the absolute path of name (or name itself when not found), because an
+// agent does not inherit the shell's PATH.
 func binary(name string) string {
 	if path, err := exec.LookPath(name); err == nil {
 		return path
@@ -71,9 +62,8 @@ func binary(name string) string {
 	return name
 }
 
-// server is one MCP server entry. The two agents spell a stdio server differently: Claude
-// Code splits command and args, OpenCode carries both in one list, so Command is either a
-// string or a list.
+// server is one MCP server entry. Claude Code splits command and args; OpenCode puts both
+// in one list, so Command is either a string or a list.
 type server struct {
 	Type    string    `json:"type"`
 	Command any       `json:"command"`
@@ -82,7 +72,8 @@ type server struct {
 	Enabled *bool     `json:"enabled,omitempty"`
 }
 
-// wanted is the registration for one agent: same registration, two shapes.
+// wanted builds the correct registration of backend name for an agent kind
+// ("opencode" or Claude Code).
 func wanted(kind, name string) server {
 	if kind == "opencode" {
 		enabled := true
@@ -100,8 +91,8 @@ func wanted(kind, name string) server {
 	}
 }
 
-// invocation is the argument list, whichever shape the agent writes it in, and false when
-// the entry is not an object at all.
+// invocation returns an entry's full command line in either agent's shape, and false when
+// the entry is not a JSON object.
 func invocation(raw json.RawMessage) ([]string, bool) {
 	var entry map[string]json.RawMessage
 	if json.Unmarshal(raw, &entry) != nil || entry == nil {
@@ -123,17 +114,18 @@ func invocation(raw json.RawMessage) ([]string, bool) {
 	return append(parts, stringsOf(args)...), true
 }
 
+// stringsOf keeps the string items of a list, dropping anything else.
 func stringsOf(items []any) []string {
-	out := make([]string, 0, len(items))
+	texts := make([]string, 0, len(items))
 	for _, item := range items {
-		if s, ok := item.(string); ok {
-			out = append(out, s)
+		if text, ok := item.(string); ok {
+			texts = append(texts, text)
 		}
 	}
-	return out
+	return texts
 }
 
-// diagnose returns "missing", "narrowed", or "" when the registration is whole.
+// diagnose returns "missing", "narrowed", or "" when the registration exposes every tool.
 func diagnose(raw json.RawMessage) string {
 	parts, ok := invocation(raw)
 	if !ok {
@@ -160,23 +152,23 @@ func diagnose(raw json.RawMessage) string {
 	return "narrowed"
 }
 
-// load reads a config with its keys in their order, so everything this does not own is
-// written back exactly where it was. A file that does not parse is treated as empty, as
-// the agent itself would have to.
+// load reads an agent config keeping key order, so keys Alfred does not own are written
+// back unchanged. A missing or unparsable file is treated as empty.
 func load(path string) *jsonobj.Object {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return jsonobj.New()
 	}
-	doc, err := jsonobj.Parse(data)
+	config, err := jsonobj.Parse(data)
 	if err != nil {
 		return jsonobj.New()
 	}
-	return doc
+	return config
 }
 
-func save(path string, doc *jsonobj.Object) error {
-	data, err := jsonobj.Format(doc)
+// save writes an agent config indented, creating its directory if needed.
+func save(path string, config *jsonobj.Object) error {
+	data, err := jsonobj.Format(config)
 	if err != nil {
 		return err
 	}
@@ -188,8 +180,8 @@ func save(path string, doc *jsonobj.Object) error {
 
 // handle diagnoses one agent's config, repairing it when asked, and returns the status.
 func handle(path, container, kind, name string, apply bool) (string, error) {
-	doc := load(path)
-	servers := doc.Child(container)
+	config := load(path)
+	servers := config.Child(container)
 
 	current, _ := servers.Get(name)
 	status := diagnose(current)
@@ -202,13 +194,13 @@ func handle(path, container, kind, name string, apply bool) (string, error) {
 		return status, err
 	}
 	servers.Set(name, entry)
-	doc.SetChild(container, servers)
-	return status, save(path, doc)
+	config.SetChild(container, servers)
+	return status, save(path, config)
 }
 
-// Register checks, and with apply repairs, the backend's registration with every target.
-// Targets are `claude=<home>` or `opencode=<config.json>`. It returns the number of
-// problems left; `check` never writes.
+// Register checks, and with apply repairs, the backend's registration with every target
+// (`claude=<home>` or `opencode=<config.json>`). It returns the number of problems left;
+// without apply it never writes.
 func Register(out io.Writer, alfredHome string, targets []string, apply bool) (int, error) {
 	backend := ConfiguredBackend(alfredHome)
 	if backend == "" || backend == "none" {
@@ -219,13 +211,11 @@ func Register(out io.Writer, alfredHome string, targets []string, apply bool) (i
 		return 0, nil
 	}
 	if _, err := exec.LookPath(backend); err != nil {
-		// Configured but absent: report it, do not invent a registration for a binary that
-		// is not there. `memory.required` decides whether that is fatal, at run time.
+		// Report a missing binary instead of registering it; `memory.required` decides at run
+		// time whether that is fatal.
 		_, _ = fmt.Fprintf(out, "FAIL  %s is the configured backend and is not on PATH\n", backend)
 		_, _ = fmt.Fprintf(out, "      install it, or set memory.backend: none in %s/alfred.config.yaml\n", alfredHome)
-		//nolint:nilerr // the count is the diagnosis and the error is reserved for a check
-		// that could not run: an absent backend is a problem this function reports and
-		// counts, not a failure of the reporting.
+		//nolint:nilerr // an absent backend is a counted problem, not a failure to check.
 		return 1, nil
 	}
 
@@ -261,12 +251,11 @@ func Register(out io.Writer, alfredHome string, targets []string, apply bool) (i
 	return problems, nil
 }
 
+// memToolPattern matches a memory tool name such as mem_save.
 var memToolPattern = regexp.MustCompile(`mem_[a-z_]+`)
 
-// Declared reports whether every alfred-*.md definition under agentsDir declares every
-// memory tool. agents.MemoryTools is the authority on the list, so it is asked rather than
-// copied: a check carrying its own copy is one more thing to fall out of step, which is the
-// failure being checked for.
+// Declared reports whether every alfred-*.md definition under agentsDir declares every tool
+// in agents.MemoryTools on its `tools:` line. The list is read from agents, never copied.
 func Declared(agentsDir string) bool {
 	files, err := filepath.Glob(filepath.Join(agentsDir, "alfred-*.md"))
 	if err != nil || len(files) == 0 {

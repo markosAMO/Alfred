@@ -15,18 +15,17 @@ profiles/                    uniform, every-option (every key set) and minimal (
 workflows/shipped/           ventas, with its own phases, and soporte
 workflows/custom/            inventario, and cobranzas, whose own phase has no model
 workflows/rejected/          one refusal per stage (decode, validation, scan, resolve) and
-                             the unsafe values: a path-escaping phase, a model and a tool
-                             that would inject frontmatter, and "forged  row"
+                             "forged  row"; every other refusal reason is unit-tested in
+                             internal/workflow
 workflows/rejected-custom/   the second root, holding the name that is in both
-workflows/collision/         two workflows generating one subagent name, and one that registers
 workflows/injection/         a description carrying a newline
-agents/migration/            what the previous generator left: adopted legacy files,
-                             alfred-init and alfred-explore as subagents, a colliding
-                             alfred-ventas, the orphan alfred-notes and the foreign key mi-agente
 project/repo/                a repository with two workflows, one named ventas, an orphan
                              alfred-stale and a .gitignore
-project/bare/                a repository defining no workflow
 ```
+
+Behaviour already pinned by a unit test with the same assertion (subagent name collisions,
+migration from a version with no manifest, machine-scope removal, a repository with no
+workflow, argument validation, `version`) is not repeated here.
 
 `workflows/` is testdata rather than the shipped `workflows/`, so tuning `sdd` does not
 turn this suite red. `forged  row` is a directory name holding the report's column
@@ -35,7 +34,7 @@ separator (two spaces); it must be printed quoted.
 ## Recordings
 
 ```
-state/                       state write, the compare reports, both answers of version
+state/                       state write and the compare reports
 agents/<case>.report         what a machine-scope run printed and how it exited
 agents/every-option/         every file that run wrote
 agents/minimal/              only the files whose shape every-option does not cover:

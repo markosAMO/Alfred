@@ -28,7 +28,7 @@ die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 # Bash has neither JSON nor sha256, so something has to; it is Go, so an installation needs
 # no interpreter and hashing the payload uses every core.
 #
-# Built from source on first use rather than shipped as a binary: a binary would have to be
+# Built from source on every run rather than shipped as a binary: a binary would have to be
 # built per platform and trusted, where the source is already here and `go build` is one
 # command. Nothing else in the payload needs a toolchain, so it stays out of PAYLOAD and
 # is built into .build/. The result is then installed, by install_helper, because the
@@ -37,15 +37,19 @@ HELPER=""
 BUILD_ERROR=""
 WORKFLOW_ARGS=()
 
+# setup_runtime builds the helper from the current source, once per run.
+# It always rebuilds when go is available: reusing an existing .build/alfred would install
+# a helper compiled from older source after a pull. go build is incremental, so an unchanged
+# tree costs almost nothing. Without go, an existing build is the only helper there is.
 setup_runtime() {
   [ -n "$HELPER" ] && return 0
 
-  if [ -x "$SOURCE/.build/alfred" ]; then
-    HELPER="$SOURCE/.build/alfred"
-    return 0
-  fi
-
   if ! command -v go >/dev/null 2>&1; then
+    if [ -x "$SOURCE/.build/alfred" ]; then
+      warn "go not found; using the existing $SOURCE/.build/alfred, which may predate this source"
+      HELPER="$SOURCE/.build/alfred"
+      return 0
+    fi
     BUILD_ERROR="go is required; the installer builds its helper from cmd/alfred"
     return 1
   fi

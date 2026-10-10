@@ -11,41 +11,33 @@ import (
 	"github.com/markosAMO/alfred/internal/generated"
 )
 
-// reportWidth is what a registration report wraps to. It is the width the rest of this
-// repository's prose is written to, and a report is read in a terminal beside everything
-// else the installer prints.
+// reportWidth is the column the registration report wraps to.
 const reportWidth = 90
 
-// Scope is the side of the installation a run registers. It is given on the command line
-// and never derived: a run is handed the roots and the targets of one scope, and nothing
-// below asks which it got.
+// Scope is the side of the installation a run registers: the whole machine or one
+// repository. It is always given on the command line, never derived.
 type Scope string
 
+// The two registration scopes.
 const (
 	ScopeMachine Scope = "machine"
 	ScopeProject Scope = "project"
 )
 
-// Mode is what a run does with what it found.
-//
-// Report produces the identical report to Apply and writes nothing, which is one code path
-// with a write gate rather than two that can drift. Check answers a different question —
-// which workflows of this scope have no command — and so prints a different section.
+// Mode is what a run does with what it found: apply writes, report prints the same report
+// without writing, and check lists the workflows whose command is missing.
 type Mode string
 
+// The three run modes.
 const (
 	ModeApply  Mode = "apply"
 	ModeReport Mode = "report"
 	ModeCheck  Mode = "check"
 )
 
-// Targets is where one scope's registration writes, as the command line spells it.
-//
-// Exclude and ExcludeManifest are alternatives rather than degrees of one setting. Under
-// `artifacts.committed: false` every generated path is kept out of git, which is Exclude.
-// Under `true` the generated commands and agents are ordinary files and only the manifest
-// is kept out, because it records this machine's absolute paths and the hashes of files
-// rendered from this machine's model profile, so it is wrong in every other clone.
+// Targets is where one scope's registration writes, as given on the command line.
+// Exclude (keep every generated path out of git) and ExcludeManifest (keep only the
+// manifest out, since it holds machine-specific paths and hashes) are mutually exclusive.
 type Targets struct {
 	Claude          string
 	Opencode        string
@@ -55,26 +47,20 @@ type Targets struct {
 	ExcludeManifest string
 }
 
-// Request is one invocation of `alfred workflows`, with every root and every target it was
-// given.
-//
-// The roots are positional and explicit. Deriving them from the skills root would make the
-// helper construct a path into the payload and then read it, and the write targets are
-// named because a caller that swaps two of eight positionals does so silently.
+// Request is one parsed invocation of `alfred workflows`: scope, mode, every root it reads
+// and every target it writes.
 type Request struct {
 	Scope   Scope
 	Mode    Mode
 	Profile string
 	Skills  string
 
-	// Machine scope. Templates is where /alfred-add-workflow copies a new workflow from and
-	// Custom is where it writes it, and both are rendered into that command as text.
+	// Machine scope only. Templates and Custom are also rendered into /alfred-add-workflow.
 	Workflows string
 	Custom    string
 	Templates string
 
-	// Project scope. The machine roots are read, never written: they are what tells a
-	// repository workflow that this machine already has a command of its name.
+	// Project scope only. The machine roots are read, never written, to detect name clashes.
 	LocalSkills      string
 	LocalWorkflows   string
 	MachineWorkflows string
@@ -83,21 +69,21 @@ type Request struct {
 	Targets Targets
 }
 
-// machineRootCount and projectRootCount are the positionals each scope takes after the mode.
+// machineRootCount and projectRootCount are the root arguments each scope takes.
 const (
 	machineRootCount = 5
 	projectRootCount = 6
 )
 
-// Parse reads one `alfred workflows` invocation. Every error it returns is the caller
-// having been called wrongly, which is exit 2 and never a failure of the run.
+// Parse reads the arguments of one `alfred workflows` invocation into a Request.
+// Every error means the command was called wrongly (exit 2), never that the run failed.
 func Parse(args []string) (*Request, error) {
 	if len(args) == 0 {
 		return nil, errors.New("expected machine or project")
 	}
 
-	r := &Request{Scope: Scope(args[0])}
-	if r.Scope != ScopeMachine && r.Scope != ScopeProject {
+	request := &Request{Scope: Scope(args[0])}
+	if request.Scope != ScopeMachine && request.Scope != ScopeProject {
 		return nil, fmt.Errorf("unknown scope %q: expected machine or project", args[0])
 	}
 
@@ -105,35 +91,37 @@ func Parse(args []string) (*Request, error) {
 	if len(rest) == 0 {
 		return nil, errors.New("expected apply, report or check")
 	}
-	r.Mode = Mode(rest[0])
-	if r.Mode != ModeApply && r.Mode != ModeReport && r.Mode != ModeCheck {
+	request.Mode = Mode(rest[0])
+	if request.Mode != ModeApply && request.Mode != ModeReport && request.Mode != ModeCheck {
 		return nil, fmt.Errorf("unknown mode %q: expected apply, report or check", rest[0])
 	}
 
 	wanted := machineRootCount
-	if r.Scope == ScopeProject {
+	if request.Scope == ScopeProject {
 		wanted = projectRootCount
 	}
 	roots := rest[1:]
 	if len(roots) < wanted {
 		return nil, fmt.Errorf("%s scope takes %d roots before the targets, and %d were given",
-			r.Scope, wanted, len(roots))
+			request.Scope, wanted, len(roots))
 	}
 
-	r.Profile, r.Skills = roots[0], roots[1]
-	if r.Scope == ScopeMachine {
-		r.Workflows, r.Custom, r.Templates = roots[2], roots[3], roots[4]
+	request.Profile, request.Skills = roots[0], roots[1]
+	if request.Scope == ScopeMachine {
+		request.Workflows, request.Custom, request.Templates = roots[2], roots[3], roots[4]
 	} else {
-		r.LocalSkills, r.LocalWorkflows = roots[2], roots[3]
-		r.MachineWorkflows, r.MachineCustom = roots[4], roots[5]
+		request.LocalSkills, request.LocalWorkflows = roots[2], roots[3]
+		request.MachineWorkflows, request.MachineCustom = roots[4], roots[5]
 	}
 
-	if err := r.targets(roots[wanted:]); err != nil {
+	if err := request.targets(roots[wanted:]); err != nil {
 		return nil, err
 	}
-	return r, nil
+	return request, nil
 }
 
+// targets parses the `kind=path` target arguments into r.Targets and checks that the
+// combination is consistent.
 func (r *Request) targets(raw []string) error {
 	fields := map[string]*string{
 		"claude":           &r.Targets.Claude,
@@ -165,8 +153,8 @@ func (r *Request) targets(raw []string) error {
 	return r.consistent()
 }
 
-// consistent refuses the combinations that would write somewhere the scope does not own, or
-// that ask for an exclusion with nothing to write it against.
+// consistent refuses target combinations that would write outside the scope, or that ask
+// for an exclusion without the repository root it is written against.
 func (r *Request) consistent() error {
 	if r.Targets.Manifest == "" {
 		return errors.New("manifest= is required: without it nothing can be taken back and " +
@@ -197,8 +185,7 @@ func (r *Request) consistent() error {
 	return nil
 }
 
-// Roots are the workflow roots of this scope, with the label the report prints beside
-// everything found in each.
+// Roots returns the workflow roots of this scope, each with the label the report prints.
 func (r *Request) Roots() []Root {
 	if r.Scope == ScopeMachine {
 		return []Root{
@@ -209,8 +196,8 @@ func (r *Request) Roots() []Root {
 	return []Root{{Label: "project", Dir: r.LocalWorkflows}}
 }
 
-// Accepted is one workflow that validated and whose every phase resolved. It is what a
-// command is generated from.
+// Accepted is one workflow that validated and whose phases all resolved; a command is
+// generated from it.
 type Accepted struct {
 	Name       string
 	Dir        string
@@ -218,45 +205,33 @@ type Accepted struct {
 	Phases     []Resolved
 }
 
-// Line is one workflow in the report, registered or not.
-//
-// A workflow that was refused keeps its place here with the reason, rather than vanishing
-// from the output: the report names every workflow the user created, and one that is not
-// listed reads as one that was never there.
+// Line is one workflow row in the report, registered or not. A refused workflow keeps its
+// row with the reason, so the report names every workflow the user created.
 type Line struct {
 	Name   string
 	Source string
 	Phases int
 	Routes []string
 
-	// Command is the command this workflow registered under, without the leading marker the
-	// agent puts on it. It is empty for a workflow that was refused.
+	// Command is the registered command name without the agent's prefix; empty if refused.
 	Command string
 
-	// Overrides is a repository workflow carrying a machine workflow's name. The command
-	// above is then the distinguishing one, and saying so is the only thing that tells a
-	// user why the name they expected reaches the machine's copy.
-	//
-	// Machine is the command the machine's copy keeps. Both are named in the line, because
-	// a user holding one of two commands that differ by a suffix has to be told which
-	// reaches which copy rather than left to infer the other from the one they were given.
+	// Overrides marks a repository workflow that shares a machine workflow's name; Command
+	// is then the distinct name it got, and Machine the command the machine's copy keeps.
 	Overrides bool
 	Machine   string
 
 	Reason string
 }
 
-// Prepare scans the roots of this scope, validates every definition and resolves every
-// phase, and returns what registered alongside the report line for everything it met.
+// Prepare scans this scope's roots, validates and resolves every workflow, and returns the
+// accepted ones together with a report line for every workflow found.
 func (r *Request) Prepare(installed map[string]string) ([]Accepted, []Line, error) {
 	return collect(r.Roots(), r.LocalSkills, r.Skills, installed)
 }
 
-// MachineNames are the machine workflows that have a command, which is what a project run
-// needs to tell whether one of its own names collides with one.
-//
-// A machine workflow that was refused has no command, so nothing can collide with it. At
-// machine scope there is nothing above to collide with and the answer is empty.
+// MachineNames returns the names of the machine workflows that register, so a project run
+// can detect its own names clashing with them. It returns nothing at machine scope.
 func (r *Request) MachineNames() ([]string, error) {
 	if r.Scope == ScopeMachine {
 		return nil, nil
@@ -278,6 +253,8 @@ func (r *Request) MachineNames() ([]string, error) {
 	return names, nil
 }
 
+// collect scans the roots, resolves every valid workflow's phases against the skill roots,
+// and refuses workflows whose subagent names collide. local is empty at machine scope.
 func collect(roots []Root, local, shared string, installed map[string]string) ([]Accepted, []Line, error) {
 	found, err := Scan(roots)
 	if err != nil {
@@ -292,9 +269,7 @@ func collect(roots []Root, local, shared string, installed map[string]string) ([
 			continue
 		}
 
-		// The workflow's own skills first, then the repository's when it has one, then the
-		// shared library. local is empty at machine scope, which is what selects the
-		// rejection that names repository scope.
+		// Lookup order: the workflow's own skills, the repository's, then the shared library.
 		phases, err := Resolve(one.Definition, SkillRoots{
 			Own:        filepath.Join(one.Dir, "skills"),
 			Repository: local,
@@ -321,13 +296,9 @@ func collect(roots []Root, local, shared string, installed map[string]string) ([
 	return accepted, lines, nil
 }
 
-// SubagentName is the name the phase of one workflow is dispatched under. A shared phase is
-// one subagent however many workflows run it; a phase a workflow brought itself is addressed
-// under a name that is that workflow's alone.
-//
-// It lives beside registration rather than beside the generator because the ambiguity it can
-// produce is decided here, before anything is generated, and one rule written in two places
-// is one rule that drifts.
+// SubagentName returns the name a workflow's phase is dispatched under:
+// `alfred-<phase>` for a shared phase, `alfred-<workflow>-<phase>` for one the workflow
+// or repository brought.
 func SubagentName(workflow string, phase Resolved) string {
 	if phase.Origin == FromShared {
 		return "alfred-" + phase.Name
@@ -335,41 +306,23 @@ func SubagentName(workflow string, phase Resolved) string {
 	return "alfred-" + workflow + "-" + phase.Name
 }
 
-// collisions names the workflows of one scope that generate a subagent name another workflow
-// of that scope also generates, with the reason each of them is refused by.
-//
-// `alfred-<workflow>-<phase>` is not injective: `ventas-extra` with a phase `propuesta` and
-// `ventas` with a phase `extra-propuesta` reach one name however distinct the two workflow
-// names are. Whatever keys its subagents by that name takes the second assignment, so one
-// workflow's command would dispatch a subagent carrying the other's prompt and model with
-// nothing said anywhere, and the longest-prefix match that localises a name cannot resolve
-// the ambiguity either.
-//
-// Both colliders are refused rather than disambiguated. A generated name the user cannot
-// predict from the definition they wrote is worse than a rejection that names the two
-// workflows to rename.
-//
-// It is decided here, among every other per-workflow refusal, because a collision is a
-// property of a pair of definitions, like a name present in two roots. Deciding it where the
-// generating happens would make it a refusal of the whole scope, and an invalid workflow
-// does not block the valid ones.
+// collisions returns, keyed by workflow name, the refusal reason for every workflow whose
+// generated subagent name is also generated by another workflow of the scope.
+// Subagent names are not unique per workflow (`a-b` + `c` vs `a` + `b-c`), so both
+// colliders are refused rather than silently overwriting each other.
 func collisions(accepted []Accepted) map[string]string {
-	by, refused := map[string]string{}, map[string]string{}
+	owners, refused := map[string]string{}, map[string]string{}
 
 	for _, one := range accepted {
 		for _, phase := range one.Phases {
-			// A shared phase is deliberately one subagent however many workflows run it, so
-			// only the names a workflow makes its own can collide. A phase nobody assigned a
-			// model to is checked all the same: the name comes from the two definitions and
-			// not from the profile, and deciding it by the models would let a registration
-			// pass today and fail the day the model is filled in.
+			// Shared phases are one subagent by design; only workflow-owned names can collide.
 			if phase.Origin == FromShared {
 				continue
 			}
 			name := SubagentName(one.Name, phase)
-			other, taken := by[name]
+			other, taken := owners[name]
 			if !taken {
-				by[name] = one.Name
+				owners[name] = one.Name
 				continue
 			}
 			if other == one.Name {
@@ -384,9 +337,8 @@ func collisions(accepted []Accepted) map[string]string {
 	return refused
 }
 
-// refuse turns the workflows named in refused into ordinary rejection lines and drops them
-// from what registers. Every other workflow of the scope is left exactly as it was, which is
-// the whole difference between rejecting a pair of definitions and rejecting a run.
+// refuse drops the workflows named in refused from the accepted list and turns their
+// report lines into rejections; every other workflow is left untouched.
 func refuse(accepted []Accepted, lines []Line, refused map[string]string) ([]Accepted, []Line) {
 	if len(refused) == 0 {
 		return accepted, lines
@@ -394,29 +346,22 @@ func refuse(accepted []Accepted, lines []Line, refused map[string]string) ([]Acc
 
 	kept := make([]Accepted, 0, len(accepted))
 	for _, one := range accepted {
-		if _, out := refused[one.Name]; !out {
+		if _, isRefused := refused[one.Name]; !isRefused {
 			kept = append(kept, one)
 		}
 	}
 	for i, line := range lines {
-		if reason, out := refused[line.Name]; out {
+		if reason, isRefused := refused[line.Name]; isRefused {
 			lines[i] = Line{Name: line.Name, Source: line.Source, Reason: reason}
 		}
 	}
 	return kept, lines
 }
 
-// RecordManifest keeps this scope's manifest out of git under `artifacts.committed: true`,
-// where nothing else registration writes is excluded.
-//
-// Under `false` the manifest is one of the paths the write itself records, so doing it here
-// as well would report one path in two places. It returns what it recorded so the report
-// can count it, and writes only when the run is applying.
-//
-// written is whether registration claimed a manifest at all. A repository defining no
-// workflow claims none and is left exactly as it was found, which includes its exclude
-// file: the line is append-only and nothing ever takes it back, so writing one for a
-// generated.json that will never exist is permanent and wrong in the same breath.
+// RecordManifest adds the manifest to the local git exclude file when only the manifest is
+// excluded, returning the recorded paths; it writes only when apply is true.
+// written is false when no manifest was produced: exclude lines are never removed, so none
+// is added for a manifest that will not exist.
 func (r *Request) RecordManifest(written, apply bool) ([]string, error) {
 	if r.Targets.ExcludeManifest == "" || !written {
 		return nil, nil
@@ -432,8 +377,8 @@ func (r *Request) RecordManifest(written, apply bool) ([]string, error) {
 	return paths, nil
 }
 
-// ExcludeFile is the local exclude file as the report names it: relative to the repository
-// root, which is where the user goes to look at it.
+// ExcludeFile returns the local exclude file path relative to the repository root, or ""
+// when nothing is excluded.
 func (r *Request) ExcludeFile() string {
 	file := r.Targets.Exclude
 	if file == "" {
@@ -445,30 +390,24 @@ func (r *Request) ExcludeFile() string {
 	return relativeTo(r.Targets.Root, file)
 }
 
-// relativeTo makes a path relative to the repository root, which is what git reads an
-// exclude pattern against. A path that is not under the root is left as it is rather than
-// turned into a chain of `..`, which git would match nothing with. A root that is empty or
-// not absolute is one of those: there is nothing to subtract, so nothing is.
+// relativeTo makes path relative to root, as git exclude patterns require. A path outside
+// root (or an unusable root) is returned unchanged, since a `..` pattern matches nothing.
 func relativeTo(root, path string) string {
-	rel, err := filepath.Rel(root, path)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	relative, err := filepath.Rel(root, path)
+	if err != nil || strings.HasPrefix(relative, "..") {
 		return path
 	}
-	return rel
+	return relative
 }
 
-// Counts is how much of one agent's set a run left exactly as it found it. The bulk of a
-// steady machine is unchanged, so it is counted rather than listed.
+// Counts is how many commands and agents a run left unchanged.
 type Counts struct {
 	Commands int
 	Agents   int
 }
 
-// AgentLine is what one agent received in one scope.
-//
-// Added, Updated, Removed and Unchanged are Alfred's own output. Modified, Orphans and
-// Collisions are the three ways something on disk is not Alfred's to take back, and they
-// are reported rather than acted on.
+// AgentLine is what one agent received in one scope. Modified, Orphans and Collisions are
+// files Alfred does not own; they are reported, never touched.
 type AgentLine struct {
 	Agent      string
 	Target     string
@@ -481,29 +420,24 @@ type AgentLine struct {
 	Collisions []string
 }
 
-// Unassigned is one phase nobody gave a model to. It is reported rather than fatal: the
-// routes that never reach it work, and the ones that do stop there and name it.
+// Unassigned is one phase that has no model assigned, with the reason reported for it.
 type Unassigned struct {
 	Workflow string
 	Phase    string
 	Reason   string
 }
 
-// Adopted is what an earlier version of Alfred wrote and this run recorded as its own for
-// the first time: Claude Code paths, and the keys of the agents OpenCode holds.
-//
-// It is provenance rather than a fourth action column. The same names appear again under
-// `updated` or `removed`, as the ordinary algorithm classified them, and that is not double
-// reporting: one line says whose they are, the other says what was done to them.
+// Adopted lists what an earlier Alfred version wrote and this run records in the manifest
+// for the first time: Claude Code file paths and OpenCode agent keys.
 type Adopted struct {
 	Files []string
 	Keys  []string
 }
 
+// empty reports whether nothing was adopted.
 func (a Adopted) empty() bool { return len(a.Files)+len(a.Keys) == 0 }
 
-// Report is everything one registration run has to say, and the only thing that decides
-// whether it exits zero.
+// Report is everything one registration run prints, and what decides its exit code.
 type Report struct {
 	Scope       Scope
 	Mode        Mode
@@ -515,8 +449,8 @@ type Report struct {
 	ExcludeFile string
 }
 
-// Override marks one workflow as a repository's copy of a machine workflow's name, under
-// the distinguishing command it was registered as and beside the one the machine keeps.
+// Override marks a workflow as a repository copy of a machine workflow's name, recording
+// the distinct command it got and the command the machine's copy keeps.
 func (r *Report) Override(workflow, command, machine string) {
 	for i := range r.Workflows {
 		if r.Workflows[i].Name == workflow {
@@ -526,20 +460,17 @@ func (r *Report) Override(workflow, command, machine string) {
 	}
 }
 
-// missingCommand is one workflow whose command an agent does not have.
+// missingCommand is one workflow whose command an agent does not have yet.
 type missingCommand struct {
 	workflow string
 	agent    string
 	command  string
 }
 
-// missing is what check answers. A command an agent would have to be given is one the
-// agent does not have, which is exactly what the write reported as an addition.
-//
-// A workflow that was refused is skipped: it has no command and will not have one until it
-// is fixed, and reporting it here as well would be one fault reported as two.
+// missing returns the commands an agent would have to be given (what the write reported
+// as added). Refused workflows are skipped: their refusal is already reported.
 func (r *Report) missing() []missingCommand {
-	var out []missingCommand
+	var commands []missingCommand
 	for _, line := range r.Workflows {
 		if line.Reason != "" || line.Command == "" {
 			continue
@@ -547,23 +478,18 @@ func (r *Report) missing() []missingCommand {
 		for _, agent := range r.Agents {
 			named := asNamed(agent.Agent, line.Command)
 			if contains(agent.Added, named) {
-				out = append(out, missingCommand{
+				commands = append(commands, missingCommand{
 					workflow: line.Name, agent: label(agent.Agent), command: named,
 				})
 			}
 		}
 	}
-	return out
+	return commands
 }
 
-// Failed reports whether this run exits non-zero. Every reason is in the specification's
-// exit table and nothing else is: a modified file and an orphan are things to look at rather
-// than things that stopped the run, and an adoption is a migration that worked.
-//
-// A collision is the exception among the three a run reports and does not act on. The
-// generated content for that name was not written, so a workflow of this scope has no
-// command on that agent — which is exactly what check exits non-zero for, and reporting the
-// same hole as a success today and a failure tomorrow is one answer too many.
+// Failed reports whether the run exits non-zero: no agent, a collision, a refused workflow,
+// an unassigned model, or (in check mode) a missing command. Modified files, orphans and
+// adoptions do not fail the run; a collision does, because it leaves a command missing.
 func (r *Report) Failed() bool {
 	if len(r.Agents) == 0 {
 		return true
@@ -584,41 +510,44 @@ func (r *Report) Failed() bool {
 	return r.Mode == ModeCheck && len(r.missing()) > 0
 }
 
+// String renders the full report: workflows, adoptions, per-agent results (or the missing
+// commands in check mode), exclusions and phases without a model.
 func (r *Report) String() string {
-	var out []string
+	var sections []string
 
-	out = append(out, r.workflowSection())
+	sections = append(sections, r.workflowSection())
 	if section := r.adoptedSection(); section != "" {
-		out = append(out, section)
+		sections = append(sections, section)
 	}
 	switch {
 	case len(r.Agents) == 0:
-		out = append(out, "no supported agent was detected; nothing was written")
+		sections = append(sections, "no supported agent was detected; nothing was written")
 	case r.Mode == ModeCheck:
-		out = append(out, r.missingSection())
+		sections = append(sections, r.missingSection())
 	default:
 		for _, agent := range r.Agents {
-			out = append(out, r.agentSection(agent))
+			sections = append(sections, r.agentSection(agent))
 		}
 		if section := r.excludedSection(); section != "" {
-			out = append(out, section)
+			sections = append(sections, section)
 		}
 	}
 	if section := r.unassignedSection(); section != "" {
-		out = append(out, section)
+		sections = append(sections, section)
 	}
 
-	return strings.Join(out, "\n\n") + "\n"
+	return strings.Join(sections, "\n\n") + "\n"
 }
 
+// workflowSection renders the aligned table of workflows, with each refusal reason or each
+// workflow's phase count, routes and any machine override.
 func (r *Report) workflowSection() string {
 	lines := []string{"workflows"}
 	if len(r.Workflows) == 0 {
 		return strings.Join(append(lines, "  this scope defines no workflow; nothing to register"), "\n")
 	}
 
-	// Rendered before the columns are measured, because the width of a value is the width
-	// of what is printed and not of what the definition holds.
+	// Escape values before measuring, so column widths match what is printed.
 	names, sources := make([]string, 0, len(r.Workflows)), make([]string, 0, len(r.Workflows))
 	for _, line := range r.Workflows {
 		names = append(names, inline(line.Name))
@@ -649,24 +578,8 @@ func (r *Report) workflowSection() string {
 	return strings.Join(lines, "\n")
 }
 
-// inline renders a value that came from a definition so it cannot open a line of the report
-// or a column inside one.
-//
-// The report is a block of aligned lines a user reads to decide whether their machine is in
-// the state they think it is, and its whole structure is two characters: a newline between
-// rows and two spaces between columns. A value carrying either rewrites that block — a
-// workflow directory named with a newline forges a row of the author's choosing, and git
-// stores such a name, so a clone creates it.
-//
-// Rejection reasons are not the exposure and are not rendered here. They quote every value
-// they name with %q, and they are laid out through wrap, which rebuilds the text out of
-// strings.Fields and so collapses any run of whitespace a value smuggled in. The columns
-// are the one place a value is printed as it stands.
-//
-// A value carrying neither character is printed exactly as it was written, which is every
-// value anybody actually has: quoting them all would put quotation marks around every name
-// in the report, which is the same defect read from the other side — a block that does not
-// say what registered.
+// inline prints a definition value as-is when safe, or Go-quoted otherwise, so a value with
+// a newline or a double space cannot forge a report row or column (injection guard).
 func inline(value string) string {
 	if printableColumn(value) {
 		return value
@@ -674,25 +587,23 @@ func inline(value string) string {
 	return strconv.Quote(value)
 }
 
-// printableColumn answers whether a value can stand in a column as it is: every rune
-// printable, so no newline, tab or other control character, and no run of two spaces, which
-// is what separates one column from the next.
+// printableColumn reports whether value can be printed in a column unquoted: all runes
+// printable, no leading/trailing space, and no double space (the column separator).
 func printableColumn(value string) bool {
 	if strings.Contains(value, "  ") ||
 		strings.HasPrefix(value, " ") || strings.HasSuffix(value, " ") {
 		return false
 	}
-	for _, r := range value {
-		if !unicode.IsPrint(r) {
+	for _, character := range value {
+		if !unicode.IsPrint(character) {
 			return false
 		}
 	}
 	return true
 }
 
-// reason lays a rejection out under the column it starts in. The first line is shorter by
-// the width of the word that introduces it, and every line after it begins where that word
-// did.
+// reason renders a rejection after the row's head, wrapped so continuation lines align
+// under the "rejected: " marker.
 func reason(head string, indent int, text string) []string {
 	const marker = "rejected: "
 	wrapped := wrap(text, reportWidth-indent-len(marker), reportWidth-indent)
@@ -705,6 +616,8 @@ func reason(head string, indent int, text string) []string {
 	return lines
 }
 
+// agentSection renders what one agent received: added, updated, removed, unchanged counts,
+// and the modified, orphan and collision lists left alone.
 func (r *Report) agentSection(agent AgentLine) string {
 	lines := []string{fmt.Sprintf("%s  (%s: %s)", label(agent.Agent), r.Scope, agent.Target)}
 
@@ -728,15 +641,10 @@ func (r *Report) agentSection(agent AgentLine) string {
 	return strings.Join(lines, "\n")
 }
 
-// collided lays out the one list a run reports and does not act on whose consequence has a
-// name: the generated content was not written, so the command or subagent that content was
-// going to be is missing on that agent until the user moves their file out of the way.
-//
-// Each path carries its own sentence rather than the list sharing one, because what is
-// missing differs per entry and naming it is the whole point: `collisions` alone says a name
-// clashed, and a user reading it still has to work out what they lost.
+// collided renders each collision path with its own note naming the command or subagent
+// that is now missing on that agent.
 func collided(agent AgentLine) []string {
-	// A collision is a path on a line of its own and a sentence that wraps onto two.
+	// Capacity hint: a path line plus a note that usually wraps onto two lines.
 	lines := make([]string, 0, 3*len(agent.Collisions))
 	for i, path := range agent.Collisions {
 		key := ""
@@ -752,9 +660,8 @@ func collided(agent AgentLine) []string {
 	return lines
 }
 
-// carrier is what holds a colliding name on one agent. Claude Code's is a file, which is
-// what the design's report says; OpenCode's is a key inside a file Alfred does generate, so
-// calling it a file there would be the one word in the sentence that is untrue.
+// carrier names what holds a colliding name: a file on Claude Code, an agent (a key in a
+// generated file) on OpenCode.
 func carrier(agent string) string {
 	if agent == "claude" {
 		return "a file"
@@ -762,11 +669,8 @@ func carrier(agent string) string {
 	return "an agent"
 }
 
-// missingName is what the collision cost, named the way the agent names it: a slash command
-// on Claude Code, and the bare name for a subagent and for everything OpenCode holds.
-//
-// The entry is a path on Claude Code and a key on OpenCode, because the user has to go and
-// look at the thing, and that is also what tells the two apart here.
+// missingName converts a collision entry (a path on Claude Code, a key on OpenCode) into
+// the name the agent uses: `/name` for a Claude Code command, the bare name otherwise.
 func missingName(agent, entry string) string {
 	if agent != "claude" {
 		return entry
@@ -778,8 +682,7 @@ func missingName(agent, entry string) string {
 	return name
 }
 
-// kept is one of the lists a run reports and does not act on, with the sentence that says
-// why it did not.
+// kept renders a list of paths the run left alone, followed by the note explaining why.
 func kept(key string, paths []string, note string) []string {
 	if len(paths) == 0 {
 		return nil
@@ -788,13 +691,8 @@ func kept(key string, paths []string, note string) []string {
 	return append(lines, field("", note)...)
 }
 
-// adoptedSection says that what a run is about to refresh and remove is Alfred's own, on a
-// scope where nothing recorded it. It sits at the left margin rather than under an agent:
-// whose those files are is one fact about the scope, and the two agents hold halves of it.
-//
-// It is stated once, on the one run that can state it at all — the run that writes the
-// manifest an earlier version never did. On the next run of that scope the manifest exists,
-// nothing is adopted and the section is absent.
+// adoptedSection renders the files and agent keys adopted from an earlier Alfred version,
+// or "" when nothing was adopted.
 func (r *Report) adoptedSection() string {
 	if r.Adopted.empty() {
 		return ""
@@ -815,22 +713,20 @@ func (r *Report) adoptedSection() string {
 	return strings.Join(lines, "\n")
 }
 
-// adoptedCount names only the side that has something, because a machine with one agent has
-// nothing to say about the other and `0 agents` reads as a fault rather than as an absence.
-func adoptedCount(a Adopted) string {
+// adoptedCount describes how many files and agents were adopted, omitting a zero side.
+func adoptedCount(adopted Adopted) string {
 	var parts []string
-	if len(a.Files) > 0 {
-		parts = append(parts, plural(len(a.Files), "file"))
+	if len(adopted.Files) > 0 {
+		parts = append(parts, plural(len(adopted.Files), "file"))
 	}
-	if len(a.Keys) > 0 {
-		parts = append(parts, plural(len(a.Keys), "agent"))
+	if len(adopted.Keys) > 0 {
+		parts = append(parts, plural(len(adopted.Keys), "agent"))
 	}
 	return strings.Join(parts, " and ")
 }
 
-// marginal is one `key  value` line of a section that stands at the left margin rather than
-// under an agent, wrapped under the value's column. An empty key is a continuation of the
-// line above.
+// marginal renders a `key  value` line at the left margin, wrapped under the value's
+// column. An empty key continues the line above.
 func marginal(key, value string) []string {
 	const keyWidth = 11
 
@@ -846,8 +742,7 @@ func marginal(key, value string) []string {
 	return lines
 }
 
-// excludedSection sits at the left margin rather than under an agent: what registration
-// kept out of git is one fact about the repository, not something one agent received.
+// excludedSection renders how many paths were recorded in the exclude file, or "".
 func (r *Report) excludedSection() string {
 	if len(r.Excluded) == 0 {
 		return ""
@@ -856,6 +751,7 @@ func (r *Report) excludedSection() string {
 		plural(len(r.Excluded), "path"), r.ExcludeFile)
 }
 
+// missingSection renders the check-mode table of workflows whose command an agent lacks.
 func (r *Report) missingSection() string {
 	found := r.missing()
 	lines := []string{"missing"}
@@ -877,6 +773,7 @@ func (r *Report) missingSection() string {
 		"  run `alfred workflows %s apply` with the same roots and targets", r.Scope)), "\n")
 }
 
+// unassignedSection renders the phases without a model, each with its wrapped reason.
 func (r *Report) unassignedSection() string {
 	if len(r.Unassigned) == 0 {
 		return ""
@@ -899,8 +796,8 @@ func (r *Report) unassignedSection() string {
 	return strings.Join(lines, "\n")
 }
 
-// field is one `key  value` line of a section, wrapped under the value's column. An empty
-// key is a continuation of the line above, which is how a note is attached to a list.
+// field renders an indented `key  value` line inside an agent section, wrapped under the
+// value's column. An empty key continues the line above; an empty value renders nothing.
 func field(key, value string) []string {
 	const keyWidth = 11
 	if value == "" {
@@ -919,9 +816,8 @@ func field(key, value string) []string {
 	return lines
 }
 
-// wrap breaks text on spaces, giving the first line one width and every line after it
-// another. A word longer than the width is left whole: breaking a path in half makes it
-// unusable, and an over-long line is only ugly.
+// wrap breaks text on whitespace, with one width for the first line and another for the
+// rest (minimum 20). Longer words are kept whole so paths stay usable.
 func wrap(text string, first, rest int) []string {
 	if first < 20 {
 		first = 20
@@ -946,8 +842,7 @@ func wrap(text string, first, rest int) []string {
 	return append(lines, line)
 }
 
-// label names an agent the way the user does. The manifest and the targets key it as
-// `claude`, which is the directory's name and not the product's.
+// label returns the agent's user-facing name ("claude" becomes "claude code").
 func label(agent string) string {
 	if agent == "claude" {
 		return "claude code"
@@ -955,8 +850,7 @@ func label(agent string) string {
 	return agent
 }
 
-// asNamed is a command written the way one agent names it: a slash command on Claude Code,
-// a bare primary agent on OpenCode.
+// asNamed returns a command as the agent names it: `/command` on Claude Code, else bare.
 func asNamed(agent, command string) string {
 	if agent == "claude" {
 		return "/" + command
@@ -964,6 +858,7 @@ func asNamed(agent, command string) string {
 	return command
 }
 
+// contains reports whether list holds want.
 func contains(list []string, want string) bool {
 	for _, one := range list {
 		if one == want {
@@ -973,6 +868,7 @@ func contains(list []string, want string) bool {
 	return false
 }
 
+// plural formats count with noun, adding "s" unless count is 1.
 func plural(count int, noun string) string {
 	if count == 1 {
 		return fmt.Sprintf("%d %s", count, noun)
@@ -980,6 +876,7 @@ func plural(count int, noun string) string {
 	return fmt.Sprintf("%d %ss", count, noun)
 }
 
+// width returns the length of the longest value.
 func width(values []string) int {
 	longest := 0
 	for _, value := range values {
@@ -990,9 +887,10 @@ func width(values []string) int {
 	return longest
 }
 
-func pad(value string, to int) string {
-	if len(value) >= to {
+// pad right-pads value with spaces to targetWidth.
+func pad(value string, targetWidth int) string {
+	if len(value) >= targetWidth {
 		return value
 	}
-	return value + strings.Repeat(" ", to-len(value))
+	return value + strings.Repeat(" ", targetWidth-len(value))
 }

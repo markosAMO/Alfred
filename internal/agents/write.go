@@ -16,14 +16,9 @@ import (
 	"github.com/markosAMO/alfred/internal/jsonobj"
 )
 
-// Targets is where one scope's registration writes, and it is the only thing that knows
-// the two scopes apart.
-//
-// A machine run is handed the machine's agent directories and a project run the
-// repository's, and nothing below branches on which it got: that is what makes an update
-// incapable of touching a repository and a repository incapable of writing outside itself.
-// An empty field is a target this installation does not have, and a run with neither agent
-// writes nothing at all.
+// Targets is where one scope's registration writes. It is the only thing that differs
+// between machine and project scope; nothing below branches on scope. An empty field is a
+// target this installation does not have.
 type Targets struct {
 	Claude   string // the agent's directory; commands/ and agents/ sit under it
 	Opencode string // the agent's configuration file, which it also owns
@@ -32,18 +27,16 @@ type Targets struct {
 	Root     string // what an excluded path is written relative to, which git reads it against
 }
 
-// Entry is one generated thing, named the way the agent it was written for names it: a
-// slash command on Claude Code, a bare agent key on OpenCode.
+// Entry is one generated item, named as its agent names it: "/name" for a Claude Code
+// command, the bare key for an OpenCode agent.
 type Entry struct {
 	Name    string
 	Command bool
 }
 
-// Change is what one agent received in one scope.
-//
-// Added, Updated, Unchanged and Removed are Alfred's own output. Modified, Orphans and
-// Collisions are the three ways something on disk is not, and they carry the path or the
-// key rather than a display name, because the user has to go and look at them.
+// Change is what one agent received in one scope. Added, Updated, Unchanged and Removed are
+// Alfred's own output; Modified, Orphans and Collisions are things on disk that are not,
+// listed by path or key so the user can find them.
 type Change struct {
 	Agent      string
 	Target     string
@@ -56,41 +49,29 @@ type Change struct {
 	Collisions []string
 }
 
-// Touched reports whether this run changed anything for this agent. A run whose roots
-// changed in no way writes nothing, and the report says so per agent rather than listing
-// everything it left alone.
+// Touched reports whether this run added, updated or removed anything for this agent.
 func (c Change) Touched() bool {
 	return len(c.Added) > 0 || len(c.Updated) > 0 || len(c.Removed) > 0
 }
 
-// Override is one repository workflow carrying the name of a machine workflow.
-//
-// It is reported because it is otherwise invisible: a user who types the machine's command
-// in a repository that overrides that workflow gets the machine's, and the only thing that
-// told them otherwise is this line.
+// Override is a repository workflow that shares a machine workflow's name, reported with
+// the renamed command to use in the repository.
 type Override struct {
 	Workflow string
 	Command  string // the command to use in this repository
 	Machine  string // the command the machine's workflow keeps
 }
 
-// Adoption is what a scope with no manifest proved was Alfred's own output.
-//
-// It is provenance rather than a fourth action: it says whose these are, which is the claim
-// that licenses the additions and removals reported beside it. The same names appear there
-// too, and that is one line saying whose they are and another saying what was done.
+// Adoption lists the files and keys that a scope with no manifest proved were written by
+// Alfred, and so may be refreshed or removed.
 type Adoption struct {
 	Files []string // Claude Code paths
 	Keys  []string // OpenCode agent keys
 }
 
-// Written is the whole of what one registration run did to one scope.
-//
-// Manifest reports whether this run claims the scope's generated.json. It is false for a
-// repository defining no workflow, which claims nothing and leaves no file, and the caller
-// needs it because under `artifacts.committed: true` the manifest is excluded from outside
-// this package: an exclude line is permanent, so one written for a file that is never
-// written is never taken back.
+// Written is everything one registration run did to one scope. Manifest reports whether
+// the run claims generated.json; the caller relies on it to avoid adding a permanent
+// exclude line for a manifest that is never written.
 type Written struct {
 	Agents   []Change
 	Adopted  Adoption
@@ -98,11 +79,9 @@ type Written struct {
 	Manifest bool
 }
 
-// Bookkeeping is the manifest state one agent's writing is done against.
-//
-// Apply is false for the report-only mode, which has to produce the identical report. One
-// code path with a write gate rather than two that can drift: a second implementation of
-// "what would have happened" is a second answer to the same question.
+// Bookkeeping is the manifest state an agent's writing is checked against: the previous
+// manifest, the set being recorded, and Apply, false in report-only mode. Report and Write
+// share one code path gated by Apply so their reports cannot drift.
 type Bookkeeping struct {
 	Previous *generated.Manifest
 	Record   *generated.Set
@@ -110,93 +89,90 @@ type Bookkeeping struct {
 }
 
 // Write registers one scope's generated set into that scope's targets.
-func Write(set *Set, t Targets) (*Written, error) { return register(set, t, true) }
+func Write(set *Set, targets Targets) (*Written, error) { return register(set, targets, true) }
 
 // Report produces exactly what Write would report, and writes nothing.
-func Report(set *Set, t Targets) (*Written, error) { return register(set, t, false) }
+func Report(set *Set, targets Targets) (*Written, error) { return register(set, targets, false) }
 
-func register(set *Set, t Targets, write bool) (*Written, error) {
-	// No supported agent was detected. Nothing is written, and the caller reports that
-	// rather than reporting success over an empty list.
-	if t.Claude == "" && t.Opencode == "" {
+// register writes (or, with write false, only plans) one scope's set into its targets,
+// updates the manifest and the exclude file, and reports what it did.
+func register(set *Set, targets Targets, write bool) (*Written, error) {
+	// No supported agent detected: write nothing and let the caller report it.
+	if targets.Claude == "" && targets.Opencode == "" {
 		return &Written{}, nil
 	}
 
-	previous, err := generated.Read(t.Manifest)
+	previous, err := generated.Read(targets.Manifest)
 	if err != nil {
 		return nil, err
 	}
 
-	out := &Written{}
+	written := &Written{}
 
-	// A scope with no manifest is every installation upgraded into the version that started
-	// writing one. Nothing there is claimed, so without this every file Alfred itself wrote
-	// is a collision, nothing is refreshed and the upgrade fails for doing its job.
+	// No manifest yet (an upgrade from a version that wrote none): reconstruct one from the
+	// files Alfred demonstrably wrote, or they would all be reported as collisions.
 	if previous == nil {
-		reconstructed, adopted, err := adopt(t, set)
+		reconstructed, adopted, err := adopt(targets, set)
 		if err != nil {
 			return nil, err
 		}
-		previous, out.Adopted = reconstructed, adopted
+		previous, written.Adopted = reconstructed, adopted
 	}
 
 	plan := Bookkeeping{Previous: previous, Record: generated.NewSet(), Apply: write}
 
 	var owned []string
 
-	if t.Claude != "" {
-		change, paths, err := ClaudeAgents(t.Claude, set, plan)
+	if targets.Claude != "" {
+		change, paths, err := ClaudeAgents(targets.Claude, set, plan)
 		if err != nil {
 			return nil, err
 		}
-		out.Agents = append(out.Agents, change)
+		written.Agents = append(written.Agents, change)
 		owned = append(owned, paths...)
 	}
 
-	if t.Opencode != "" {
+	if targets.Opencode != "" {
 		config := Opencode(set)
-		change, err := MergeOpencode(t.Opencode, config, plan)
+		change, err := MergeOpencode(targets.Opencode, config, plan)
 		if err != nil {
 			return nil, err
 		}
-		out.Agents = append(out.Agents, change)
-		// The file is OpenCode's, and a scope that generates nothing into it owns no part
-		// of it: a repository defining no workflow has nothing to exclude there either.
+		written.Agents = append(written.Agents, change)
+		// opencode.json is only ours to exclude when this scope generates agents into it.
 		if len(config.Agent) > 0 {
-			owned = append(owned, t.Opencode)
+			owned = append(owned, targets.Opencode)
 		}
 	}
 
-	// The manifest records what this run claims, so the next one can take it back. A run
-	// that generated nothing and took nothing back claims nothing and leaves no file: a
-	// repository defining no workflow is left exactly as it was found.
-	if t.Manifest != "" && (len(owned) > 0 || removedAnything(out)) {
-		out.Manifest = true
-		owned = append(owned, t.Manifest)
+	// Write a manifest only when this run claims or removed something, so a repository
+	// with no workflow is left exactly as it was found.
+	if targets.Manifest != "" && (len(owned) > 0 || removedAnything(written)) {
+		written.Manifest = true
+		owned = append(owned, targets.Manifest)
 		current := plan.Record.Manifest()
-		// A run that claims exactly what the last one claimed rewrites nothing, which is
-		// what makes "a second run changes nothing" true of the bookkeeping too.
+		// Skip rewriting an identical manifest, so a second run changes nothing.
 		if write && !reflect.DeepEqual(previous, current) {
-			if err := current.Write(t.Manifest); err != nil {
+			if err := current.Write(targets.Manifest); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	// The manifest records the machine's model identifiers, so it is never committed
-	// whatever the repository decided about the rest; the caller is what decides whether
-	// an exclude file was passed at all.
-	excluded, err := exclude(t, owned, write)
+	// The manifest holds machine model identifiers, so it is always excluded when an
+	// exclude file is given; the caller decides whether one is.
+	excluded, err := exclude(targets, owned, write)
 	if err != nil {
 		return nil, err
 	}
-	out.Excluded = excluded
+	written.Excluded = excluded
 
-	return out, nil
+	return written, nil
 }
 
-func removedAnything(w *Written) bool {
-	for _, change := range w.Agents {
+// removedAnything reports whether any agent had an entry removed in this run.
+func removedAnything(written *Written) bool {
+	for _, change := range written.Agents {
 		if len(change.Removed) > 0 {
 			return true
 		}
@@ -204,60 +180,50 @@ func removedAnything(w *Written) bool {
 	return false
 }
 
-func exclude(t Targets, owned []string, write bool) ([]string, error) {
-	if t.Exclude == "" || len(owned) == 0 {
+// exclude adds the owned paths, relative to the repository root and sorted, to the
+// exclude file (only when write is true) and returns them.
+func exclude(targets Targets, owned []string, write bool) ([]string, error) {
+	if targets.Exclude == "" || len(owned) == 0 {
 		return nil, nil
 	}
 
 	paths := make([]string, 0, len(owned))
 	for _, path := range owned {
-		paths = append(paths, relativeTo(t.Root, path))
+		paths = append(paths, relativeTo(targets.Root, path))
 	}
 	sort.Strings(paths)
 	if !write {
 		return paths, nil
 	}
-	if _, err := generated.Exclude(t.Exclude, paths); err != nil {
+	if _, err := generated.Exclude(targets.Exclude, paths); err != nil {
 		return nil, err
 	}
 	return paths, nil
 }
 
-// relativeTo makes a path relative to the repository root, which is what git reads an
-// exclude pattern against. A path that is not under the root is left as it is rather than
-// turned into a chain of `..`, which git would not match anything with.
+// relativeTo makes a path relative to the repository root, as git reads exclude patterns.
+// A path outside the root is returned unchanged, since a `..` pattern would match nothing.
 func relativeTo(root, path string) string {
 	if root == "" {
 		return path
 	}
-	rel, err := filepath.Rel(root, path)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	relative, err := filepath.Rel(root, path)
+	if err != nil || strings.HasPrefix(relative, "..") {
 		return path
 	}
-	return rel
+	return relative
 }
 
-// generatedMark is the first line of the prompt body of everything Alfred generates: the
-// first line after the frontmatter of a Claude Code command or agent, and the first line of
-// the prompt string of an OpenCode agent. It is in the body and in no frontmatter and no
-// JSON schema, because whether either agent tolerates an unknown key there is agent
-// behaviour this project cannot observe.
-//
-// It is what lets a later run tell its own output from the user's on a scope whose manifest
-// was never written. It carries no version deliberately: a version in it would rewrite every
-// file on every bump, report everything as updated on an upgrade that changed no template,
-// and break "a second run changes nothing" across versions.
+// generatedMark is the first line of every generated prompt body; it lets a run without a
+// manifest tell Alfred's output from the user's. It carries no version on purpose, or every
+// file would be rewritten on each release.
 const generatedMark = "<!-- ALFRED:GENERATED -->"
 
-// legacyOpening is how every template the generator before the mark could render begins -
-// subagent, manage, orchestrator, fleet and coordinator alike.
+// legacyOpening is how every prompt from the generator before the mark begins.
 const legacyOpening = "You are the Alfred "
 
-// markPrompts prepends the mark to every prompt one scope generates.
-//
-// One pass over the finished set rather than a line in each renderer or at each write site:
-// every generated prompt is a Command or a Subagent before it is bytes on either agent, so
-// a template added later cannot ship unmarked.
+// markPrompts prepends generatedMark to every prompt in the set. Done once over the finished
+// set so a template added later cannot ship unmarked.
 func markPrompts(set *Set) {
 	for i := range set.Commands {
 		set.Commands[i].Prompt = generatedMark + "\n" + set.Commands[i].Prompt
@@ -267,55 +233,42 @@ func markPrompts(set *Set) {
 	}
 }
 
-// Legacy is what the generator before the mark produced in one scope, under the names it
-// produced them: `alfred` and `alfred-worktree` as commands, one agent per phase of the
-// profile and `alfred-manage`, and the same names as keys on OpenCode.
-//
-// It is carried on the set because adoption happens in the writer and the profile is the
-// only thing that knows which phases this installation has. It is empty at project scope:
-// that generator only ever wrote into the machine's own agent directories, so a repository
-// holding one of these names never got it from Alfred.
+// Legacy names the commands and agents the generator before the mark produced in a scope.
+// It is empty at project scope, since that generator only wrote machine-level files.
 type Legacy struct {
 	Commands []string
 	Agents   []string
 }
 
-func legacyNames(p *Profile, scope Scope) Legacy {
+// legacyNames returns the names the pre-mark generator used at machine scope: `alfred`,
+// `alfred-worktree`, `alfred-manage` and alfred-<phase> for each profile phase.
+func legacyNames(profile *Profile, scope Scope) Legacy {
 	if scope != Machine {
 		return Legacy{}
 	}
 	subagents := []string{"alfred-manage"}
-	for _, phase := range p.PhaseNames() {
+	for _, phase := range profile.PhaseNames() {
 		subagents = append(subagents, "alfred-"+phase)
 	}
 	return Legacy{Commands: []string{"alfred", "alfred-worktree"}, Agents: subagents}
 }
 
-// adopt reconstructs the manifest an earlier version never wrote.
-//
-// It runs only on a scope that has no manifest, and the run that uses it writes one, so it
-// is a one-time migration that deletes itself. Without it the collision rule breaks every
-// upgrade: on an existing installation nothing is claimed, so every file Alfred itself wrote
-// is a name the user holds, none is refreshed and the upgrade exits non-zero for doing
-// exactly what it was meant to do.
-//
-// Expressing it as a reconstructed manifest rather than as a special case in the writer buys
-// two things. Adopted files are refreshed by the ordinary path, and the names this version no
-// longer generates - `alfred-init` and `alfred-explore` as subagents - are claimed here and
-// taken back by the ordinary removal pass on that same run.
-func adopt(t Targets, set *Set) (*generated.Manifest, Adoption, error) {
+// adopt reconstructs a manifest for a scope that has none, claiming every file and key
+// that ours recognises. It is a one-time migration: the same run then writes a manifest.
+// Claimed names no longer generated are removed by the ordinary removal pass.
+func adopt(targets Targets, set *Set) (*generated.Manifest, Adoption, error) {
 	claimed := generated.NewSet()
 	var adopted Adoption
 
-	if t.Claude != "" {
-		for _, dir := range []struct {
+	if targets.Claude != "" {
+		for _, directory := range []struct {
 			path  string
 			files map[string]bool
 		}{
-			{filepath.Join(t.Claude, "commands"), markdownNames(set.Legacy.Commands)},
-			{filepath.Join(t.Claude, "agents"), markdownNames(set.Legacy.Agents)},
+			{filepath.Join(targets.Claude, "commands"), markdownNames(set.Legacy.Commands)},
+			{filepath.Join(targets.Claude, "agents"), markdownNames(set.Legacy.Agents)},
 		} {
-			present, err := generated.Scan(dir.path)
+			present, err := generated.Scan(directory.path)
 			if err != nil {
 				return nil, Adoption{}, err
 			}
@@ -324,7 +277,7 @@ func adopt(t Targets, set *Set) (*generated.Manifest, Adoption, error) {
 				if err != nil {
 					return nil, Adoption{}, fmt.Errorf("reading %s: %w", path, err)
 				}
-				if !ours(filepath.Base(path), promptBody(content), dir.files) {
+				if !ours(filepath.Base(path), promptBody(content), directory.files) {
 					continue
 				}
 				claimed.AddFile(AgentClaude, path, content)
@@ -333,8 +286,8 @@ func adopt(t Targets, set *Set) (*generated.Manifest, Adoption, error) {
 		}
 	}
 
-	if t.Opencode != "" {
-		keys, err := adoptOpencode(t.Opencode, claimed, set.Legacy)
+	if targets.Opencode != "" {
+		keys, err := adoptOpencode(targets.Opencode, claimed, set.Legacy)
 		if err != nil {
 			return nil, Adoption{}, err
 		}
@@ -346,9 +299,8 @@ func adopt(t Targets, set *Set) (*generated.Manifest, Adoption, error) {
 	return claimed.Manifest(), adopted, nil
 }
 
-// adoptOpencode is the same claim over the keys of the file OpenCode owns. The value is
-// compacted before it is hashed, exactly as MergeOpencode compacts it, or the reconstructed
-// hash would never match the one the next comparison computes.
+// adoptOpencode claims the OpenCode agent keys that ours recognises. Values are compacted
+// exactly as MergeOpencode does, or the recorded hash would never match on the next run.
 func adoptOpencode(target string, claimed *generated.Set, legacy Legacy) ([]string, error) {
 	data, err := os.ReadFile(target)
 	if errors.Is(err, os.ErrNotExist) {
@@ -385,22 +337,19 @@ func adoptOpencode(target string, claimed *generated.Set, legacy Legacy) ([]stri
 	return adopted, nil
 }
 
-// ours reports whether what sits at a generated name was written by Alfred rather than by
-// the user. Anything it says no about is a collision: not written, reported.
+// ours reports whether the content at a generated name was written by Alfred: it carries
+// the mark, or has both a legacy name and the legacy opening. Anything else is the user's.
 func ours(name, body string, legacy map[string]bool) bool {
 	if firstLine(body) == generatedMark {
 		return true
 	}
-	// The migration, and both halves of it are required. The name alone would adopt a file
-	// the user replaced wholesale at a name Alfred happens to generate. The opening alone
-	// would adopt a file the user wrote by copying one of Alfred's and giving it a name of
-	// their own, which is the likeliest way a user comes to own a file full of Alfred's
-	// prose, and which the name half excludes outright.
+	// Both checks are required: a name alone would adopt a user's replacement file, and the
+	// opening alone would adopt a user's renamed copy of an Alfred file.
 	return legacy[name] && strings.HasPrefix(body, legacyOpening)
 }
 
-// promptBody is the prompt of a Claude Code command or agent: everything after the
-// frontmatter block, which is where the mark lives.
+// promptBody returns the prompt of a Claude Code command or agent file: everything after
+// the frontmatter block, where the mark lives.
 func promptBody(file []byte) string {
 	const fence = "---\n"
 	text := string(file)
@@ -414,9 +363,8 @@ func promptBody(file []byte) string {
 	return strings.TrimPrefix(rest, "\n")
 }
 
-// opencodePrompt is the prompt of one entry under `agent`. A value that is not an agent
-// object is not Alfred's and is not claimed: somebody else's JSON in a file OpenCode owns is
-// not this run's business and is not a failure either.
+// opencodePrompt returns the prompt of one entry under `agent`, or "" when the value is not
+// an agent object (which is then simply not claimed, not an error).
 func opencodePrompt(value []byte) string {
 	var entry struct {
 		Prompt string `json:"prompt"`
@@ -427,69 +375,68 @@ func opencodePrompt(value []byte) string {
 	return entry.Prompt
 }
 
+// firstLine returns text up to its first newline.
 func firstLine(text string) string {
 	line, _, _ := strings.Cut(text, "\n")
 	return line
 }
 
+// markdownNames returns a lookup of "<name>.md" for each name.
 func markdownNames(names []string) map[string]bool {
-	out := make(map[string]bool, len(names))
+	lookup := make(map[string]bool, len(names))
 	for _, name := range names {
-		out[name+".md"] = true
+		lookup[name+".md"] = true
 	}
-	return out
+	return lookup
 }
 
+// asSet returns a lookup containing each name.
 func asSet(names []string) map[string]bool {
-	out := make(map[string]bool, len(names))
+	lookup := make(map[string]bool, len(names))
 	for _, name := range names {
-		out[name] = true
+		lookup[name] = true
 	}
-	return out
+	return lookup
 }
 
-// ClaudeAgents writes one scope's commands and subagents into a Claude Code directory, and
-// returns what it did along with every path it owns there.
-//
-// Removal is this side's too, which it has never had: before this change nothing removed a
-// Claude agent at all, so a workflow that was deleted kept a working command.
+// ClaudeAgents writes one scope's commands and subagents into a Claude Code directory,
+// removes what earlier runs generated and this one does not, and returns the change and
+// every path it owns there.
 func ClaudeAgents(dir string, set *Set, plan Bookkeeping) (Change, []string, error) {
 	commands := filepath.Join(dir, "commands")
 	subagents := filepath.Join(dir, "agents")
 
-	type file struct {
+	type generatedFile struct {
 		path  string
 		body  []byte
 		entry Entry
 	}
-	var files []file
+	var files []generatedFile
 
-	for _, c := range set.Commands {
-		if !c.For(AgentClaude) {
+	for _, command := range set.Commands {
+		if !command.For(AgentClaude) {
 			continue
 		}
-		files = append(files, file{
-			path:  filepath.Join(commands, c.Name+".md"),
-			body:  []byte(claudeCommand(c)),
-			entry: Entry{Name: "/" + c.Name, Command: true},
+		files = append(files, generatedFile{
+			path:  filepath.Join(commands, command.Name+".md"),
+			body:  []byte(claudeCommand(command)),
+			entry: Entry{Name: "/" + command.Name, Command: true},
 		})
 	}
-	for _, s := range set.Subagents {
-		files = append(files, file{
-			path:  filepath.Join(subagents, s.Name+".md"),
-			body:  []byte(claudeSubagent(s)),
-			entry: Entry{Name: s.Name},
+	for _, subagent := range set.Subagents {
+		files = append(files, generatedFile{
+			path:  filepath.Join(subagents, subagent.Name+".md"),
+			body:  []byte(claudeSubagent(subagent)),
+			entry: Entry{Name: subagent.Name},
 		})
 	}
 
 	change := Change{Agent: AgentClaude, Target: dir}
-	for _, f := range files {
-		plan.Record.AddFile(AgentClaude, f.path, f.body)
+	for _, file := range files {
+		plan.Record.AddFile(AgentClaude, file.path, file.body)
 	}
 
-	// What is on disk is read before anything is written: a file this run generates that
-	// was already there and is claimed by nobody is the user's, and saying so afterwards
-	// would be saying it about Alfred's own output.
+	// Scan disk before writing, so unclaimed pre-existing files are detected as the user's.
 	var present []string
 	for _, root := range []string{commands, subagents} {
 		found, err := generated.Scan(root)
@@ -503,39 +450,36 @@ func ClaudeAgents(dir string, set *Set, plan Bookkeeping) (Change, []string, err
 		return Change{}, nil, err
 	}
 
-	// A name the user already holds is the user's. The generated content for it is not
-	// written, the manifest does not claim it, and it is not Added, Updated or Unchanged:
-	// those four describe Alfred's own output, and calling an overwrite a refresh is what
-	// let a file be destroyed and reported as a success.
+	// A colliding name belongs to the user: never write it, claim it, or report it as ours.
 	colliding := asSet(sweep.Collisions)
 	plan.Record.ForgetFiles(AgentClaude, sweep.Collisions)
 
 	owned := make([]string, 0, len(files))
-	for _, f := range files {
-		if colliding[f.path] {
+	for _, file := range files {
+		if colliding[file.path] {
 			continue
 		}
-		owned = append(owned, f.path)
+		owned = append(owned, file.path)
 
-		existing, err := os.ReadFile(f.path)
+		existing, err := os.ReadFile(file.path)
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			change.Added = append(change.Added, f.entry)
+			change.Added = append(change.Added, file.entry)
 		case err != nil:
-			return Change{}, nil, fmt.Errorf("reading %s: %w", f.path, err)
-		case bytes.Equal(existing, f.body):
-			change.Unchanged = append(change.Unchanged, f.entry)
+			return Change{}, nil, fmt.Errorf("reading %s: %w", file.path, err)
+		case bytes.Equal(existing, file.body):
+			change.Unchanged = append(change.Unchanged, file.entry)
 			continue
 		default:
-			change.Updated = append(change.Updated, f.entry)
+			change.Updated = append(change.Updated, file.entry)
 		}
 		if !plan.Apply {
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(f.path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(file.path), 0o755); err != nil {
 			return Change{}, nil, err
 		}
-		if err := os.WriteFile(f.path, f.body, 0o644); err != nil {
+		if err := os.WriteFile(file.path, file.body, 0o644); err != nil {
 			return Change{}, nil, err
 		}
 	}
@@ -553,8 +497,7 @@ func ClaudeAgents(dir string, set *Set, plan Bookkeeping) (Change, []string, err
 	return change, owned, nil
 }
 
-// claudeEntry names a path the way the agent does, which is how it was added and so how a
-// user recognises it going.
+// claudeEntry turns a generated Claude Code path back into the Entry it was reported as.
 func claudeEntry(path string) Entry {
 	name := strings.TrimSuffix(filepath.Base(path), ".md")
 	if filepath.Base(filepath.Dir(path)) == "commands" {
@@ -563,61 +506,45 @@ func claudeEntry(path string) Entry {
 	return Entry{Name: name}
 }
 
-// yamlScalar renders a value as a YAML double-quoted scalar.
-//
-// A command's description is the `description` of a workflow definition, and at project
-// scope a definition arrives with a clone and is registered by `init` without anyone
-// reading it. Interpolated plain, a value holding a newline ends the scalar and every line
-// after it becomes a further frontmatter key: `verify` watched a definition add
-// `allowed-tools`, a key Alfred never writes, and so choose the command's permissions.
-//
-// Go's quoting escapes what YAML's double-quoted style escapes — the quote, the backslash
-// and every control character, as `\n`, `\t` and `\u` forms YAML reads the same way — so
-// the result is one scalar whatever the value holds. Quoting rather than refusing keeps a
-// description that is merely awkward, a colon or a leading `-`, from costing a workflow its
-// registration.
-func yamlScalar(v string) string { return strconv.Quote(v) }
+// yamlScalar renders a value as a YAML double-quoted scalar. This prevents injection: an
+// unquoted value with a newline (e.g. from an untrusted repository workflow) could add
+// frontmatter keys such as `allowed-tools`. Go's quoting matches YAML's escapes.
+func yamlScalar(value string) string { return strconv.Quote(value) }
 
-func claudeCommand(c Command) string {
+// claudeCommand renders a Claude Code slash command file: frontmatter, prompt, and the
+// $ARGUMENTS section.
+func claudeCommand(command Command) string {
 	return "---\n" +
-		"description: " + yamlScalar(c.Description) + "\n" +
-		"argument-hint: " + c.ArgumentHint + "\n" +
-		"model: " + bareModel(c.Model) + "\n" +
-		"tools: " + strings.Join(c.Tools, ", ") + "\n" +
+		"description: " + yamlScalar(command.Description) + "\n" +
+		"argument-hint: " + command.ArgumentHint + "\n" +
+		"model: " + bareModel(command.Model) + "\n" +
+		"tools: " + strings.Join(command.Tools, ", ") + "\n" +
 		"---\n\n" +
-		c.Prompt + "\n\n" +
+		command.Prompt + "\n\n" +
 		"## The request\n\n" +
 		"$ARGUMENTS\n"
 }
 
-// claudeSubagent writes one phase executor. Every free-text value on the block is quoted,
-// for the reason yamlScalar gives: `model` is `phases[].model` from a definition, `effort`
-// comes from the profile, and `description` is a constant that carries a colon and a space
-// and so is not a plain scalar either — one defect class reaching three lines.
-//
-// Two values stay bare, and each for its own reason. `name` is the file's own basename and
-// every component of it answers to `^[a-z][a-z0-9-]*$`, so there is no free text in it to
-// quote. `tools` is a list rather than a scalar: Claude Code splits the line on commas,
-// and quoting the join would hand it one string where it has always been given a list. A
-// tool name is kept safe where it is read instead, by workflow.toolPattern, which admits
-// no character that could end the line or split it.
-func claudeSubagent(s Subagent) string {
+// claudeSubagent renders a Claude Code subagent file. Free-text values are quoted with
+// yamlScalar to prevent frontmatter injection; `name` (validated to [a-z0-9-]) and `tools`
+// (a comma list, validated by workflow.toolPattern) stay bare on purpose.
+func claudeSubagent(subagent Subagent) string {
 	effort := ""
-	if s.Effort != "" {
-		effort = "effort: " + yamlScalar(s.Effort) + "\n"
+	if subagent.Effort != "" {
+		effort = "effort: " + yamlScalar(subagent.Effort) + "\n"
 	}
 	return "---\n" +
-		"name: " + s.Name + "\n" +
-		"description: " + yamlScalar(s.Description) + "\n" +
-		"model: " + yamlScalar(bareModel(s.Model)) + "\n" +
+		"name: " + subagent.Name + "\n" +
+		"description: " + yamlScalar(subagent.Description) + "\n" +
+		"model: " + yamlScalar(bareModel(subagent.Model)) + "\n" +
 		effort +
-		"tools: " + strings.Join(s.Tools, ", ") + "\n" +
+		"tools: " + strings.Join(subagent.Tools, ", ") + "\n" +
 		"---\n\n" +
-		s.Prompt + "\n"
+		subagent.Prompt + "\n"
 }
 
-// asBooleans renders a tool list as OpenCode's per-tool flags: every tool it knows about
-// appears, enabled or disabled, so a tool is never inherited by omission.
+// asBooleans renders a tool list as OpenCode's per-tool flags. Every known tool is listed,
+// enabled or disabled, so none is inherited by omission.
 func asBooleans(tools []string, allowTask bool) map[string]bool {
 	flags := make(map[string]bool, len(opencodeNames))
 	for _, name := range opencodeNames {
@@ -632,6 +559,7 @@ func asBooleans(tools []string, allowTask bool) map[string]bool {
 	return flags
 }
 
+// opencodePermission is the `permission` block of an OpenCode agent.
 type opencodePermission struct {
 	Task map[string]string `json:"task"`
 }
@@ -653,56 +581,50 @@ type OpencodeConfig struct {
 	Agent  map[string]opencodeAgent `json:"agent"`
 }
 
+// opencodeSchema is the `$schema` URL written into a new opencode.json.
 const opencodeSchema = "https://opencode.ai/config.json"
 
-// Opencode builds the generated half of opencode.json from one scope's set. A command is a
-// primary agent there and a subagent a hidden one, which is the whole of the difference:
-// both live in one `agent` map, which is why a standalone command and a phase executor can
-// never share a name.
+// Opencode builds the generated part of opencode.json: each command becomes a primary
+// agent and each subagent a hidden one, all in one `agent` map.
 func Opencode(set *Set) *OpencodeConfig {
 	agent := map[string]opencodeAgent{}
 
-	for _, c := range set.Commands {
-		if !c.For(AgentOpencode) {
+	for _, command := range set.Commands {
+		if !command.For(AgentOpencode) {
 			continue
 		}
 		entry := opencodeAgent{
-			Model:       c.Model,
+			Model:       command.Model,
 			Mode:        "primary",
-			Description: c.Description,
-			Prompt:      c.Prompt,
-			Tools:       asBooleans(c.Tools, c.Delegates),
+			Description: command.Description,
+			Prompt:      command.Prompt,
+			Tools:       asBooleans(command.Tools, command.Delegates),
 		}
-		// A command that delegates nothing needs no permission to: the block would grant
-		// a tool it was not given.
-		if c.Delegates {
+		// Only a delegating command gets a task permission; otherwise it would grant Task.
+		if command.Delegates {
 			entry.Permission = &opencodePermission{
 				Task: map[string]string{"*": "deny", "alfred-*": "allow"},
 			}
 		}
-		agent[c.Name] = entry
+		agent[command.Name] = entry
 	}
 
-	for _, s := range set.Subagents {
-		agent[s.Name] = opencodeAgent{
-			Model:       s.Model,
+	for _, subagent := range set.Subagents {
+		agent[subagent.Name] = opencodeAgent{
+			Model:       subagent.Model,
 			Mode:        "subagent",
 			Hidden:      true,
-			Description: s.Description,
-			Prompt:      s.Prompt,
-			Tools:       asBooleans(s.Tools, false),
+			Description: subagent.Description,
+			Prompt:      subagent.Prompt,
+			Tools:       asBooleans(subagent.Tools, false),
 		}
 	}
 
 	return &OpencodeConfig{Schema: opencodeSchema, Agent: agent}
 }
 
-// MergeOpencode writes one scope's agents into the file OpenCode owns, replacing only what
-// this scope's manifest claims and leaving every other key where it was.
-//
-// What it no longer does is delete every alfred-* key it did not generate. That took an
-// agent the user wrote and happened to call alfred-notes, so an unclaimed key is now
-// reported and kept.
+// MergeOpencode writes one scope's agents into opencode.json, replacing only keys the
+// manifest claims. Unclaimed keys, even alfred-* ones, are the user's: reported and kept.
 func MergeOpencode(target string, config *OpencodeConfig, plan Bookkeeping) (Change, error) {
 	existing := jsonobj.New()
 	if data, err := os.ReadFile(target); err == nil {
@@ -715,9 +637,8 @@ func MergeOpencode(target string, config *OpencodeConfig, plan Bookkeeping) (Cha
 
 	agents := existing.Child("agent")
 
-	// The values in the file carry the indentation Format gave them, and the ones this run
-	// produces are compact. Both sides are compacted before they are compared or hashed, or
-	// every key would read as changed on every run and nothing would ever be removable.
+	// Compact both sides before comparing or hashing, or formatting differences would make
+	// every key look changed on every run.
 	present := map[string][]byte{}
 	for _, key := range agents.Keys() {
 		raw, _ := agents.Get(key)
@@ -739,9 +660,7 @@ func MergeOpencode(target string, config *OpencodeConfig, plan Bookkeeping) (Cha
 		plan.Record.AddKey(AgentOpencode, name, raw)
 	}
 
-	// The plan is asked for before anything is classified, because a key the user already
-	// holds is not one of the four things Alfred did: it is skipped here and reported as a
-	// collision, exactly as the colliding file is on the other agent.
+	// Plan before classifying, so keys the user holds are skipped and reported as collisions.
 	sweep := generated.PlanKeys(plan.Previous, plan.Record, AgentOpencode, present)
 	colliding := asSet(sweep.Collisions)
 	plan.Record.ForgetKeys(AgentOpencode, sweep.Collisions)
@@ -766,9 +685,7 @@ func MergeOpencode(target string, config *OpencodeConfig, plan Bookkeeping) (Cha
 	}
 	change.Modified, change.Orphans, change.Collisions = sweep.Modified, sweep.Orphans, sweep.Collisions
 
-	// Nothing to add, update or take back leaves the file exactly as it was found, which
-	// is also how a repository defining no workflow never gets an opencode.json created
-	// for it.
+	// Nothing to change: leave the file untouched (and never create one for no workflows).
 	if !change.Touched() || !plan.Apply {
 		return change, nil
 	}
@@ -814,14 +731,16 @@ func MergeOpencode(target string, config *OpencodeConfig, plan Bookkeeping) (Cha
 	return change, nil
 }
 
+// compact returns raw JSON with insignificant whitespace removed.
 func compact(raw []byte) ([]byte, error) {
-	var out bytes.Buffer
-	if err := json.Compact(&out, raw); err != nil {
+	var buffer bytes.Buffer
+	if err := json.Compact(&buffer, raw); err != nil {
 		return nil, err
 	}
-	return out.Bytes(), nil
+	return buffer.Bytes(), nil
 }
 
+// sortedAgentNames returns the OpenCode agent keys sorted, so output is deterministic.
 func sortedAgentNames(agent map[string]opencodeAgent) []string {
 	names := make([]string, 0, len(agent))
 	for name := range agent {
@@ -831,18 +750,9 @@ func sortedAgentNames(agent map[string]opencodeAgent) []string {
 	return names
 }
 
-// Localise gives a repository's copy of a colliding workflow a distinguishing name, per
-// docs/changes/custom-workflows/inputs/command-precedence.md.
-//
-// Whether an agent resolves a project-scope command before a machine-scope one of the same
-// name was never observed on either agent, so a generated name that relies on it would
-// rely on something nobody measured. A distinct name collides with nothing, whichever way
-// precedence resolves, and the report says which one to use.
-//
-// Only a collision triggers it: a repository workflow the machine does not have keeps the
-// plain command, because there is no second command of that name. A phase resolved from
-// the shared library keeps alfred-<phase> in both scopes - it encodes no workflow, and on
-// one machine it carries the same skill path and the same model whichever scope wrote it.
+// Localise renames a repository workflow that shares a machine workflow's name (and its
+// own-phase subagents) with a `-local` suffix, since agents' precedence between scopes is
+// unknown. Shared-phase subagents keep their names. It returns one Override per workflow.
 func Localise(set *Set, machine []string) []Override {
 	colliding := map[string]bool{}
 	for _, name := range machine {
@@ -852,8 +762,7 @@ func Localise(set *Set, machine []string) []Override {
 	var overrides []Override
 	workflows := make([]string, 0, len(set.Commands))
 	rename := map[string]string{}
-	// A workflow is one command per agent wherever its prompt differs, so the override is
-	// the workflow's and is reported once however many agents carry it.
+	// A workflow may have one command per agent; report its override only once.
 	reported := map[string]bool{}
 
 	for i := range set.Commands {
@@ -878,8 +787,7 @@ func Localise(set *Set, machine []string) []Override {
 	}
 
 	for i := range set.Subagents {
-		// A subagent belongs to the longest workflow name it is prefixed by: two workflows
-		// where one name extends the other would otherwise both claim the same agent.
+		// The longest matching workflow prefix wins, so "a" and "a-b" do not both claim it.
 		owner := ""
 		for _, name := range workflows {
 			if strings.HasPrefix(set.Subagents[i].Name, "alfred-"+name+"-") && len(name) > len(owner) {
@@ -889,18 +797,17 @@ func Localise(set *Set, machine []string) []Override {
 		if owner == "" || !colliding[owner] {
 			continue
 		}
-		was := set.Subagents[i].Name
-		set.Subagents[i].Name = "alfred-" + owner + "-local" + strings.TrimPrefix(was, "alfred-"+owner)
-		rename[was] = set.Subagents[i].Name
+		oldName := set.Subagents[i].Name
+		set.Subagents[i].Name = "alfred-" + owner + "-local" + strings.TrimPrefix(oldName, "alfred-"+owner)
+		rename[oldName] = set.Subagents[i].Name
 	}
 
-	// The command dispatches its phases by name, so the prompt has to name what was
-	// written. One pass over each prompt, longest name first: every new name contains the
-	// old one, and a second pass would rename what the first just produced.
+	// Rewrite subagent names in command prompts in one pass, longest first: each new name
+	// contains the old one, so repeated passes would rename twice.
 	if len(rename) > 0 {
 		pairs := make([]string, 0, len(rename)*2)
-		for _, was := range longestFirst(rename) {
-			pairs = append(pairs, was, rename[was])
+		for _, oldName := range longestFirst(rename) {
+			pairs = append(pairs, oldName, rename[oldName])
 		}
 		replacer := strings.NewReplacer(pairs...)
 		for i := range set.Commands {
@@ -912,8 +819,10 @@ func Localise(set *Set, machine []string) []Override {
 	return overrides
 }
 
+// localName returns the repository-local name of a command.
 func localName(command string) string { return command + "-local" }
 
+// longestFirst returns the keys of rename, longest first and then alphabetically.
 func longestFirst(rename map[string]string) []string {
 	keys := make([]string, 0, len(rename))
 	for key := range rename {
