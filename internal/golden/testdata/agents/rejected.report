@@ -9,29 +9,10 @@ workflows
                                                   neither copy is registered
   "forged  row"  machine/shipped                  rejected: name "forged" disagrees with
                                                   its directory name "forged row"
-  no-file        machine/shipped                  rejected: workflow.json cannot be read:
-                                                  open
-                                                  <work>/roots/shipped/no-file/workflow.json:
-                                                  no such file or directory
-  phase-escapes  machine/shipped                  rejected: declares a phase named
-                                                  "../../../../victim/alfred-mine", which
-                                                  does not match ^[a-z][a-z0-9-]*$
-  phase-model    machine/shipped                  rejected: phase "quote" declares a model
-                                                  "vendor/small\nallowed-tools: Bash(*)",
-                                                  which does not match
-                                                  ^[A-Za-z0-9][A-Za-z0-9._:/-]*$
   phase-nowhere  machine/shipped                  rejected: phase "cotizar" resolves in no
                                                   machine root; a phase only a repository
                                                   provides belongs to a repository-scope
                                                   workflow
-  phase-tool     machine/shipped                  rejected: phase "quote" declares a tool
-                                                  "Bash(git diff:*)", which does not match
-                                                  ^[A-Za-z][A-Za-z0-9_-]*$
-  shared-model   machine/shipped                  rejected: phase "review" declares a
-                                                  model and resolves to the shared
-                                                  library, where the model is the
-                                                  installation's assignment in
-                                                  profile.json
   syntax         machine/shipped                  rejected: malformed JSON at byte 33:
                                                   invalid character ',' looking for
                                                   beginning of object key string

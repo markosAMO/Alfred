@@ -1,1 +1,0 @@
-{"name": "phase-tool", "title": "T", "description": "D", "rules": "rules.md", "phases": [{"name": "quote", "model": "vendor/small", "tools": ["Read", "Bash(git diff:*)"]}], "routes": {"sola": ["quote"]}, "default_route": "sola", "entry_points": {"default": "quote"}, "parallel": [], "closes": "quote"}

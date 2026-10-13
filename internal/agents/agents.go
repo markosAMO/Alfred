@@ -1,12 +1,6 @@
-// Package agents generates agent definitions from a model profile.
-//
-// One orchestrator that only delegates, and one subagent per phase that only executes.
-// Written for whichever agents are installed, from the same profile, so a model change is
-// made in one place.
-//
-// The prompts live in prompts/*.tmpl rather than in string literals: they are prose, they
-// are the part most often edited, and a Go literal would have to escape the backticks that
-// run through all of them. They are embedded, so the binary still ships alone.
+// Package agents generates the commands and subagents Alfred installs for each agent
+// (Claude Code, OpenCode) from one model profile, so a model change is made in one place.
+// Prompts are embedded templates under prompts/, so the binary still ships alone.
 package agents
 
 import (
@@ -19,9 +13,12 @@ import (
 	"strings"
 )
 
+// promptFS holds the prompt templates embedded into the binary.
+//
 //go:embed prompts/*.tmpl
 var promptFS embed.FS
 
+// prompt returns the embedded template with the given file name, panicking if it is missing.
 func prompt(name string) string {
 	data, err := promptFS.ReadFile("prompts/" + name)
 	if err != nil {
@@ -30,6 +27,8 @@ func prompt(name string) string {
 	return string(data)
 }
 
+// fill replaces each placeholder with its value, taking pairs in order (placeholder, value).
+// Order matters: a later pair also rewrites text substituted by an earlier one.
 func fill(text string, pairs ...string) string {
 	for i := 0; i+1 < len(pairs); i += 2 {
 		text = strings.ReplaceAll(text, pairs[i], pairs[i+1])
@@ -37,8 +36,8 @@ func fill(text string, pairs ...string) string {
 	return text
 }
 
-// phaseTools are the tools per phase. A phase that does not write code does not get Edit;
-// a phase that does not run anything does not get Bash.
+// phaseTools lists the base tools of each shared phase: only phases that edit code get Edit,
+// only phases that run commands get Bash.
 var phaseTools = map[string][]string{
 	"init":     {"Read", "Write", "Edit", "Glob", "Grep", "Bash"},
 	"explore":  {"Read", "Write", "Glob", "Grep", "Bash"},
@@ -55,23 +54,9 @@ var phaseTools = map[string][]string{
 	"alfred":   {"Read", "Write", "Glob", "Grep", "Bash"},
 }
 
-// MemoryTools is every memory tool the backend exposes, and every phase gets all of them.
-//
-// This used to be carved up per phase, from memory/CONTRACT.md, on the reasoning that a
-// phase which never supersedes an entry has no use for mem_update. The economy was real -
-// each declared tool is schema the agent carries before it reads a line - and it was the
-// wrong trade, for a reason an end-to-end run made plain.
-//
-// A phase cannot tell a tool it was not given from a backend that cannot do the thing. Both
-// read as absence from inside the phase. An archive run hit `judgment_required` on every
-// save and had no `mem_judge` to settle it, so it recorded six open conflicts and moved on -
-// correct behaviour under the contract, and a worse outcome than settling them, caused
-// entirely by a list written before `mem_judge` existed.
-//
-// That failure mode repeats every time the backend grows a tool: the carve-up is a copy of
-// the backend's surface that nothing keeps in step, and it degrades silently. The contract
-// in memory/CONTRACT.md governs which operations a phase *calls*; the tool list governs what
-// is *reachable*. Those are different questions and only the first belongs in a skill.
+// MemoryTools is every memory tool the backend exposes; every phase gets all of them.
+// Do not trim it per phase: a phase cannot tell a missing tool from a backend that lacks the
+// operation, and a per-phase list silently falls behind as the backend grows.
 var MemoryTools = []string{
 	"mem_search", "mem_get_observation", "mem_save", "mem_update", "mem_context",
 	"mem_save_prompt", "mem_suggest_topic_key", "mem_judge", "mem_review",
@@ -81,23 +66,25 @@ var MemoryTools = []string{
 	"mem_stats", "mem_timeline", "mem_delete",
 }
 
+// defaultTools is the base tool set of a phase with no entry in phaseTools.
 var defaultTools = []string{"Read", "Write", "Glob", "Grep"}
 
+// orchestratorTools is the tool set of a command that only delegates to subagents.
 var orchestratorTools = []string{"Task", "Read"}
 
-// coordinatorTools: the coordinator runs no phase, so it has no Task for them; it keeps
-// Task for alfred-manage, which opens and closes the worktrees. Bash starts the sessions,
-// Write keeps .alfred/coordinator.yaml, and the two message tools are the whole of its
-// conversation with the sessions it started.
+// coordinatorTools is the worktree coordinator's tool set: Task for alfred-manage, Bash to
+// start sessions, Write for .alfred/coordinator.yaml, and the message tools to talk to them.
 var coordinatorTools = []string{"Task", "Read", "Write", "Bash", "SendMessage", "ListAgents"}
 
+// opencodeNames maps a Claude Code tool name to the name OpenCode uses for it.
 var opencodeNames = map[string]string{
 	"Read": "read", "Write": "write", "Edit": "edit", "Bash": "bash",
 	"Glob": "glob", "Grep": "grep", "Task": "task",
 	"WebFetch": "webfetch", "WebSearch": "websearch",
 }
 
-// Profile is the model assignment.
+// Profile is the installation's model assignment: which model runs each phase and command,
+// plus effort, memory tool prefix and extra tools, as read from the profile JSON.
 type Profile struct {
 	OrchestratorModel string              `json:"orchestrator"`
 	CoordinatorModel  string              `json:"coordinator"`
@@ -109,24 +96,26 @@ type Profile struct {
 	ExtraTools        map[string][]string `json:"extra_tools"`
 }
 
+// LoadProfile reads a profile JSON file and rejects one that assigns no phases.
 func LoadProfile(path string) (*Profile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var p Profile
-	if err := json.Unmarshal(data, &p); err != nil {
+	var profile Profile
+	if err := json.Unmarshal(data, &profile); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	if p.Phases == nil {
+	if profile.Phases == nil {
 		return nil, fmt.Errorf("%s: no phases", path)
 	}
-	return &p, nil
+	return &profile, nil
 }
 
+// Orchestrator returns the model that runs workflow commands.
 func (p *Profile) Orchestrator() string { return p.OrchestratorModel }
 
-// PhaseNames returns the phases in name order, so every run writes them the same way.
+// PhaseNames returns the profile's phases sorted by name, so output is deterministic.
 func (p *Profile) PhaseNames() []string {
 	names := make([]string, 0, len(p.Phases))
 	for name := range p.Phases {
@@ -136,12 +125,11 @@ func (p *Profile) PhaseNames() []string {
 	return names
 }
 
+// PhaseModel returns the model assigned to a phase, or "" if none is.
 func (p *Profile) PhaseModel(phase string) string { return p.Phases[phase] }
 
-// Coordinator is assigned separately: it relays and decides nothing.
-//
-// A profile written before the key existed falls back to the orchestrator's model rather
-// than to a guess: the previous behaviour, which is wrong only in being expensive.
+// Coordinator returns the worktree coordinator's model, falling back to the orchestrator's
+// model when the profile does not set one.
 func (p *Profile) Coordinator() string {
 	if p.CoordinatorModel != "" {
 		return p.CoordinatorModel
@@ -149,25 +137,22 @@ func (p *Profile) Coordinator() string {
 	return p.Orchestrator()
 }
 
-// ManageModel is used for bookkeeping operations: the init model is a sensible default.
+// ManageModel returns the model for bookkeeping commands: the manage key, else the init
+// phase's model, else the orchestrator's.
 func (p *Profile) ManageModel() string {
 	if p.Manage != "" {
 		return p.Manage
 	}
-	if m := p.Phases["init"]; m != "" {
-		return m
+	if initModel := p.Phases["init"]; initModel != "" {
+		return initModel
 	}
 	return p.Orchestrator()
 }
 
+// Effort returns the reasoning effort configured for a phase, or "" if none is.
 func (p *Profile) Effort(phase string) string { return p.Efforts[phase] }
 
-// DefaultWorkflow is the workflow `/alfred` runs.
-//
-// A profile written before the key existed is read as `sdd`, which reproduces today's
-// `/alfred` on every installation that predates it. It lives here rather than in a
-// repository's configuration because registration is machine-level and runs with no
-// repository in sight.
+// DefaultWorkflow returns the workflow `/alfred` runs, or "sdd" when the profile sets none.
 func (p *Profile) DefaultWorkflow() string {
 	if p.Default != "" {
 		return p.Default
@@ -175,12 +160,8 @@ func (p *Profile) DefaultWorkflow() string {
 	return "sdd"
 }
 
-// Tools returns the base tools, the memory tools with the configured prefix, then the
-// per-project extras.
-//
-// Memory is opt-in: the installer asks, and writes the prefix only when the answer is yes.
-// A profile without the key gets no memory tools, since a tool with no server behind it is
-// schema carried for nothing.
+// Tools returns a shared phase's tools: its base set, the memory tools (only when a memory
+// prefix is configured), then the profile's extras for that phase.
 func (p *Profile) Tools(phase string) []string {
 	base, ok := phaseTools[phase]
 	if !ok {
@@ -189,13 +170,9 @@ func (p *Profile) Tools(phase string) []string {
 	return append(p.withMemory(base), p.ExtraTools[phase]...)
 }
 
-// OwnTools is the tool set of a phase a workflow brought itself.
-//
-// The declared set replaces the base one, and the memory tools are still added, because
-// they are the installation's and a phase cannot tell a tool it was never granted from a
-// backend that cannot do the thing. The profile's per-phase extras are not: they are keyed
-// by a shared phase's name, and a workflow's own `review` is not the shared `review`. A
-// workflow that wants one of them declares it in `tools`.
+// OwnTools returns the tools of a phase a workflow defines itself: the declared set (or the
+// default set) plus memory tools. Profile extras are not added, since they are keyed by
+// shared phase names and a workflow's own phase may reuse such a name.
 func (p *Profile) OwnTools(declared []string) []string {
 	if len(declared) == 0 {
 		declared = defaultTools
@@ -203,6 +180,8 @@ func (p *Profile) OwnTools(declared []string) []string {
 	return p.withMemory(declared)
 }
 
+// withMemory returns a copy of base with every memory tool appended under the configured
+// prefix; with no prefix it returns base unchanged.
 func (p *Profile) withMemory(base []string) []string {
 	tools := append([]string(nil), base...)
 	if p.MemoryToolPrefix != "" {
@@ -213,7 +192,7 @@ func (p *Profile) withMemory(base []string) []string {
 	return tools
 }
 
-// bareModel drops a vendor prefix: Claude Code names the model without one.
+// bareModel drops the vendor prefix of "vendor/model"; Claude Code names models without it.
 func bareModel(model string) string {
 	if _, rest, found := strings.Cut(model, "/"); found {
 		return rest
@@ -221,20 +200,14 @@ func bareModel(model string) string {
 	return model
 }
 
-// worktreeTool: bin/ sits next to skills/ in the installation, so the tool path is derived
-// from the skills root rather than passed separately.
+// worktreeTool returns the path of worktree.sh, which sits in bin/ next to the skills root.
 func worktreeTool(skillsRoot string) string {
 	return filepath.Join(filepath.Dir(skillsRoot), "bin", "worktree.sh")
 }
 
-// OrchestratorPrompt is the orchestrator for one change, in the checkout it was started
-// from. Everything outside the workflow section is mechanics and is the same under every
-// workflow; what differs per agent is how the fleet orchestrator is named, so that is the
-// one other thing passed in.
-//
-// The workflow section is substituted last, after every token this prompt declares. fill is
-// ReplaceAll applied in order, and a title or a description the user wrote holding `{{`
-// would otherwise be rewritten by a later pass of this same function.
+// OrchestratorPrompt renders the single-change orchestrator prompt for one workflow section
+// and the agent-specific name of the fleet entry point.
+// The workflow section is substituted last so user text containing `{{` is never rewritten.
 func OrchestratorPrompt(skillsRoot, workflowSection, fleetEntry string) string {
 	text := fill(prompt("orchestrator.tmpl"),
 		"{{SKILLS_ROOT}}", skillsRoot,
@@ -242,12 +215,8 @@ func OrchestratorPrompt(skillsRoot, workflowSection, fleetEntry string) string {
 	return fill(text, "{{WORKFLOW}}", workflowSection)
 }
 
-// FleetPrompt is the same orchestrator, for several changes at once, one worktree each.
-//
-// Kept apart from the single-change orchestrator rather than made a mode of it: the input
-// is a list with a branch per line, the working set is one state file per change, and a
-// user who wants one change in the current checkout should not have to opt out of
-// worktrees to get it.
+// FleetPrompt renders the orchestrator that runs several changes at once, one worktree each.
+// The workflow section is substituted last, as in OrchestratorPrompt.
 func FleetPrompt(skillsRoot, workflowSection string) string {
 	text := fill(prompt("fleet.tmpl"),
 		"{{SKILLS_ROOT}}", skillsRoot,
@@ -255,14 +224,9 @@ func FleetPrompt(skillsRoot, workflowSection string) string {
 	return fill(text, "{{WORKFLOW}}", workflowSection)
 }
 
-// CoordinatorPrompt is the worktree coordinator: it starts a session per change and routes
-// messages. The sessions it starts run the orchestrator's model, not its own.
-//
-// It carries the workflow section for those sessions rather than for itself. A session is
-// started bare, runs no workflow command and has no other source for the routes, the entry
-// points, the groups dispatched together or the closing phase; the coordinator relays the
-// section and acts on none of it. The section is substituted last, for the reason
-// OrchestratorPrompt gives.
+// CoordinatorPrompt renders the worktree coordinator, which starts one session per change
+// (running sessionModel) and relays the workflow section to those sessions.
+// The workflow section is substituted last, as in OrchestratorPrompt.
 func CoordinatorPrompt(skillsRoot, sessionModel, workflowSection string) string {
 	text := fill(prompt("coordinator.tmpl"),
 		"{{SESSION_MODEL}}", sessionModel,
@@ -271,10 +235,12 @@ func CoordinatorPrompt(skillsRoot, sessionModel, workflowSection string) string 
 	return fill(text, "{{WORKFLOW}}", workflowSection)
 }
 
+// SubagentPrompt renders the prompt of a phase executor that follows the given skill file.
 func SubagentPrompt(phase, skillPath string) string {
 	return fill(prompt("subagent.tmpl"), "{{PHASE}}", phase, "{{SKILL_PATH}}", skillPath)
 }
 
+// ManagePrompt renders the prompt of the alfred-manage subagent.
 func ManagePrompt(skillPath string) string {
 	return fill(prompt("manage.tmpl"), "{{SKILL_PATH}}", skillPath)
 }

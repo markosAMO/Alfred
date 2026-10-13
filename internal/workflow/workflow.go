@@ -1,21 +1,7 @@
-// Package workflow reads the one file that says what a workflow is.
+// Package workflow reads and validates a workflow's definition file (workflow.json).
 //
-// The structural facts of a run — the phases it may run, its routes, which of them are
-// dispatched together and which one closes a change — are read here, once, at
-// registration, and rendered into the command that runs them. Nothing reads a definition
-// again while a change is running, which is why a definition edited afterwards has no
-// effect until registration runs again, and why a corrupted one cannot break a run in
-// progress.
-//
-// That is also why the format is JSON decoded into a typed struct with unknown keys
-// rejected. The alternative was a hand-scanned YAML subset, which is a parser whose only
-// specification is the code that reads it, and which accepts documents YAML rejects, so
-// the user's editor and Alfred would disagree about one file. Here a misspelled key is the
-// decoder's rejection and a syntax error carries its position.
-//
-// A key the format reserves for a capability that does not exist yet is defined and
-// refused by validation, never left unknown: an unknown key is reported as a typo, which
-// is the wrong message for something that will be honoured later.
+// A definition is read once, at registration, and rendered into the command that runs it;
+// nothing reads it again during a run. Unknown keys are rejected so a typo is reported.
 package workflow
 
 import (
@@ -33,28 +19,26 @@ import (
 	"unicode"
 )
 
-// DefinitionFile is the name every workflow directory carries.
+// DefinitionFile is the name of the definition file inside every workflow directory.
 const DefinitionFile = "workflow.json"
 
 // SharedPhases are the phases the shared skill library provides. They are reserved as
-// workflow names, because a workflow named after one would generate a command and a
-// subagent that collide with the shared phase's own.
+// workflow names so a workflow's command and subagent never collide with a shared phase's.
 var SharedPhases = []string{
 	"apply", "archive", "design", "diagnose", "explore", "init",
 	"refine", "research", "review", "spec", "tasks", "verify",
 }
 
-// reservedPhases may not be declared as a phase of any workflow. Repository setup and
-// exploration are commands of their own and belong to no workflow, so removing a workflow
-// can never remove either command; a worktree is not a phase at all.
+// reservedPhases may not be declared as a phase of any workflow.
 var reservedPhases = map[string]bool{"init": true, "explore": true, "worktree": true}
 
+// namePattern is the shape every workflow, phase, route and artifact name must have.
 var namePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
-// ProjectArtifacts are the documents a repository holds for every change, at the paths its
-// configuration names. A phase may read them; no phase writes one as its own document.
+// ProjectArtifacts are the repository-wide documents a phase may read but never writes.
 var ProjectArtifacts = []string{"architecture", "conventions", "specs"}
 
+// isProjectArtifact reports whether name is one of the ProjectArtifacts.
 func isProjectArtifact(name string) bool {
 	for _, artifact := range ProjectArtifacts {
 		if artifact == name {
@@ -64,54 +48,27 @@ func isProjectArtifact(name string) bool {
 	return false
 }
 
-// modelPattern and toolPattern are what a phase may name as its own model and its own
-// tools. Both values are written straight onto a generated Claude Code subagent's
-// frontmatter, and at project scope a definition arrives with a clone and is registered by
-// `init` or the scanner without anyone reading it, so both are held to a shape rather than
-// taken at their word.
-//
-// A model identifier is a vendor-qualified name: letters and digits to open, then the
-// punctuation vendors actually use — `.`, `_`, `:`, `/` and `-`. That admits
-// `anthropic/claude-haiku-4-5-20251001` and `solo-model` and refuses the whole class the
-// threat is: a newline, a tab, any other control character, a space, a comma and a quote.
-// The writer quotes the `model:` line as well, so a value that is merely awkward would
-// survive there; this is the half that says a value which can never be a model identifier
-// is a mistake worth reporting rather than a scalar worth rendering.
-//
-// A tool name is held tighter, because `tools:` is the one frontmatter value the writer
-// cannot quote: Claude Code reads it as a bare comma-separated list, and quoting the join
-// would hand it one scalar where it has always been given a list. A tool name is therefore
-// a letter followed by letters, digits, underscores and hyphens — every name Claude Code
-// and OpenCode have, `Read`, `WebFetch`, `mcp__engram__mem_search` — and nothing that can
-// change the line's shape: no comma to split one name into two, no colon to end the
-// scalar, no newline to start a second key. Claude Code's scoped form, `Bash(git diff:*)`,
-// is refused with them; Alfred has never generated one, OpenCode cannot read one, and
-// admitting it would mean admitting the punctuation the rule exists to keep out.
+// modelPattern and toolPattern are the shapes a phase's model and tool names must have.
+// Both are written into generated subagent frontmatter, so they block injection: `tools:`
+// cannot be quoted, so a tool name may not contain commas, colons, spaces or newlines.
 var (
 	modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
 	toolPattern  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 )
 
-// Phase is one step a workflow may run. It is an object rather than a bare name so that
-// every per-step fact — the model, the tool set, the sub-workflow reference the format
-// reserves — is a key here rather than a parallel structure keyed by phase name, which
-// could disagree with the phase list.
+// Phase is one step a workflow may run, with its optional model, tools, the artifacts it
+// reads and the memory types it recalls.
 type Phase struct {
 	Name  string   `json:"name"`
 	Model string   `json:"model,omitempty"`
 	Tools []string `json:"tools,omitempty"`
 
-	// Every phase leaves one artifact named after itself. Reads is what the phase is handed
-	// when it starts: the artifacts of other phases of this workflow, by phase name, or a
-	// project artifact. Recall is the memory types it searches for what earlier changes
-	// concluded. Both are this workflow's, not the skill's: a shared phase reads different
-	// things under different workflows.
+	// Reads names the artifacts the phase is handed when it starts (other phases of this
+	// workflow, or project artifacts); Recall names the memory types it searches.
 	Reads  []string `json:"reads,omitempty"`
 	Recall []string `json:"recall,omitempty"`
 
-	// Workflow is reserved for a step that triggers another workflow. It is refused by
-	// validation with that reason, so a definition written today — which carries no such
-	// key — is unaffected by the key ever being honoured.
+	// Workflow is reserved for a step that triggers another workflow; validation refuses it.
 	Workflow string `json:"workflow,omitempty"`
 }
 
@@ -129,9 +86,8 @@ type Definition struct {
 	Closes       string              `json:"closes"`
 }
 
-// Load reads the definition of one workflow directory. The directory name is the name the
-// definition has to agree with: it is what the user sees and what the command is named
-// after.
+// Load reads and validates the definition in one workflow directory. The directory name is
+// the name the definition must declare.
 func Load(dir string) (*Definition, error) {
 	file, err := os.Open(filepath.Join(dir, DefinitionFile))
 	if err != nil {
@@ -142,46 +98,42 @@ func Load(dir string) (*Definition, error) {
 	return Decode(file, filepath.Base(dir))
 }
 
-// Decode reads one definition and returns it only when every structural fact holds. The
-// error is the reason the registration report prints, so it is a sentence about this
-// workflow and carries no prefix naming it.
-func Decode(r io.Reader, dirName string) (*Definition, error) {
-	body, err := io.ReadAll(r)
+// Decode parses one definition and returns it only when every structural check passes.
+// The error is printed as-is in the registration report, so it carries no name prefix.
+func Decode(reader io.Reader, dirName string) (*Definition, error) {
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("cannot be read: %w", err)
 	}
 
-	d := &Definition{}
+	definition := &Definition{}
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(d); err != nil {
+	if err := decoder.Decode(definition); err != nil {
 		return nil, readingError(err)
 	}
 	if decoder.More() {
 		return nil, errors.New("malformed JSON: unexpected content after the definition")
 	}
 
-	// A second pass over the same bytes, for presence alone. `parallel` is required and may
-	// be empty, and the decoded value cannot tell an empty list from a key nobody wrote.
+	// Second pass for key presence: an empty `parallel` list is valid, a missing one is not.
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, readingError(err)
 	}
 
-	if err := d.validate(raw, dirName); err != nil {
+	if err := definition.validate(raw, dirName); err != nil {
 		return nil, err
 	}
-	return d, nil
+	return definition, nil
 }
 
-// readingError turns what the decoder says into what the report prints. A syntax error
-// carries its position, because a position is what sends the user to the right line.
+// readingError turns a JSON decoder error into the sentence the report prints, including
+// the byte position for syntax errors.
 func readingError(err error) error {
 	if errors.Is(err, io.EOF) {
 		return errors.New("the definition is empty")
 	}
-	// A truncated document has no position to report: the decoder ran out of input rather
-	// than meeting a character it could not use.
 	if errors.Is(err, io.ErrUnexpectedEOF) {
 		return errors.New("malformed JSON: the definition ends before it is closed")
 	}
@@ -199,16 +151,15 @@ func readingError(err error) error {
 		return fmt.Errorf("key %q has the wrong type: found %s (byte %d)", mismatch.Field, mismatch.Value, mismatch.Offset)
 	}
 
-	// encoding/json reports an unrecognised key as a plain error, so its wording is the
-	// only thing to match on. Unmatched, the decoder's own sentence is still the truth.
+	// encoding/json reports an unknown key only as plain text, so match on its wording.
 	if key, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
 		return fmt.Errorf("unknown key %s", key)
 	}
 	return err
 }
 
-// required is every key a definition has to declare, in the order a reader of the file
-// would miss them.
+// required lists every key a definition must declare, with the reason reported when it is
+// missing, in the order they are checked.
 var required = []struct {
 	key    string
 	reason string
@@ -225,6 +176,8 @@ var required = []struct {
 	{"closes", "declares no closing phase, which is required"},
 }
 
+// validate runs every structural check on a decoded definition and returns the first
+// failure. The rules file is checked separately by the scan (see validateRules).
 func (d *Definition) validate(raw map[string]json.RawMessage, dirName string) error {
 	if err := d.validateDeclared(raw); err != nil {
 		return err
@@ -241,9 +194,8 @@ func (d *Definition) validate(raw map[string]json.RawMessage, dirName string) er
 	return d.validateArtifacts()
 }
 
-// validateDeclared is the one check that reads presence rather than value, and a value
-// that is empty counts as a declaration nobody made — except for `parallel`, where an
-// empty list is the declaration that nothing is grouped.
+// validateDeclared checks that every required key is present and non-empty. `parallel` is
+// the exception: an empty list there means no phases run together.
 func (d *Definition) validateDeclared(raw map[string]json.RawMessage) error {
 	empty := map[string]bool{
 		"name":          d.Name == "",
@@ -258,33 +210,19 @@ func (d *Definition) validateDeclared(raw map[string]json.RawMessage) error {
 		"closes":        d.Closes == "",
 	}
 
-	for _, key := range required {
-		if _, declared := raw[key.key]; !declared || empty[key.key] {
-			return errors.New(key.reason)
+	for _, requirement := range required {
+		if _, declared := raw[requirement.key]; !declared || empty[requirement.key] {
+			return errors.New(requirement.reason)
 		}
 	}
 	return nil
 }
 
-// validateRules checks the rules file against the directory the definition was found in.
-// It is the one value a definition carries that becomes an absolute path and is handed to
-// a model, so it is validated the way `docs/code_conventions.md` requires of exactly that
-// case, with the `under()` pattern `cmd/alfred` uses.
-//
-// It is not part of validate: the decode reads one file and knows only the directory's
-// name, and containment and existence are questions about a directory. The scan is what
-// asks them, because the scan is what knows where the workflow is.
-//
-// Existence is checked here rather than left to the run because a workflow that registers
-// and cannot then run is the first-use failure registration exists to prevent: the report
-// exits 0 and every run under that command stops at a rules file it cannot read.
+// validateRules checks that the rules file is a relative path that exists inside dir, also
+// after resolving symlinks. Existence is checked now so a workflow never registers and then
+// fails on its first run.
 func (d *Definition) validateRules(dir string) error {
-	// A control character is refused before the path is resolved at all, because the value
-	// does not stop at the filesystem: the generated command names the rules file inside a
-	// fence the orchestrator reads, so a newline in it adds a line of the definition
-	// author's choosing to an instruction. A file of that name can be created and the
-	// workflow then registers, which makes this the one key whose checks all passing is
-	// not enough.
+	// The path is rendered into the generated command, so a newline would inject a line.
 	if strings.ContainsFunc(d.Rules, unicode.IsControl) {
 		return fmt.Errorf("rules file %q carries a control character, which no name may hold", d.Rules)
 	}
@@ -308,10 +246,8 @@ func (d *Definition) validateRules(dir string) error {
 		return fmt.Errorf("rules file %q is a directory", d.Rules)
 	}
 
-	// Containment again, with the symlinks resolved. The check above is lexical, and a
-	// repository's workflows arrive with a clone, which can carry a link that is inside the
-	// directory by name and outside it by target. Both ends are resolved because a
-	// temporary directory is itself reached through a link on macOS.
+	// Recheck containment with symlinks resolved: a cloned repository can carry a link that
+	// points outside. Both ends are resolved because temp dirs are symlinked on macOS.
 	realDir, dirErr := filepath.EvalSymlinks(dir)
 	realPath, pathErr := filepath.EvalSymlinks(path)
 	if dirErr != nil || pathErr != nil {
@@ -328,16 +264,17 @@ func (d *Definition) validateRules(dir string) error {
 	return file.Close()
 }
 
-// under answers whether path stays inside root. Both are already clean, so the comparison
-// is the relative one: a path reaching the root's parent escapes it.
+// under reports whether path stays inside root. Both paths must already be clean.
 func under(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
+	relative, err := filepath.Rel(root, path)
 	if err != nil {
 		return false
 	}
-	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
+// validateName checks the workflow's name: its shape, that it matches its directory, and
+// that it is not reserved.
 func (d *Definition) validateName(dirName string) error {
 	if !namePattern.MatchString(d.Name) {
 		return fmt.Errorf("name %q does not match %s", d.Name, namePattern)
@@ -351,8 +288,8 @@ func (d *Definition) validateName(dirName string) error {
 	return nil
 }
 
-// reservedNames are the names a workflow may not take: every shared phase, every command
-// that belongs to no workflow, and the two agents.
+// reservedNames returns the names a workflow may not take: every shared phase, every
+// command that belongs to no workflow, and the two agents.
 func reservedNames() map[string]bool {
 	names := map[string]bool{
 		"alfred": true, "manage": true, "worktree": true,
@@ -364,24 +301,22 @@ func reservedNames() map[string]bool {
 	return names
 }
 
+// validatePhases checks each phase: name shape and uniqueness, reserved names, model and
+// tool shapes, the unsupported `workflow` key, and its reads/recall names.
 func (d *Definition) validatePhases() error {
 	seen := make(map[string]bool, len(d.Phases))
 	for _, phase := range d.Phases {
 		switch {
 		case phase.Name == "":
 			return errors.New("declares a phase with no name")
-		// A phase name is a filename component before it is anything else: resolution joins
-		// it onto a skill root and the generator joins it onto an agent directory. Held to
-		// nothing, a name carrying `..` leaves both, and at project scope the definition
-		// arrived with a clone. It answers to the pattern the workflow's own name does.
+		// The name becomes a path component, so `..` or similar must never get through.
 		case !namePattern.MatchString(phase.Name):
 			return fmt.Errorf("declares a phase named %q, which does not match %s", phase.Name, namePattern)
 		case reservedPhases[phase.Name], isProjectArtifact(phase.Name):
 			return fmt.Errorf("declares a phase named %q, which is reserved", phase.Name)
 		case seen[phase.Name]:
 			return fmt.Errorf("declares phase %q twice", phase.Name)
-		// A phase that assigns no model takes the installation's, and the empty string is
-		// how it says so; a phase that names one has it written onto a frontmatter line.
+		// An empty model means "use the installation's"; a named one goes into frontmatter.
 		case phase.Model != "" && !modelPattern.MatchString(phase.Model):
 			return fmt.Errorf("phase %q declares a model %q, which does not match %s", phase.Name, phase.Model, modelPattern)
 		case phase.Workflow != "":
@@ -400,8 +335,8 @@ func (d *Definition) validatePhases() error {
 	return nil
 }
 
-// validateArtifactNames holds every artifact and memory type a phase names to the name
-// pattern, because each becomes a path component and a memory key.
+// validateArtifactNames checks that every name in a phase's reads and recall matches the
+// name pattern and appears once, because each becomes a path component and a memory key.
 func validateArtifactNames(phase Phase) error {
 	for _, key := range []string{"reads", "recall"} {
 		names := phase.Reads
@@ -422,8 +357,8 @@ func validateArtifactNames(phase Phase) error {
 	return nil
 }
 
-// validateArtifacts checks that every read names another phase of this workflow, whose
-// artifact it is, or a project artifact.
+// validateArtifacts checks that every read names another phase of this workflow or a
+// project artifact.
 func (d *Definition) validateArtifacts() error {
 	declared := make(map[string]bool, len(d.Phases))
 	for _, phase := range d.Phases {
@@ -444,21 +379,17 @@ func (d *Definition) validateArtifacts() error {
 	return nil
 }
 
-// validateReferences checks every name that addresses a phase or a route against what the
-// definition declares. Maps are walked in sorted order: a reason whose wording depends on
-// map iteration is a reason the golden recordings cannot pin.
+// validateReferences checks that routes, the default route, entry points, parallel groups
+// and the closing phase only name phases and routes the definition declares.
+// Maps are walked in sorted order so the reported error is deterministic (golden tests).
 func (d *Definition) validateReferences() error {
 	declared := make(map[string]bool, len(d.Phases))
 	for _, phase := range d.Phases {
 		declared[phase.Name] = true
 	}
 
-	// A route's name is the third name a definition carries, and it answers to the pattern
-	// the other two do. It is addressed by the user and by the orchestrator, printed in the
-	// registration report and rendered into the generated command's prompt body, so holding
-	// it more loosely than the workflow it belongs to buys nothing and costs a value that
-	// can rewrite either. Every route's shape is settled before any of them is read as a
-	// reference, so a definition carrying both faults is rejected for the one to fix first.
+	// Route names are rendered into the generated command, so they must match namePattern.
+	// All names are checked before any route's contents, so that fault is reported first.
 	for _, name := range sorted(d.Routes) {
 		if !namePattern.MatchString(name) {
 			return fmt.Errorf("declares a route named %q, which does not match %s", name, namePattern)
@@ -503,9 +434,11 @@ func (d *Definition) validateReferences() error {
 	return nil
 }
 
-func sorted[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
+// sorted returns the keys of a string-keyed map in ascending order, for deterministic
+// iteration.
+func sorted[V any](table map[string]V) []string {
+	keys := make([]string, 0, len(table))
+	for key := range table {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)

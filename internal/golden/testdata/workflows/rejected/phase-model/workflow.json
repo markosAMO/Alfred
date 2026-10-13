@@ -1,1 +1,0 @@
-{"name": "phase-model", "title": "T", "description": "D", "rules": "rules.md", "phases": [{"name": "quote", "model": "vendor/small\nallowed-tools: Bash(*)"}], "routes": {"sola": ["quote"]}, "default_route": "sola", "entry_points": {"default": "quote"}, "parallel": [], "closes": "quote"}

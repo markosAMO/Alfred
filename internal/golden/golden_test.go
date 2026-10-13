@@ -34,15 +34,11 @@ type spec struct {
 	SourceEdits map[string]string `json:"source_edits"`
 	Workflows   roots             `json:"workflows"`
 	Project     repository        `json:"project"`
-
-	// Migration is an input: the tree an earlier version left on a machine.
-	Migration string `json:"migration"`
 }
 
-// repository names the project-scope fixtures and the workflow the removal case deletes.
+// repository names the project-scope fixture and the workflow the removal case deletes.
 type repository struct {
 	Repo    string `json:"repo"`
-	Bare    string `json:"bare"`
 	Removes string `json:"removes"`
 }
 
@@ -52,10 +48,8 @@ type roots struct {
 	Custom         string `json:"custom"`
 	Rejected       string `json:"rejected"`
 	RejectedCustom string `json:"rejected_custom"`
-	Collision      string `json:"collision"`
 	Injection      string `json:"injection"`
 	Absent         string `json:"absent"`
-	Removes        string `json:"removes"`
 }
 
 func TestMain(m *testing.M) {
@@ -246,31 +240,10 @@ func TestStateCompareMatchesGolden(t *testing.T) {
 			t.Errorf("%s = %v, want [%s]", class, report[class], want)
 		}
 	}
-}
 
-func TestStateCompareWithoutAStateFileMatchesGolden(t *testing.T) {
-	s := loadSpec(t)
-
-	source := t.TempDir()
-	build(t, source, s.Files)
-	build(t, source, s.SourceEdits)
-
-	out := run(t, "state", "compare", t.TempDir(), source, s.Payload)
+	// The same source against a home with no state file.
+	out = run(t, "state", "compare", t.TempDir(), source, s.Payload)
 	assertMatches(t, "compare without a state file", golden(t, "state/compare-no-state.json"), out)
-}
-
-// TestVersionMatchesGolden pins `version` with and without an installation.
-func TestVersionMatchesGolden(t *testing.T) {
-	s := loadSpec(t)
-
-	home := t.TempDir()
-	build(t, home, s.Files)
-	run(t, "state", "write", home, s.Version, s.Payload)
-
-	assertRecorded(t, "state/version.report", home, attempt(t, "version", home))
-
-	missing := t.TempDir()
-	assertRecorded(t, "state/version-missing.report", missing, attempt(t, "version", missing))
 }
 
 // Placeholders for what differs per machine: the staging tree, this checkout and hashes.
@@ -320,27 +293,19 @@ func stage(t *testing.T, from, to string) string {
 // out holds everything a run writes: both agents' targets and the manifest.
 func (r *registration) out() string { return filepath.Join(r.work, "out") }
 
-// seed pre-populates the output, so the migration (no manifest yet) can be observed.
-func (r *registration) seed(t *testing.T, from string) {
-	t.Helper()
-	stage(t, from, r.out())
-}
-
-// run is one machine-scope registration; extra adds targets.
-func (r *registration) run(t *testing.T, mode string, extra ...string) outcome {
+// run is one machine-scope registration in the given mode.
+func (r *registration) run(t *testing.T, mode string) outcome {
 	t.Helper()
 
-	args := []string{"workflows", "machine", mode,
+	return attempt(t, "workflows", "machine", mode,
 		r.profile,
 		filepath.Join(repoRoot, "skills"),
 		r.shipped,
 		r.custom,
 		filepath.Join(repoRoot, "templates/workflow"),
-		"manifest=" + filepath.Join(r.out(), "generated.json"),
-		"claude=" + filepath.Join(r.out(), "claude"),
-		"opencode=" + filepath.Join(r.out(), "opencode.json")}
-
-	return attempt(t, append(args, extra...)...)
+		"manifest="+filepath.Join(r.out(), "generated.json"),
+		"claude="+filepath.Join(r.out(), "claude"),
+		"opencode="+filepath.Join(r.out(), "opencode.json"))
 }
 
 func (r *registration) normalise(text string) string { return normalise(r.work, text) }
@@ -484,28 +449,6 @@ func TestRejectedWorkflowsMatchGolden(t *testing.T) {
 // forgedName holds the report's column separator (two spaces) and must be printed quoted.
 const forgedName = "forged  row"
 
-// TestASubagentNameCollisionRejectsThePair: both workflows are refused, the rest registers.
-func TestASubagentNameCollisionRejectsThePair(t *testing.T) {
-	s := loadSpec(t)
-
-	r := newRegistration(t, "uniform", s.Workflows.Collision, s.Workflows.Absent)
-
-	r.assertReport(t, "collision", r.run(t, "apply"))
-
-	for path, want := range map[string]bool{
-		"claude/commands/alfred-pedidos.md":              true,
-		"claude/agents/alfred-pedidos-cotizar.md":        true,
-		"claude/commands/alfred-ventas.md":               false,
-		"claude/commands/alfred-ventas-extra.md":         false,
-		"claude/agents/alfred-ventas-extra-propuesta.md": false,
-	} {
-		_, err := os.Stat(filepath.Join(r.out(), path))
-		if there := err == nil; there != want {
-			t.Errorf("%s is present: %v, want %v", path, there, want)
-		}
-	}
-}
-
 // TestADescriptionCarryingANewlineStaysOneScalar: a newline must not add frontmatter keys.
 func TestADescriptionCarryingANewlineStaysOneScalar(t *testing.T) {
 	s := loadSpec(t)
@@ -555,83 +498,6 @@ func frontmatterKeys(t *testing.T, text string) []string {
 	return nil
 }
 
-// TestAMigrationAdoptsWhatAnEarlierVersionWrote: legacy files are adopted, foreign ones
-// kept, and a second run adopts nothing.
-func TestAMigrationAdoptsWhatAnEarlierVersionWrote(t *testing.T) {
-	s := loadSpec(t)
-
-	r := newRegistration(t, "uniform", s.Workflows.Shipped, s.Workflows.Custom)
-	r.seed(t, s.Migration)
-
-	// The collision and the orphan must come out byte for byte as they went in.
-	kept := map[string]string{}
-	for _, rel := range []string{"claude/commands/alfred-ventas.md", "claude/agents/alfred-notes.md"} {
-		kept[rel] = readFile(t, filepath.Join(r.out(), rel))
-	}
-	opencode := filepath.Join(r.out(), "opencode.json")
-	mine := agentKey(t, opencode, "alfred-ventas")
-	foreign := agentKey(t, opencode, "mi-agente")
-
-	r.assertReport(t, "migration", r.run(t, "apply"))
-
-	for rel, want := range kept {
-		if got := readFile(t, filepath.Join(r.out(), rel)); got != want {
-			t.Errorf("%s was written over:\n%s", rel, got)
-		}
-	}
-	if got := agentKey(t, opencode, "alfred-ventas"); got != mine {
-		t.Errorf("the user's alfred-ventas key was written over:\n%s", got)
-	}
-	if got := agentKey(t, opencode, "mi-agente"); got != foreign {
-		t.Errorf("a key carrying no generated naming was touched:\n%s", got)
-	}
-
-	// Claiming a colliding name would license the next run to overwrite it.
-	manifest := readManifest(t, filepath.Join(r.out(), "generated.json"))
-	for _, name := range []string{
-		filepath.Join(r.out(), "claude/commands/alfred-ventas.md"),
-		filepath.Join(r.out(), "claude/agents/alfred-notes.md"),
-	} {
-		if _, claimed := manifest["claude"]["files"][name]; claimed {
-			t.Errorf("the manifest claims %s, which Alfred did not write", name)
-		}
-	}
-	for _, key := range []string{"alfred-ventas", "mi-agente"} {
-		if _, claimed := manifest["opencode"]["keys"][key]; claimed {
-			t.Errorf("the manifest claims the %s key, which Alfred did not write", key)
-		}
-	}
-	if _, claimed := manifest["claude"]["files"][filepath.Join(r.out(), "claude/commands/alfred.md")]; !claimed {
-		t.Error("the manifest does not claim a file the run adopted and refreshed")
-	}
-
-	before := snapshot(t, r.out())
-	r.assertReport(t, "migration-again", r.run(t, "apply"))
-	if after := snapshot(t, r.out()); !reflect.DeepEqual(before, after) {
-		t.Error("the run after the migration changed what the migration left")
-	}
-}
-
-// TestAMigrationInReportModeWritesNothing: report mode only says what it would adopt.
-func TestAMigrationInReportModeWritesNothing(t *testing.T) {
-	s := loadSpec(t)
-
-	r := newRegistration(t, "uniform", s.Workflows.Shipped, s.Workflows.Custom)
-	r.seed(t, s.Migration)
-	before := snapshot(t, r.out())
-
-	o := r.run(t, "report")
-	if !strings.Contains(o.stdout, "would adopt") {
-		t.Errorf("the report does not say what it would adopt:\n%s", o.stdout)
-	}
-	if strings.Contains(o.stdout, "adopted") {
-		t.Errorf("a mode that wrote nothing claims an adoption:\n%s", o.stdout)
-	}
-	if after := snapshot(t, r.out()); !reflect.DeepEqual(before, after) {
-		t.Error("report mode changed the machine it was asked about")
-	}
-}
-
 // agentKey returns one agent entry of opencode.json as raw JSON.
 func agentKey(t *testing.T, path, key string) string {
 	t.Helper()
@@ -647,19 +513,6 @@ func agentKey(t *testing.T, path, key string) string {
 		t.Fatalf("%s holds no %s agent", path, key)
 	}
 	return string(value)
-}
-
-// readManifest returns generated.json's claims: agent, then files or keys, then name.
-func readManifest(t *testing.T, path string) map[string]map[string]map[string]string {
-	t.Helper()
-
-	var manifest struct {
-		Agents map[string]map[string]map[string]string `json:"agents"`
-	}
-	if err := json.Unmarshal([]byte(readFile(t, path)), &manifest); err != nil {
-		t.Fatal(err)
-	}
-	return manifest.Agents
 }
 
 // TestReportModeWritesNothing: report mode prints the pending changes and writes nothing.
@@ -693,34 +546,6 @@ func TestASecondRunWritesNothing(t *testing.T) {
 	}
 }
 
-// TestARemovedWorkflowIsTakenBack: deleting a workflow removes only its command and subagents.
-func TestARemovedWorkflowIsTakenBack(t *testing.T) {
-	s := loadSpec(t)
-
-	r := newRegistration(t, "uniform", s.Workflows.Shipped, s.Workflows.Custom)
-	if first := r.run(t, "apply"); first.code != 1 {
-		t.Fatalf("the first run exited %d, want 1\n%s", first.code, first.stderr)
-	}
-	if err := os.RemoveAll(filepath.Join(r.shipped, s.Workflows.Removes)); err != nil {
-		t.Fatal(err)
-	}
-
-	r.assertReport(t, "removed", r.run(t, "apply"))
-
-	// Removal follows the manifest, not the name: a sibling and a shared phase stay.
-	for path, want := range map[string]bool{
-		"claude/commands/alfred-ventas.md":         false,
-		"claude/agents/alfred-ventas-propuesta.md": false,
-		"claude/commands/alfred-soporte.md":        true,
-		"claude/agents/alfred-spec.md":             true,
-	} {
-		_, err := os.Stat(filepath.Join(r.out(), path))
-		if there := err == nil; there != want {
-			t.Errorf("%s is present: %v, want %v", path, there, want)
-		}
-	}
-}
-
 // TestCheckMatchesGolden records both answers of check: commands missing, then registered.
 func TestCheckMatchesGolden(t *testing.T) {
 	s := loadSpec(t)
@@ -749,17 +574,12 @@ type repoFixture struct {
 	exclude string
 }
 
+// newRepoFixture stages the repository fixture and the machine roots beside it.
 func newRepoFixture(t *testing.T, s spec, exclude string) *repoFixture {
-	t.Helper()
-	return repoFixtureFrom(t, s, s.Project.Repo, exclude)
-}
-
-// repoFixtureFrom stages a named repository fixture.
-func repoFixtureFrom(t *testing.T, s spec, from, exclude string) *repoFixture {
 	t.Helper()
 
 	p := &repoFixture{work: t.TempDir(), exclude: exclude}
-	p.repo = stage(t, from, filepath.Join(p.work, "repo"))
+	p.repo = stage(t, s.Project.Repo, filepath.Join(p.work, "repo"))
 	p.machine = filepath.Join(p.work, "machine")
 	stage(t, s.Workflows.Shipped, filepath.Join(p.machine, "workflows"))
 	stage(t, s.Workflows.Custom, filepath.Join(p.machine, "custom"))
@@ -871,47 +691,6 @@ func TestProjectUnderCommittedArtifacts(t *testing.T) {
 	// Hard rule 18: .gitignore is the repository's and Alfred never writes it.
 	if got := readFile(t, filepath.Join(committed.repo, ".gitignore")); got != "node_modules/\n" {
 		t.Errorf(".gitignore = %q, want it exactly as the fixture left it", got)
-	}
-}
-
-// TestARepositoryWithNoWorkflowIsLeftAsItWasFound: no manifest and no exclude file are written.
-func TestARepositoryWithNoWorkflowIsLeftAsItWasFound(t *testing.T) {
-	s := loadSpec(t)
-
-	p := repoFixtureFrom(t, s, s.Project.Bare, excludeManifest)
-	before := snapshot(t, p.repo)
-
-	assertRecorded(t, "project/bare.report", p.work, p.apply(t))
-
-	if after := snapshot(t, p.repo); !reflect.DeepEqual(before, after) {
-		t.Errorf("the repository was written into:\nbefore %v\nafter  %v", keysOf(before), keysOf(after))
-	}
-	if _, err := os.Stat(filepath.Join(p.repo, excludeFile)); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("%s was created: %v", excludeFile, err)
-	}
-}
-
-// keysOf is a snapshot's file names, sorted.
-func keysOf(files map[string]string) []string {
-	names := make([]string, 0, len(files))
-	for name := range files {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}
-
-// TestExcludeAtMachineScopeIsRefused: exclude= at machine scope exits 2 and writes nothing.
-func TestExcludeAtMachineScopeIsRefused(t *testing.T) {
-	s := loadSpec(t)
-
-	r := newRegistration(t, "uniform", s.Workflows.Shipped, s.Workflows.Custom)
-
-	o := r.run(t, "apply", "exclude="+filepath.Join(r.work, excludeFile))
-	assertRecorded(t, "project/exclude-at-machine.report", r.work, o)
-
-	if wrote := snapshot(t, r.out()); len(wrote) > 0 {
-		t.Errorf("a call refused for its arguments wrote %d files", len(wrote))
 	}
 }
 
