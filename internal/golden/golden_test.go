@@ -32,6 +32,7 @@ type spec struct {
 	Files       map[string]string `json:"files"`
 	HomeEdits   map[string]string `json:"home_edits"`
 	SourceEdits map[string]string `json:"source_edits"`
+	SourceGone  []string          `json:"source_removals"`
 	Workflows   roots             `json:"workflows"`
 	Project     repository        `json:"project"`
 }
@@ -219,9 +220,15 @@ func TestStateCompareMatchesGolden(t *testing.T) {
 
 	run(t, "state", "write", home, s.Version, s.Payload)
 
-	// One file of every classification: edited by the user, changed upstream, added.
+	// One file of every classification: edited by the user, changed upstream, added, and
+	// dropped upstream.
 	build(t, home, s.HomeEdits)
 	build(t, source, s.SourceEdits)
+	for _, rel := range s.SourceGone {
+		if err := os.Remove(filepath.Join(source, filepath.FromSlash(rel))); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	out := run(t, "state", "compare", home, source, s.Payload)
 	assertMatches(t, "compare report", golden(t, "state/compare.json"), out)
@@ -235,6 +242,7 @@ func TestStateCompareMatchesGolden(t *testing.T) {
 		"modified":  "pay/a/b.txt",
 		"updatable": "pay/a-c/d.txt",
 		"new":       "pay/added.txt",
+		"removed":   "pay/deep/er/still/x.md",
 	} {
 		if len(report[class]) != 1 || report[class][0] != want {
 			t.Errorf("%s = %v, want [%s]", class, report[class], want)

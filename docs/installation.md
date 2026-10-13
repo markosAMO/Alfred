@@ -80,9 +80,10 @@ Run from inside the cloned repository.
 | `./install.sh doctor` | check the setup and name what is broken |
 | `./install.sh status` | what is installed, which profile, which agents |
 
-`update` replaces only files whose hash still matches what was installed. A file you edited
-is reported with its path, never overwritten. It also rebuilds and re-copies the helper
-from the clone it ran from.
+`update` replaces only files whose hash still matches what was installed, and removes the
+ones the release no longer ships under the same condition. A file you edited is reported
+with its path, never overwritten or removed. It also rebuilds and re-copies the helper from
+the clone it ran from.
 
 Workflows you wrote are never touched by any of these. They live under
 `~/.config/alfred/custom/workflows/`, which the installer does not list among the files it

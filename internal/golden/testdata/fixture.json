@@ -22,6 +22,7 @@
     "pay/a-c/d.txt": "a new release",
     "pay/added.txt": "added upstream"
   },
+  "source_removals": ["pay/deep/er/still/x.md"],
   "workflows": {
     "shipped": "workflows/shipped",
     "custom": "workflows/custom",

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -179,8 +180,9 @@ func runState(args []string) error {
 	}
 }
 
-// applyReport reads a state report from stdin and copies every New and Updatable file from
-// source to home. Modified files are never touched, so user edits survive.
+// applyReport reads a state report from stdin, copies every New and Updatable file from
+// source to home and deletes every Removed one, with any directory that leaves empty.
+// Modified files are never touched, so user edits survive.
 func applyReport(home, source string) error {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
@@ -209,8 +211,30 @@ func applyReport(home, source string) error {
 		}
 	}
 
-	fmt.Printf("%d files updated, %d left alone\n", count, len(report.Modified))
+	for _, rel := range report.Removed {
+		path, err := under(home, rel)
+		if err != nil {
+			return err
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		pruneEmpty(home, filepath.Dir(path))
+	}
+
+	fmt.Printf("%d files updated, %d removed, %d left alone\n", count, len(report.Removed), len(report.Modified))
 	return nil
+}
+
+// pruneEmpty removes dir and each parent below home that a removal left empty, so a skill or
+// workflow the source dropped leaves no directory a later scan would find.
+func pruneEmpty(home, dir string) {
+	for dir != home && strings.HasPrefix(dir, home+string(filepath.Separator)) {
+		if os.Remove(dir) != nil {
+			return
+		}
+		dir = filepath.Dir(dir)
+	}
 }
 
 // under joins a relative path to root and rejects any path that escapes it, because paths

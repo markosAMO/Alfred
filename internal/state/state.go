@@ -216,13 +216,15 @@ func notInstalled(home string) error {
 	return fmt.Errorf("no installation at %s; run: install.sh install", home)
 }
 
-// Report lists source files by status (relative paths): not installed yet, identical,
-// edited by the user since install, or safe to update.
+// Report lists files by status (relative paths): not installed yet, identical, edited by
+// the user since install, safe to update, or gone from the source and safe to remove. A file
+// gone from the source that the user edited is Modified, and stays.
 type Report struct {
 	New       []string `json:"new"`
 	Unchanged []string `json:"unchanged"`
 	Modified  []string `json:"modified"`
 	Updatable []string `json:"updatable"`
+	Removed   []string `json:"removed"`
 }
 
 // Compare classifies every source file against what is installed at root. A file whose
@@ -285,14 +287,61 @@ func Compare(root, source string, payload []string) (*Report, error) {
 		}
 	}
 
+	removed, modified, err := goneFromSource(root, recorded.Files, relPaths)
+	if err != nil {
+		return nil, err
+	}
+	report.Removed = removed
+	report.Modified = append(report.Modified, modified...)
+	sort.Strings(report.Modified)
+
 	return report, nil
+}
+
+// goneFromSource returns the recorded files the source no longer ships, split into those
+// still as installed, which may be removed, and those the user edited, which stay. A file
+// already missing from the installation is neither.
+func goneFromSource(root string, recorded map[string]string, shipped []string) ([]string, []string, error) {
+	inSource := make(map[string]bool, len(shipped))
+	for _, rel := range shipped {
+		inSource[rel] = true
+	}
+
+	var gone []string
+	for rel := range recorded {
+		if inSource[rel] {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
+			gone = append(gone, filepath.Join(root, rel))
+		}
+	}
+	sums, err := hashAll(gone)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var removed, modified []string
+	for _, path := range gone {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil, nil, err
+		}
+		if sums[path] == recorded[rel] {
+			removed = append(removed, rel)
+		} else {
+			modified = append(modified, rel)
+		}
+	}
+	sort.Strings(removed)
+	return removed, modified, nil
 }
 
 // JSON renders the report on one line with every section present (empty as []), so the
 // installer can read any of them without checking first.
 func (r *Report) JSON() string {
-	complete := Report{New: r.New, Unchanged: r.Unchanged, Modified: r.Modified, Updatable: r.Updatable}
-	for _, section := range []*[]string{&complete.New, &complete.Unchanged, &complete.Modified, &complete.Updatable} {
+	complete := Report{New: r.New, Unchanged: r.Unchanged, Modified: r.Modified, Updatable: r.Updatable, Removed: r.Removed}
+	for _, section := range []*[]string{&complete.New, &complete.Unchanged, &complete.Modified, &complete.Updatable, &complete.Removed} {
 		if *section == nil {
 			*section = []string{}
 		}

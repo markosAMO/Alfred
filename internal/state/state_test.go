@@ -254,13 +254,13 @@ func TestCompareWithoutStateTreatsInstalledFilesAsUpdatable(t *testing.T) {
 
 func TestReportJSONShapeAndEmptySections(t *testing.T) {
 	empty := (&Report{}).JSON()
-	want := `{"new":[],"unchanged":[],"modified":[],"updatable":[]}`
+	want := `{"new":[],"unchanged":[],"modified":[],"updatable":[],"removed":[]}`
 	if empty != want {
 		t.Errorf("empty report = %s, want %s", empty, want)
 	}
 
 	filled := (&Report{New: []string{"a"}, Modified: []string{"b", "c"}}).JSON()
-	wantFilled := `{"new":["a"],"unchanged":[],"modified":["b","c"],"updatable":[]}`
+	wantFilled := `{"new":["a"],"unchanged":[],"modified":["b","c"],"updatable":[],"removed":[]}`
 	if filled != wantFilled {
 		t.Errorf("report = %s, want %s", filled, wantFilled)
 	}
@@ -386,5 +386,36 @@ func TestSHA256KnownValue(t *testing.T) {
 	const want = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 	if got != want {
 		t.Errorf("SHA256 = %s, want %s", got, want)
+	}
+}
+
+// A file the source stopped shipping is removed only when it is still as installed: an
+// edited one is the user's now, and is reported as modified instead.
+func TestAFileGoneFromTheSourceIsRemovedUnlessTheUserEditedIt(t *testing.T) {
+	home, source := t.TempDir(), t.TempDir()
+	for _, root := range []string{home, source} {
+		for _, rel := range []string{"skills/a/contract.json", "skills/b/contract.json", "skills/c/SKILL.md"} {
+			writeFile(t, filepath.Join(root, rel), "{}")
+		}
+	}
+	if _, err := Write(home, "1", []string{"skills"}); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(home, "skills/b/contract.json"), `{"edited":true}`)
+	for _, rel := range []string{"skills/a/contract.json", "skills/b/contract.json"} {
+		if err := os.Remove(filepath.Join(source, rel)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	report, err := Compare(home, source, []string{"skills"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Removed) != 1 || report.Removed[0] != filepath.FromSlash("skills/a/contract.json") {
+		t.Errorf("removed = %v, want only the unedited file", report.Removed)
+	}
+	if len(report.Modified) != 1 || report.Modified[0] != filepath.FromSlash("skills/b/contract.json") {
+		t.Errorf("modified = %v, want the edited file kept", report.Modified)
 	}
 }
