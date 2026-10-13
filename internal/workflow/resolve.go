@@ -33,21 +33,21 @@ type SkillRoots struct {
 // Resolved is one phase of a workflow with the skill file, origin, model and tools the
 // generator needs to dispatch it.
 type Resolved struct {
-	Name   string
-	Skill  string
-	Origin Origin
+	Name   string `json:"name"`
+	Skill  string `json:"skill"`
+	Origin Origin `json:"origin"`
 
 	// Model is empty when nobody assigned one; that is reported, not an error, and no
 	// fallback to the orchestrator's model is applied.
-	Model string
+	Model string `json:"model,omitempty"`
 
 	// Tools is the set a workflow or repository phase declares; empty means the default
 	// set. It is always empty for a shared phase.
-	Tools []string
+	Tools []string `json:"tools,omitempty"`
 
 	// Contract is what the phase's contract.json declares, read here so that nothing reads
 	// it during a run; nil when the skill has none.
-	Contract *contract.Contract
+	Contract *contract.Contract `json:"contract,omitempty"`
 }
 
 // Resolve locates every phase of a workflow in its skill roots and returns the first reason

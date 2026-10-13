@@ -16,6 +16,7 @@ import (
 
 	"github.com/markosAMO/alfred/internal/agents"
 	"github.com/markosAMO/alfred/internal/contract"
+	"github.com/markosAMO/alfred/internal/generated"
 	"github.com/markosAMO/alfred/internal/hook"
 	"github.com/markosAMO/alfred/internal/memory"
 	"github.com/markosAMO/alfred/internal/settings"
@@ -286,13 +287,25 @@ func runWorkflows(args []string) error {
 		return err
 	}
 
-	accepted, lines, err := request.Prepare(profile.Phases)
+	previous, err := generated.Read(request.Targets.Manifest)
+	if err != nil {
+		return err
+	}
+	var registered map[string]json.RawMessage
+	if previous != nil {
+		registered = previous.Registered
+	}
+
+	accepted, lines, err := request.Prepare(profile.Phases, registered)
 	if err != nil {
 		return err
 	}
 
 	set, err := agents.Generate(profile, generation(request, accepted))
 	if err != nil {
+		return err
+	}
+	if set.Registered, err = snapshots(accepted); err != nil {
 		return err
 	}
 
@@ -339,6 +352,23 @@ func runWorkflows(args []string) error {
 		os.Exit(1)
 	}
 	return nil
+}
+
+// snapshots returns the validated form of every accepted workflow, by name, for the manifest
+// to record; nil when there is none, so an empty scope's manifest gains no empty key.
+func snapshots(accepted []workflow.Accepted) (map[string]json.RawMessage, error) {
+	if len(accepted) == 0 {
+		return nil, nil
+	}
+	recorded := make(map[string]json.RawMessage, len(accepted))
+	for _, one := range accepted {
+		raw, err := one.Snapshot()
+		if err != nil {
+			return nil, err
+		}
+		recorded[one.Name] = raw
+	}
+	return recorded, nil
 }
 
 // generation converts the parsed request and accepted workflows into agents' input.

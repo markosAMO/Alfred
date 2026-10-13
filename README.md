@@ -219,7 +219,8 @@ git pull
 
 `update` replaces only files whose hash still matches what was installed, and removes the
 ones the release no longer ships under the same condition. A file you edited is reported
-with its path, never overwritten or removed.
+with its path, never overwritten or removed. A release that would leave a workflow that
+registers today unregistered is refused, and nothing is changed.
 
 ---
 

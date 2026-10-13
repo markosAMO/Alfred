@@ -44,6 +44,14 @@ of segments, `*` and `?` match within one, and `{change}` matches the one segmen
 the running change's directory. Unknown keys, absolute paths, `..` and any other
 placeholder are refused.
 
+`{change}` is always a whole segment, never part of one:
+
+```
+.alfred/changes/{change}/spec.md    accepted
+quotes/{change}/quote.md            accepted
+quotes/{change}.md                  refused
+```
+
 A contract is optional, and so is every block in it. Each block is validated and enforced
 on its own, and none requires another. A block that is absent leaves the phase doing what
 it does without a contract, so a skill that never declares one runs exactly as before.
@@ -68,6 +76,25 @@ reads the `contract.json` beside it, refuses the workflow when the contract is i
 renders the patterns into the hook command of the phase's agent. A contract edited while a
 change runs changes nothing until registration runs again, which is the same guarantee the
 workflow definition has.
+
+## Changing a contract
+
+A contract takes effect when its workflow registers again:
+
+| Where the contract is | Run |
+|---|---|
+| a skill Alfred ships, edited in the clone | `./install.sh update` |
+| a workflow of the machine, under `custom/workflows/` | `register.sh` or `/alfred-workflows-scanner` |
+| a workflow of a repository, under `.alfred/workflows/` | `register.sh --project <repo>` |
+| the installed copy, edited by hand | `./install.sh workflows` or `register.sh` |
+
+A contract deleted from the clone is removed by `update` unless it was edited where it is
+installed, and the phase registers again with none.
+
+An invalid contract refuses its workflow. A workflow that registered before keeps that
+registration, contract included, until the file is fixed, and `update` refuses a release
+that would leave a registered workflow refused. A typo never removes a command or loosens a
+rule.
 
 ## The fixed rules
 

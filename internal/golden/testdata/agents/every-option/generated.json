@@ -42,5 +42,288 @@
         "alfred-worktree": "<sha256>"
       }
     }
+  },
+  "registered": {
+    "cobranzas": {
+      "name": "cobranzas",
+      "dir": "<work>/roots/custom/cobranzas",
+      "definition": {
+        "name": "cobranzas",
+        "title": "Collections",
+        "description": "Chase an overdue invoice to payment",
+        "rules": "rules.md",
+        "phases": [
+          {
+            "name": "recordatorio"
+          },
+          {
+            "name": "spec"
+          }
+        ],
+        "routes": {
+          "completa": [
+            "recordatorio",
+            "spec"
+          ],
+          "sola": [
+            "recordatorio"
+          ]
+        },
+        "default_route": "sola",
+        "entry_points": {
+          "default": "recordatorio"
+        },
+        "parallel": [],
+        "closes": "spec"
+      },
+      "phases": [
+        {
+          "name": "recordatorio",
+          "skill": "<work>/roots/custom/cobranzas/skills/recordatorio/SKILL.md",
+          "origin": "workflow"
+        },
+        {
+          "name": "spec",
+          "skill": "<alfred>/skills/spec/SKILL.md",
+          "origin": "shared",
+          "model": "vendor/big"
+        }
+      ]
+    },
+    "inventario": {
+      "name": "inventario",
+      "dir": "<work>/roots/custom/inventario",
+      "definition": {
+        "name": "inventario",
+        "title": "Stock reconciliation",
+        "description": "Count, reconcile and record the difference",
+        "rules": "rules.md",
+        "phases": [
+          {
+            "name": "spec"
+          },
+          {
+            "name": "apply"
+          },
+          {
+            "name": "archive"
+          }
+        ],
+        "routes": {
+          "corta": [
+            "apply",
+            "archive"
+          ],
+          "larga": [
+            "spec",
+            "apply",
+            "archive"
+          ]
+        },
+        "default_route": "larga",
+        "entry_points": {
+          "default": "spec"
+        },
+        "parallel": [],
+        "closes": "archive"
+      },
+      "phases": [
+        {
+          "name": "spec",
+          "skill": "<alfred>/skills/spec/SKILL.md",
+          "origin": "shared",
+          "model": "vendor/big"
+        },
+        {
+          "name": "apply",
+          "skill": "<alfred>/skills/apply/SKILL.md",
+          "origin": "shared",
+          "model": "vendor/small"
+        },
+        {
+          "name": "archive",
+          "skill": "<alfred>/skills/archive/SKILL.md",
+          "origin": "shared",
+          "model": "vendor/small"
+        }
+      ]
+    },
+    "soporte": {
+      "name": "soporte",
+      "dir": "<work>/roots/shipped/soporte",
+      "definition": {
+        "name": "soporte",
+        "title": "Support triage",
+        "description": "Triage a report and ship the fix",
+        "rules": "rules.md",
+        "phases": [
+          {
+            "name": "spec"
+          },
+          {
+            "name": "apply"
+          }
+        ],
+        "routes": {
+          "completa": [
+            "spec",
+            "apply"
+          ],
+          "directa": [
+            "apply"
+          ]
+        },
+        "default_route": "completa",
+        "entry_points": {
+          "defect": "apply",
+          "feature": "spec"
+        },
+        "parallel": [],
+        "closes": "apply"
+      },
+      "phases": [
+        {
+          "name": "spec",
+          "skill": "<alfred>/skills/spec/SKILL.md",
+          "origin": "shared",
+          "model": "vendor/big"
+        },
+        {
+          "name": "apply",
+          "skill": "<alfred>/skills/apply/SKILL.md",
+          "origin": "shared",
+          "model": "vendor/small"
+        }
+      ]
+    },
+    "ventas": {
+      "name": "ventas",
+      "dir": "<work>/roots/shipped/ventas",
+      "definition": {
+        "name": "ventas",
+        "title": "Sales follow-up",
+        "description": "Prospect, propose, follow up and close",
+        "rules": "rules.md",
+        "phases": [
+          {
+            "name": "prospectar",
+            "model": "anthropic/claude-haiku-4-5",
+            "reads": [
+              "architecture"
+            ],
+            "recall": [
+              "prospectar"
+            ]
+          },
+          {
+            "name": "propuesta",
+            "model": "anthropic/claude-opus-5",
+            "tools": [
+              "Read",
+              "Write",
+              "WebFetch"
+            ],
+            "reads": [
+              "prospectar",
+              "conventions"
+            ]
+          },
+          {
+            "name": "seguimiento",
+            "model": "anthropic/claude-haiku-4-5"
+          },
+          {
+            "name": "review",
+            "reads": [
+              "propuesta",
+              "seguimiento"
+            ],
+            "recall": [
+              "review-findings"
+            ]
+          }
+        ],
+        "routes": {
+          "completa": [
+            "prospectar",
+            "propuesta",
+            "seguimiento",
+            "review"
+          ],
+          "rapida": [
+            "propuesta",
+            "review"
+          ]
+        },
+        "default_route": "completa",
+        "entry_points": {
+          "default": "prospectar"
+        },
+        "parallel": [
+          [
+            "propuesta",
+            "seguimiento"
+          ]
+        ],
+        "closes": "review"
+      },
+      "phases": [
+        {
+          "name": "prospectar",
+          "skill": "<work>/roots/shipped/ventas/skills/prospectar/SKILL.md",
+          "origin": "workflow",
+          "model": "anthropic/claude-haiku-4-5",
+          "contract": {
+            "permissions": {
+              "filesystem": {
+                "write": [
+                  ".alfred/changes/{change}/**",
+                  "docs/ventas/*.md"
+                ],
+                "deny_write": [
+                  "docs/ventas/it's-private.md"
+                ]
+              }
+            },
+            "outputs": [
+              ".alfred/changes/{change}/prospectar.md"
+            ],
+            "result": {
+              "required": [
+                "change",
+                "status",
+                "summary"
+              ],
+              "status": [
+                "completed",
+                "blocked"
+              ]
+            }
+          }
+        },
+        {
+          "name": "propuesta",
+          "skill": "<work>/roots/shipped/ventas/skills/propuesta/SKILL.md",
+          "origin": "workflow",
+          "model": "anthropic/claude-opus-5",
+          "tools": [
+            "Read",
+            "Write",
+            "WebFetch"
+          ]
+        },
+        {
+          "name": "seguimiento",
+          "skill": "<work>/roots/shipped/ventas/skills/seguimiento/SKILL.md",
+          "origin": "workflow",
+          "model": "anthropic/claude-haiku-4-5"
+        },
+        {
+          "name": "review",
+          "skill": "<alfred>/skills/review/SKILL.md",
+          "origin": "shared"
+        }
+      ]
+    }
   }
 }

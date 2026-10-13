@@ -423,6 +423,38 @@ cmd_install() {
   info "Done. Open your agent, select the Alfred orchestrator, and run init in a repository."
 }
 
+# rejected_workflows prints the name of every workflow a registration report refused, one per
+# line. A refused row is the only one whose third column starts with "rejected:".
+rejected_workflows() {
+  awk -F '  +' 'NF == 0 { exit } $4 ~ /^rejected:/ { print $2 }'
+}
+
+# validate_update applies the update to a copy of the installation and registers that copy in
+# report mode, which writes nothing. It fails, naming why, when a workflow that registers
+# today would be refused afterwards, so a broken file in a release never reaches the
+# installation: what is installed stays as it is until the update is valid.
+validate_update() {
+  local report="$1" staged before after broken
+  read_workflow_args || return 0
+
+  staged="$(mktemp -d)"
+  cp -R "$ALFRED_HOME/." "$staged/"
+  printf '%s' "$report" | "$HELPER" state apply "$staged" "$SOURCE" >/dev/null
+
+  local staged_args=() a
+  while read -r a; do [ -n "$a" ] && staged_args+=("$a"); done < <(ALFRED_HOME="$staged"; workflow_args)
+
+  before="$("$HELPER" workflows machine report "${WORKFLOW_ARGS[@]}" 2>/dev/null | rejected_workflows)"
+  after="$("$HELPER" workflows machine report "${staged_args[@]}" 2>/dev/null || true)"
+  broken="$(comm -13 <(printf '%s\n' "$before" | sort) <(printf '%s' "$after" | rejected_workflows | sort))"
+  rm -rf "$staged"
+
+  [ -z "$broken" ] && return 0
+  warn "this update would leave these workflows unregistered; nothing was changed:"
+  printf '%s' "$after" | awk 'NF == 0 { exit } { print }' >&2
+  return 1
+}
+
 # Never overwrite a file the user changed. That is the whole point of recording the hashes.
 cmd_update() {
   require_runtime
@@ -441,6 +473,8 @@ cmd_update() {
     printf '  %s\n' $modified >&2
     warn "compare them against $SOURCE and merge by hand if you want the new version"
   fi
+
+  validate_update "$report" || die "fix the files named above in $SOURCE, then run: $0 update"
 
   printf '%s' "$report" | "$HELPER" state apply "$ALFRED_HOME" "$SOURCE"
 

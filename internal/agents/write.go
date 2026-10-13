@@ -151,6 +151,7 @@ func register(set *Set, targets Targets, write bool) (*Written, error) {
 		written.Manifest = true
 		owned = append(owned, targets.Manifest)
 		current := plan.Record.Manifest()
+		current.Registered = set.Registered
 		// Skip rewriting an identical manifest, so a second run changes nothing.
 		if write && !reflect.DeepEqual(previous, current) {
 			if err := current.Write(targets.Manifest); err != nil {

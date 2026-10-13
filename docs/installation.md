@@ -85,6 +85,11 @@ ones the release no longer ships under the same condition. A file you edited is 
 with its path, never overwritten or removed. It also rebuilds and re-copies the helper from
 the clone it ran from.
 
+Before touching anything, `update` applies itself to a copy of the installation and
+registers that copy without writing. When a workflow that registers today would be refused
+afterwards, it names the workflow and the reason and stops, leaving the installation as it
+was.
+
 Workflows you wrote are never touched by any of these. They live under
 `~/.config/alfred/custom/workflows/`, which the installer does not list among the files it
 installs, so it neither reads, writes nor removes anything there. One of them being broken

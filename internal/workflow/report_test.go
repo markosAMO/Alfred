@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -206,7 +207,7 @@ func TestPrepareRegistersAWorkflowAndLinesItUpWithItsFacts(t *testing.T) {
 	ventasWorkflow(t, filepath.Join(home, "workflows"), "ventas", nil)
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, lines, err := request.Prepare(installed())
+	accepted, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -240,7 +241,7 @@ func TestPrepareKeepsARejectedWorkflowInTheReport(t *testing.T) {
 	})
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, lines, err := request.Prepare(installed())
+	accepted, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -277,7 +278,7 @@ func TestPrepareRejectsBothWorkflowsThatGenerateOneSubagentName(t *testing.T) {
 	ventasWorkflow(t, filepath.Join(home, "workflows"), "compras", nil)
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, lines, err := request.Prepare(installed())
+	accepted, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v, want the two colliders rejected and the rest registered", err)
 	}
@@ -316,7 +317,7 @@ func TestACollidingSubagentNameIsAnOrdinaryRejection(t *testing.T) {
 	ownPhaseWorkflow(t, custom, "ventas-extra", "propuesta")
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	_, lines, err := request.Prepare(installed())
+	_, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -350,7 +351,7 @@ func TestTwoWorkflowsSharingALibraryPhaseAreBothRegistered(t *testing.T) {
 	ventasWorkflow(t, filepath.Join(home, "custom", "workflows"), "compras", nil)
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, lines, err := request.Prepare(installed())
+	accepted, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -374,7 +375,7 @@ func TestPrepareRejectsAWorkflowWhosePhaseResolvesNowhere(t *testing.T) {
 	writeWorkflow(t, filepath.Join(home, "workflows"), "ventas", nil)
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, lines, err := request.Prepare(installed())
+	accepted, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -400,7 +401,7 @@ func TestPrepareRejectsAModelDeclaredOnASharedPhase(t *testing.T) {
 	})
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, lines, err := request.Prepare(installed())
+	accepted, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -438,7 +439,7 @@ func TestPrepareRejectsAToolSetDeclaredOnASharedPhase(t *testing.T) {
 	})
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, lines, err := request.Prepare(installed())
+	accepted, lines, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -470,7 +471,7 @@ func TestPrepareKeepsAToolSetDeclaredOnAPhaseTheWorkflowBrings(t *testing.T) {
 	ventasWorkflow(t, filepath.Join(home, "workflows"), "ventas", nil)
 
 	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	accepted, _, err := request.Prepare(installed())
+	accepted, _, err := request.Prepare(installed(), nil)
 	if err != nil {
 		t.Fatalf("Prepare = %v", err)
 	}
@@ -626,7 +627,7 @@ func TestPrepareAndMachineNamesReportARootTheyCannotRead(t *testing.T) {
 	}
 
 	machine := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
-	if _, _, err := machine.Prepare(nil); err == nil {
+	if _, _, err := machine.Prepare(nil, nil); err == nil {
 		t.Error("Prepare read an unreadable root as no workflows")
 	}
 
@@ -1238,5 +1239,70 @@ func TestReportSaysWhatItWouldAdoptWhenItWritesNothing(t *testing.T) {
 func TestReportSaysNothingAboutAdoptionOnAScopeThatHasAManifest(t *testing.T) {
 	if text := registeredReport().String(); strings.Contains(text, "adopt") {
 		t.Fatalf("a scope with a manifest reports an adoption:\n%s", text)
+	}
+}
+
+// A workflow that registered once and then stops validating is registered again from the
+// form it was last accepted in, with the refusal still reported: a broken edit never takes
+// away a command that worked. With nothing recorded it is refused, as before.
+func TestARegisteredWorkflowThatStopsValidatingKeepsItsLastRegistration(t *testing.T) {
+	home := t.TempDir()
+	ventasPhases(t, filepath.Join(home, "skills"))
+	ventasWorkflow(t, filepath.Join(home, "workflows"), "ventas", nil)
+	request := parsed(t, machineArgs(home, "apply", "manifest="+filepath.Join(home, "generated.json")))
+
+	accepted, _, err := request.Prepare(installed(), nil)
+	if err != nil || len(accepted) != 1 {
+		t.Fatalf("Prepare = %+v, %v", accepted, err)
+	}
+	last, err := accepted[0].Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	contract := filepath.Join(filepath.Dir(accepted[0].Phases[0].Skill), "contract.json")
+	if err := os.WriteFile(contract, []byte(`{"permissions":{"filesystem":{"writes":["a"]}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	kept, lines, err := request.Prepare(installed(), map[string]json.RawMessage{"ventas": last})
+	if err != nil {
+		t.Fatalf("Prepare = %v", err)
+	}
+	if len(kept) != 1 || !reflect.DeepEqual(kept[0], accepted[0]) {
+		t.Errorf("Prepare accepted %+v, want the last registration unchanged", kept)
+	}
+	if len(lines) != 1 || !strings.Contains(lines[0].Reason, "invalid contract") ||
+		!strings.HasSuffix(lines[0].Reason, keptNote) {
+		t.Errorf("Prepare lines = %+v, want the refusal reported with the kept note", lines)
+	}
+
+	refused, _, err := request.Prepare(installed(), nil)
+	if err != nil || len(refused) != 0 {
+		t.Errorf("with nothing recorded Prepare accepted %+v, %v; want it refused", refused, err)
+	}
+}
+
+// What this repository ships registers: every shipped workflow validates and every phase
+// resolves with a valid contract. A broken file here would reach every installation through
+// update, where it is refused and kept back; this refuses it first.
+func TestEveryShippedWorkflowRegisters(t *testing.T) {
+	request := &Request{
+		Scope:     ScopeMachine,
+		Skills:    filepath.Join("..", "..", "skills"),
+		Workflows: filepath.Join("..", "..", "workflows"),
+		Custom:    filepath.Join(t.TempDir(), "none"),
+	}
+	accepted, lines, err := request.Prepare(nil, nil)
+	if err != nil {
+		t.Fatalf("Prepare = %v", err)
+	}
+	for _, line := range lines {
+		if line.Reason != "" {
+			t.Errorf("shipped workflow %s is refused: %s", line.Name, line.Reason)
+		}
+	}
+	if len(accepted) == 0 {
+		t.Fatal("no shipped workflow was found")
 	}
 }

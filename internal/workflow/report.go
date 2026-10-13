@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -199,10 +200,10 @@ func (r *Request) Roots() []Root {
 // Accepted is one workflow that validated and whose phases all resolved; a command is
 // generated from it.
 type Accepted struct {
-	Name       string
-	Dir        string
-	Definition *Definition
-	Phases     []Resolved
+	Name       string      `json:"name"`
+	Dir        string      `json:"dir"`
+	Definition *Definition `json:"definition"`
+	Phases     []Resolved  `json:"phases"`
 }
 
 // Line is one workflow row in the report, registered or not. A refused workflow keeps its
@@ -225,9 +226,36 @@ type Line struct {
 }
 
 // Prepare scans this scope's roots, validates and resolves every workflow, and returns the
-// accepted ones together with a report line for every workflow found.
-func (r *Request) Prepare(installed map[string]string) ([]Accepted, []Line, error) {
-	return collect(r.Roots(), r.LocalSkills, r.Skills, installed)
+// accepted ones together with a report line for every workflow found. previous is what the
+// last run registered, by workflow name: a workflow that no longer validates is registered
+// from it again, so a broken edit never takes away a command that worked.
+func (r *Request) Prepare(installed map[string]string, previous map[string]json.RawMessage) ([]Accepted, []Line, error) {
+	return collect(r.Roots(), r.LocalSkills, r.Skills, installed, previous)
+}
+
+// keptNote is appended to the reason of a refused workflow registered from its last valid
+// form, so the report says why an edit has no effect yet.
+const keptNote = "; the version registered before stays active until this is fixed"
+
+// Snapshot returns the validated form of an accepted workflow, as the manifest records it.
+func (a Accepted) Snapshot() (json.RawMessage, error) {
+	return json.Marshal(a)
+}
+
+// restore rebuilds an accepted workflow from its snapshot. A shared phase takes its model
+// from the installation as it is now, since that assignment is the profile's, not the
+// workflow's.
+func restore(raw json.RawMessage, installed map[string]string) (Accepted, bool) {
+	var accepted Accepted
+	if err := json.Unmarshal(raw, &accepted); err != nil || accepted.Definition == nil {
+		return Accepted{}, false
+	}
+	for i, phase := range accepted.Phases {
+		if phase.Origin == FromShared {
+			accepted.Phases[i].Model = installed[phase.Name]
+		}
+	}
+	return accepted, true
 }
 
 // MachineNames returns the names of the machine workflows that register, so a project run
@@ -241,7 +269,7 @@ func (r *Request) MachineNames() ([]string, error) {
 		{Label: "machine/shipped", Dir: r.MachineWorkflows},
 		{Label: "machine/custom", Dir: r.MachineCustom},
 	}
-	accepted, _, err := collect(roots, "", r.Skills, nil)
+	accepted, _, err := collect(roots, "", r.Skills, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -255,17 +283,28 @@ func (r *Request) MachineNames() ([]string, error) {
 
 // collect scans the roots, resolves every valid workflow's phases against the skill roots,
 // and refuses workflows whose subagent names collide. local is empty at machine scope.
-func collect(roots []Root, local, shared string, installed map[string]string) ([]Accepted, []Line, error) {
+func collect(roots []Root, local, shared string, installed map[string]string,
+	previous map[string]json.RawMessage) ([]Accepted, []Line, error) {
 	found, err := Scan(roots)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var accepted []Accepted
+	var accepted, kept []Accepted
 	lines := make([]Line, 0, len(found))
+	// refused reports one workflow that did not validate, registering it from its last valid
+	// form when there is one.
+	refused := func(one Found, reason string) {
+		if last, ok := restore(previous[one.Name], installed); ok && last.Name == one.Name {
+			kept = append(kept, last)
+			reason += keptNote
+		}
+		lines = append(lines, Line{Name: one.Name, Source: one.Source, Reason: reason})
+	}
+
 	for _, one := range found {
 		if one.Reason != "" {
-			lines = append(lines, Line{Name: one.Name, Source: one.Source, Reason: one.Reason})
+			refused(one, one.Reason)
 			continue
 		}
 
@@ -276,7 +315,7 @@ func collect(roots []Root, local, shared string, installed map[string]string) ([
 			Shared:     shared,
 		}, installed)
 		if err != nil {
-			lines = append(lines, Line{Name: one.Name, Source: one.Source, Reason: err.Error()})
+			refused(one, err.Error())
 			continue
 		}
 
@@ -293,7 +332,7 @@ func collect(roots []Root, local, shared string, installed map[string]string) ([
 	}
 
 	accepted, lines = refuse(accepted, lines, collisions(accepted))
-	return accepted, lines, nil
+	return append(accepted, kept...), lines, nil
 }
 
 // SubagentName returns the name a workflow's phase is dispatched under:

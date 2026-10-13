@@ -333,7 +333,19 @@ without a model
 ```
 
 One rejected workflow never blocks the valid ones: it is reported with the reason and every
-other workflow registers. A run over a tree that changed in no way writes nothing and says
+other workflow registers.
+
+A workflow that registered before and is now rejected keeps that registration. The
+manifest records the validated form of every workflow it registers, and a rejected one is
+generated from its last form again, so a broken edit never takes away a command that
+worked. Its row says so, and the run still exits 1 until the edit is fixed:
+
+```
+  billing  project  rejected: route "express" names phase "pickng", which it does not
+                    declare; the version registered before stays active until this is fixed
+```
+
+A workflow that never registered has no earlier form and is simply refused. A run over a tree that changed in no way writes nothing and says
 so.
 
 A workflow removed from its root loses its command on the next registration, and only

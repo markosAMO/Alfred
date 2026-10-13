@@ -944,7 +944,7 @@ func TestAPhaseNameThatLeavesTheAgentDirectoryWritesNothing(t *testing.T) {
 		LocalSkills:    filepath.Join(repo, ".alfred", "skills"),
 		LocalWorkflows: filepath.Join(repo, ".alfred", "workflows"),
 	}
-	accepted, lines, err := request.Prepare(p.Phases)
+	accepted, lines, err := request.Prepare(p.Phases, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

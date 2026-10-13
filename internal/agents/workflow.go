@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -112,6 +113,10 @@ type Set struct {
 	// Legacy names what the pre-mark generator produced in this scope, so the writer can
 	// adopt those files on a scope with no manifest.
 	Legacy Legacy
+
+	// Registered is the validated form of every workflow in the set, recorded in the
+	// manifest for the next run to fall back on.
+	Registered map[string]json.RawMessage
 }
 
 // Generate turns one scope's registered workflows into its commands and subagents: one

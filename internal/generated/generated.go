@@ -5,6 +5,7 @@
 package generated
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -28,6 +29,10 @@ type Agent struct {
 // Manifest is the generated.json of one scope (the machine or a repository).
 type Manifest struct {
 	Agents map[string]Agent `json:"agents"`
+
+	// Registered holds, per workflow, the validated form it was last registered from, so a
+	// workflow that stops validating keeps that registration instead of losing its command.
+	Registered map[string]json.RawMessage `json:"registered,omitempty"`
 }
 
 // Read loads a scope's manifest; a missing file returns nil with no error. An undecodable
@@ -44,6 +49,14 @@ func Read(path string) (*Manifest, error) {
 	var manifest Manifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	// Compacted, so a manifest read back compares equal to the one that was written.
+	for name, raw := range manifest.Registered {
+		var compacted bytes.Buffer
+		if err := json.Compact(&compacted, raw); err != nil {
+			return nil, fmt.Errorf("reading %s: %w", path, err)
+		}
+		manifest.Registered[name] = compacted.Bytes()
 	}
 	return &manifest, nil
 }
