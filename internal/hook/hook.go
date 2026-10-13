@@ -204,6 +204,8 @@ func StopCheck(input io.Reader, output io.Writer, expected Expected) error {
 }
 
 // Missing returns, in a fixed order, everything the phase was expected to do and did not.
+// The envelope is checked whatever the status; outputs unless the phase reports, with a
+// valid status, that it stopped short.
 func Missing(cwd, message string, expected Expected) []string {
 	envelope := Envelope(message)
 	var problems []string
@@ -221,7 +223,7 @@ func Missing(cwd, message string, expected Expected) []string {
 		}
 	}
 
-	if len(expected.Outputs) == 0 {
+	if len(expected.Outputs) == 0 || stoppedShort(envelope["status"], expected.Result) {
 		return problems
 	}
 	change, found := envelope["change"]
@@ -237,6 +239,21 @@ func Missing(cwd, message string, expected Expected) []string {
 		}
 	}
 	return problems
+}
+
+// stoppedShort reports whether a status says the phase did not finish, which is the one
+// case that owes no outputs. It must be a status the phase may return: an invalid one is
+// refused alongside any missing output, because the phase is refused only once and the
+// outputs would otherwise go unchecked after it corrects the status. With no list declared,
+// the protocol's own failed and blocked are the ones that count.
+func stoppedShort(status string, result *contract.Result) bool {
+	if status == "" || status == "completed" {
+		return false
+	}
+	if result != nil && len(result.Status) > 0 {
+		return slices.Contains(result.Status, status)
+	}
+	return status == "failed" || status == "blocked"
 }
 
 // Envelope reads the top-level keys of the result envelope from a phase's final message: the

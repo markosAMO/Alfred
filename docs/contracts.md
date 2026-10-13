@@ -64,8 +64,11 @@ means to drop the rules declares an empty contract, `{}`.
 
 A contract with `outputs` or `result` gives the phase's agent a stop hook. It reads the
 result envelope from the phase's final message, per `skills/_shared/subagent-protocol.md`,
-and checks every required key, the status and every output, reading `{change}` from the
-envelope's `change`. When something is missing it refuses the stop once, naming what, and
+and checks every required key and the status. Outputs are checked unless the phase
+reports, with a valid status, that it stopped short: a phase that says it is `blocked` or
+`failed` owes none, and is never sent back to produce a file it could not write. An
+invalid status is refused together with any missing output. `{change}` in an
+output is read from the envelope's `change`. When something is missing it refuses the stop once, naming what, and
 the phase keeps working to fix it. A phase already continuing from a refusal is let through
 with its result as it is, so a phase that cannot comply ends rather than loops.
 

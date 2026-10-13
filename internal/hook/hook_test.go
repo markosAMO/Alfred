@@ -153,3 +153,32 @@ func TestStopRefusesOnceThenLetsThePhaseEnd(t *testing.T) {
 		t.Errorf("a stop already continuing from a refusal printed %q, want it let through", second.String())
 	}
 }
+
+// A phase that reports it stopped short owes no outputs: blocked and failed are answers, and
+// sending the phase back to produce the file would invite it to invent one. Its envelope is
+// still checked.
+func TestOutputsAreOwedOnlyByAPhaseThatCompleted(t *testing.T) {
+	root, _ := repository(t)
+	expected := Expected{
+		Outputs: []string{".alfred/changes/{change}/spec.md"},
+		Result:  &contract.Result{Required: []string{"status", "reason"}},
+	}
+
+	for _, status := range []string{"blocked", "failed"} {
+		if got := Missing(root, "status: "+status+"\nreason: the request is ambiguous\n", expected); len(got) != 0 {
+			t.Errorf("a %s phase = %v, want nothing missing", status, got)
+		}
+	}
+	if got := Missing(root, "status: blocked\n", expected); len(got) != 1 || !strings.Contains(got[0], "no reason") {
+		t.Errorf("a blocked phase with no reason = %v, want only the envelope refused", got)
+	}
+	for _, message := range []string{
+		"status: completed\nreason: none\nchange: login\n",
+		"reason: none\nchange: login\n",
+		"status: done\nreason: none\nchange: login\n",
+	} {
+		if got := strings.Join(Missing(root, message, expected), "; "); !strings.Contains(got, "spec.md does not exist") {
+			t.Errorf("Missing(%q) = %q, want the output required", message, got)
+		}
+	}
+}
