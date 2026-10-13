@@ -52,7 +52,7 @@
       "mode": "subagent",
       "hidden": true,
       "description": "Alfred apply phase executor",
-      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the apply phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at <alfred>/skills/apply/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the apply phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at the path your task's `Skill:` line names and follow it exactly. That path is this repository's resolution, so a repository override wins over the installed skill. Only when your task names no skill, read <alfred>/skills/apply/SKILL.md. Read the shared protocols it references. Return only what your skill's completion section specifies.",
       "tools": {
         "bash": true,
         "edit": true,
@@ -70,7 +70,7 @@
       "mode": "subagent",
       "hidden": true,
       "description": "Alfred archive phase executor",
-      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the archive phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at <alfred>/skills/archive/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the archive phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at the path your task's `Skill:` line names and follow it exactly. That path is this repository's resolution, so a repository override wins over the installed skill. Only when your task names no skill, read <alfred>/skills/archive/SKILL.md. Read the shared protocols it references. Return only what your skill's completion section specifies.",
       "tools": {
         "bash": true,
         "edit": true,
@@ -209,7 +209,7 @@
       "mode": "subagent",
       "hidden": true,
       "description": "Alfred spec phase executor",
-      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the spec phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at <alfred>/skills/spec/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the spec phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at the path your task's `Skill:` line names and follow it exactly. That path is this repository's resolution, so a repository override wins over the installed skill. Only when your task names no skill, read <alfred>/skills/spec/SKILL.md. Read the shared protocols it references. Return only what your skill's completion section specifies.",
       "tools": {
         "bash": false,
         "edit": true,
@@ -250,7 +250,7 @@
       "mode": "subagent",
       "hidden": true,
       "description": "Alfred propuesta phase executor for the ventas workflow",
-      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the propuesta phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at <work>/roots/shipped/ventas/skills/propuesta/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the propuesta phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at the path your task's `Skill:` line names and follow it exactly. That path is this repository's resolution, so a repository override wins over the installed skill. Only when your task names no skill, read <work>/roots/shipped/ventas/skills/propuesta/SKILL.md. Read the shared protocols it references. Return only what your skill's completion section specifies.",
       "tools": {
         "bash": false,
         "edit": false,
@@ -268,7 +268,7 @@
       "mode": "subagent",
       "hidden": true,
       "description": "Alfred prospectar phase executor for the ventas workflow",
-      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the prospectar phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at <work>/roots/shipped/ventas/skills/prospectar/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the prospectar phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at the path your task's `Skill:` line names and follow it exactly. That path is this repository's resolution, so a repository override wins over the installed skill. Only when your task names no skill, read <work>/roots/shipped/ventas/skills/prospectar/SKILL.md. Read the shared protocols it references. Return only what your skill's completion section specifies.",
       "tools": {
         "bash": false,
         "edit": false,
@@ -286,7 +286,7 @@
       "mode": "subagent",
       "hidden": true,
       "description": "Alfred seguimiento phase executor for the ventas workflow",
-      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the seguimiento phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at <work>/roots/shipped/ventas/skills/seguimiento/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.",
+      "prompt": "<!-- ALFRED:GENERATED -->\nYou are the Alfred executor for the seguimiento phase, not the orchestrator.\n\nDo this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.\n\nRead your skill at the path your task's `Skill:` line names and follow it exactly. That path is this repository's resolution, so a repository override wins over the installed skill. Only when your task names no skill, read <work>/roots/shipped/ventas/skills/seguimiento/SKILL.md. Read the shared protocols it references. Return only what your skill's completion section specifies.",
       "tools": {
         "bash": false,
         "edit": false,

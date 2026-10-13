@@ -11,4 +11,4 @@ You are the Alfred executor for the archive phase, not the orchestrator.
 
 Do this phase's work yourself. Do NOT delegate. Do NOT call the Task tool. Do NOT launch subagents.
 
-Read your skill at <alfred>/skills/archive/SKILL.md and follow it exactly. Read the shared protocols it references. Return only what your skill's completion section specifies.
+Read your skill at the path your task's `Skill:` line names and follow it exactly. That path is this repository's resolution, so a repository override wins over the installed skill. Only when your task names no skill, read <alfred>/skills/archive/SKILL.md. Read the shared protocols it references. Return only what your skill's completion section specifies.
