@@ -205,6 +205,12 @@ func worktreeTool(skillsRoot string) string {
 	return filepath.Join(filepath.Dir(skillsRoot), "bin", "worktree.sh")
 }
 
+// helperTool returns the path of the installed helper, which sits in bin/ next to the skills
+// root and is what a phase's hook runs.
+func helperTool(skillsRoot string) string {
+	return filepath.Join(filepath.Dir(skillsRoot), "bin", "alfred")
+}
+
 // OrchestratorPrompt renders the single-change orchestrator prompt for one workflow section
 // and the agent-specific name of the fleet entry point.
 // The workflow section is substituted last so user text containing `{{` is never rewritten.

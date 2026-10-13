@@ -33,6 +33,8 @@ Feature specs never live in Alfred. Alfred only knows how to create them.
 | `bin/register.sh` | Registration from inside an agent | A workflow becomes a command only when something registers it, and that must work on a machine with no clone |
 | `cmd/alfred/`, `internal/` | The installer's Go helper | Writes the agent definitions, the memory server registration and the install bookkeeping |
 | `internal/workflow/` | Definition, scoped scan, validation, phase and model resolution | A workflow is read and checked once, at registration; nothing parses one during a run |
+| `internal/contract/` | A phase's `contract.json`: decoding, validation, path matching | Where a phase may write is read once, at registration, and rendered into its agent |
+| `internal/hook/` | What a phase's pre-tool hook runs | Refuses a write the contract denies, and any write to Alfred's own files |
 | `internal/generated/` | The manifest of what registration wrote, and the local-exclude write | Removal follows what Alfred recorded generating, never a name prefix that would catch a file the user wrote |
 | `alfred.config.yaml` | Default configuration | Copied to the target project and tuned there |
 | `workflows/` | The workflows Alfred ships, one directory each | A workflow is the recipe a run follows; `sdd` is the one shipped |
@@ -246,6 +248,8 @@ Applies to this repository and to every project Alfred manages.
    `skills/_shared/phase-protocol.md`.
 3. Its artifact's template belongs in `templates/docs/`, ending in `## Handoff`.
 4. Add it to a workflow's `workflow.json`, with its `reads` and `recall`.
+5. Optionally, give it a `contract.json` next to `SKILL.md` declaring where it may write.
+   It is enforced by a hook, not by the skill's prose, per `docs/contracts.md`.
 
 ## Adding a workflow
 

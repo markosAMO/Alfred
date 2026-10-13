@@ -38,6 +38,7 @@ skill as installed in that repository rather than a copy pasted into its prompt.
 ## What a subagent returns
 
 ```yaml
+change: login-google
 task: 3
 status: completed | failed | blocked
 files_changed: [app/controllers/auth_controller.rb, spec/controllers/auth_spec.rb]
@@ -47,6 +48,13 @@ memory_conflicts: [alfred/login-google/design]
 blocked_by: task 2
 reason: only when failed or blocked
 ```
+
+`change` is the directory name of the change the phase worked on, as the orchestrator
+gave it. A phase whose contract declares outputs is checked against that directory when it
+stops, per `docs/contracts.md`, and nothing else tells the check which change it was.
+
+The envelope is read by its unindented `key: value` lines, from the last fenced block of
+the final message, so it stays flat and comes last.
 
 `files_changed` is what lets `git.stage: files_changed_by_alfred` stage precisely the work
 Alfred did, and nothing the user left in progress.

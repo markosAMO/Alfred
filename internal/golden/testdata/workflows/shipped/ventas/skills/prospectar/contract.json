@@ -1,0 +1,1 @@
+{"permissions":{"filesystem":{"write":[".alfred/changes/{change}/**","docs/ventas/*.md"],"deny_write":["docs/ventas/it's-private.md"]}},"outputs":[".alfred/changes/{change}/prospectar.md"],"result":{"required":["change","status","summary"],"status":["completed","blocked"]}}

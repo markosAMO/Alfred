@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/markosAMO/alfred/internal/contract"
 	"github.com/markosAMO/alfred/internal/workflow"
 )
 
@@ -84,6 +85,14 @@ type Subagent struct {
 	Effort      string
 	Tools       []string
 	Prompt      string
+
+	// Guard is the command a pre-tool hook runs before every file write, with the phase's
+	// contract rendered into it; empty for an agent that is not a phase.
+	Guard string
+
+	// Check is the command a stop hook runs when the phase ends, checking its outputs and
+	// result envelope; empty when the contract asks for neither.
+	Check string
 }
 
 // Unavailable is a resolved phase with no model assigned. It is reported, not an error:
@@ -129,7 +138,7 @@ func Generate(profile *Profile, generation Generation) (*Set, error) {
 				continue
 			}
 			// Keyed by subagent name: a shared phase used by several workflows is one subagent.
-			agent := subagentFor(profile, name, phase)
+			agent := subagentFor(profile, helperTool(generation.Skills), name, phase)
 			subagents[agent.Name] = agent
 		}
 
@@ -366,7 +375,7 @@ func manageSubagent(profile *Profile, skillsRoot string) Subagent {
 // subagentFor builds one phase's executor. A shared phase is named alfred-<phase> and uses
 // the profile's settings; an own phase is named under its workflow and ignores them.
 // Uniqueness of own-phase names is enforced by declaredOnce, not here.
-func subagentFor(profile *Profile, name string, phase workflow.Resolved) Subagent {
+func subagentFor(profile *Profile, helper, name string, phase workflow.Resolved) Subagent {
 	if phase.Origin == workflow.FromShared {
 		return Subagent{
 			Name:        "alfred-" + phase.Name,
@@ -375,6 +384,8 @@ func subagentFor(profile *Profile, name string, phase workflow.Resolved) Subagen
 			Effort:      profile.Effort(phase.Name),
 			Tools:       profile.Tools(phase.Name),
 			Prompt:      SubagentPrompt(phase.Name, phase.Skill),
+			Guard:       guardCommand(helper, phase.Contract),
+			Check:       checkCommand(helper, phase.Contract),
 		}
 	}
 	return Subagent{
@@ -383,7 +394,53 @@ func subagentFor(profile *Profile, name string, phase workflow.Resolved) Subagen
 		Model:       phase.Model,
 		Tools:       profile.OwnTools(phase.Tools),
 		Prompt:      SubagentPrompt(phase.Name, phase.Skill),
+		Guard:       guardCommand(helper, phase.Contract),
+		Check:       checkCommand(helper, phase.Contract),
 	}
+}
+
+// guardCommand renders the hook command that enforces a phase's contract. Every phase gets
+// one, with or without a contract, because Alfred's own files are refused either way.
+// Each argument is quoted for the shell the harness runs the command in.
+func guardCommand(helper string, declared *contract.Contract) string {
+	parts := []string{shellQuote(helper), "hook", "pre-tool"}
+	if declared != nil {
+		for _, pattern := range declared.Permissions.Filesystem.Write {
+			parts = append(parts, "--write", shellQuote(pattern))
+		}
+		for _, pattern := range declared.Permissions.Filesystem.DenyWrite {
+			parts = append(parts, "--deny", shellQuote(pattern))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// checkCommand renders the stop hook command that checks a phase's outputs and result
+// envelope, or nothing when the contract asks for neither.
+func checkCommand(helper string, declared *contract.Contract) string {
+	if !declared.Checked() {
+		return ""
+	}
+	parts := []string{shellQuote(helper), "hook", "stop"}
+	for _, output := range declared.Outputs {
+		parts = append(parts, "--output", shellQuote(output))
+	}
+	if declared.Result != nil {
+		parts = append(parts, "--result")
+		for _, key := range declared.Result.Required {
+			parts = append(parts, "--require", shellQuote(key))
+		}
+		for _, status := range declared.Result.Status {
+			parts = append(parts, "--status", shellQuote(status))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// shellQuote wraps a value in single quotes, so the shell passes it through as one word
+// with no expansion of *, ? or $.
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
 // noModel returns the sentence explaining why a phase has no model, shared by the report

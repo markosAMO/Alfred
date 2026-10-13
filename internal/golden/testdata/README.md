@@ -12,7 +12,9 @@ fixture.json                 the state tree and payload, the edits behind each c
                              classification, and the paths of every fixture below
 profiles/                    uniform, every-option (every key set) and minimal (every
                              optional key omitted, default workflow not installed)
-workflows/shipped/           ventas, with its own phases, and soporte
+workflows/shipped/           ventas, with its own phases (prospectar with a contract.json
+                             declaring every block, whose patterns need shell quoting),
+                             and soporte
 workflows/custom/            inventario, and cobranzas, whose own phase has no model
 workflows/rejected/          one refusal per stage (decode, validation, scan, resolve) and
                              "forged  row"; every other refusal reason is unit-tested in

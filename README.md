@@ -284,6 +284,7 @@ Which side is authoritative is the repository's configuration, not the machine's
 | [docs/worktrees.md](docs/worktrees.md) | several changes at once, one worktree each |
 | [docs/artifacts.md](docs/artifacts.md) | where Alfred's documents live, and running where they cannot be committed |
 | [docs/ephemeral.md](docs/ephemeral.md) | what a change leaves behind once it closes |
+| [docs/contracts.md](docs/contracts.md) | where a phase may write, enforced by a hook |
 | `skills/_shared/` | the protocols every phase relies on |
 
 ---

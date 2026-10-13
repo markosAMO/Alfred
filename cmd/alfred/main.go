@@ -10,9 +10,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/markosAMO/alfred/internal/agents"
+	"github.com/markosAMO/alfred/internal/contract"
+	"github.com/markosAMO/alfred/internal/hook"
 	"github.com/markosAMO/alfred/internal/memory"
 	"github.com/markosAMO/alfred/internal/settings"
 	"github.com/markosAMO/alfred/internal/state"
@@ -33,6 +36,9 @@ const usage = `usage: alfred <command> [arguments]
   json-valid <file>                          exit 0 when the file parses as JSON
   session-permission <home>                  exit 0 when starting a session is permitted
   version [<home>]                           print the version the installation recorded
+  hook pre-tool [--write <p>]... [--deny <p>]...   judge one write a phase's agent is about to make
+  hook stop [--output <p>]... [--result [--require <key>]... [--status <v>]...]
+                                             check what a phase leaves when it stops
 
 <payload> is a comma-separated list of paths relative to the root.
 
@@ -67,7 +73,14 @@ command is missing, or no supported agent was detected; 2 when it was called wro
 
 version takes the installation directory; with none it reads ALFRED_HOME, falling back to
 ~/.config/alfred. It prints what state.json records, on one line and with nothing else, and
-exits 1 when there is no installation there.`
+exits 1 when there is no installation there.
+
+hook reads the harness's event on stdin; its arguments are the phase's contract, rendered
+at registration. pre-tool refuses Alfred's own files whatever the contract says. stop
+refuses once, naming what is missing, and lets a phase already continuing from a refusal
+through. A refusal prints the decision and exits 0. An event it cannot judge, or wrong
+arguments, exits 2 for pre-tool, which refuses the write, and 1 for stop, which lets the
+phase end rather than loop on a hook it cannot repair.`
 
 // errUsage makes main print the usage text on stderr and exit 2, without the "error:"
 // prefix a real failure carries.
@@ -107,6 +120,9 @@ func run(args []string) error {
 		return runSessionPermission(args[1:])
 	case "version":
 		return runVersion(args[1:])
+	case "hook":
+		runHook(args[1:])
+		return nil
 	case "-h", "--help", "help":
 		fmt.Println(usage)
 		return nil
@@ -498,6 +514,98 @@ func runVersion(args []string) error {
 	}
 	fmt.Println(version)
 	return nil
+}
+
+// runHook runs one of a phase's hooks: pre-tool judges a write, stop checks what the phase
+// leaves. A pre-tool failure exits 2, which refuses the write: a guard that cannot judge
+// must not let it through. A stop failure exits 1, which lets the phase end: exit 2 would
+// send it back to work on a hook it cannot repair, until the harness gives up.
+func runHook(args []string) {
+	if err := hookCommand(args); err != nil {
+		fmt.Fprintln(os.Stderr, "alfred hook: "+err.Error())
+		if len(args) > 0 && args[0] == "stop" {
+			os.Exit(1)
+		}
+		os.Exit(2)
+	}
+}
+
+// hookCommand parses the hook's arguments and runs it on stdin.
+func hookCommand(args []string) error {
+	if len(args) == 0 {
+		return errors.New("expected pre-tool or stop")
+	}
+	flags, err := hookFlags(args[1:])
+	if err != nil {
+		return err
+	}
+
+	switch args[0] {
+	case "pre-tool":
+		if err := onlyFlags(flags, "--write", "--deny"); err != nil {
+			return err
+		}
+		protected, err := protectedSet()
+		if err != nil {
+			return err
+		}
+		rules := contract.Filesystem{Write: flags["--write"], DenyWrite: flags["--deny"]}
+		return hook.PreTool(os.Stdin, os.Stdout, rules, protected)
+	case "stop":
+		if err := onlyFlags(flags, "--output", "--require", "--status", "--result"); err != nil {
+			return err
+		}
+		expected := hook.Expected{Outputs: flags["--output"]}
+		if _, checked := flags["--result"]; checked {
+			expected.Result = &contract.Result{Required: flags["--require"], Status: flags["--status"]}
+		}
+		return hook.StopCheck(os.Stdin, os.Stdout, expected)
+	default:
+		return fmt.Errorf("unknown hook %q: expected pre-tool or stop", args[0])
+	}
+}
+
+// hookFlags reads `--name value` pairs, each name repeatable, except --result, which takes
+// no value and marks that the contract declares a result block.
+func hookFlags(args []string) (map[string][]string, error) {
+	flags := map[string][]string{}
+	for len(args) > 0 {
+		if args[0] == "--result" {
+			flags["--result"] = nil
+			args = args[1:]
+			continue
+		}
+		if len(args) < 2 {
+			return nil, fmt.Errorf("%s takes a value", args[0])
+		}
+		flags[args[0]] = append(flags[args[0]], args[1])
+		args = args[2:]
+	}
+	return flags, nil
+}
+
+// onlyFlags refuses a flag the hook does not take, so a misrendered command fails loudly.
+func onlyFlags(flags map[string][]string, allowed ...string) error {
+	for name := range flags {
+		if !slices.Contains(allowed, name) {
+			return fmt.Errorf("unknown argument %q", name)
+		}
+	}
+	return nil
+}
+
+// protectedSet returns Alfred's fixed protected files for the installation this helper
+// belongs to, which is the directory above the bin/ it was installed in.
+func protectedSet() (hook.Protected, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return hook.Protected{}, fmt.Errorf("locating the installation: %w", err)
+	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return hook.Protected{}, fmt.Errorf("resolving the home directory: %w", err)
+	}
+	return hook.Fixed(filepath.Dir(filepath.Dir(executable)), userHome), nil
 }
 
 // alfredHome resolves the default installation directory the way install.sh does:

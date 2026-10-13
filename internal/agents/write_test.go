@@ -989,11 +989,21 @@ func frontmatter(t *testing.T, body string) map[string]string {
 	}
 
 	keys := map[string]string{}
+	last := ""
 	for _, line := range strings.Split(block, "\n") {
+		// An indented line belongs to the block the key above it opened, such as hooks.
+		if strings.HasPrefix(line, " ") && last != "" {
+			keys[last] += "\n" + line
+			continue
+		}
 		key, value, found := strings.Cut(line, ": ")
+		if opener, isBlock := strings.CutSuffix(line, ":"); !found && isBlock && !strings.Contains(opener, " ") {
+			key, value, found = opener, "", true
+		}
 		if !found {
 			t.Fatalf("frontmatter line %q is not a key", line)
 		}
+		last = key
 		if _, repeated := keys[key]; repeated {
 			t.Fatalf("frontmatter key %q appears twice", key)
 		}
@@ -1088,7 +1098,7 @@ func TestASubagentsFrontmatterIsOneKeyPerLineWhateverTheValuesHold(t *testing.T)
 	agents := filepath.Join(home, ".claude", "agents")
 
 	got := subagentKeys(t, filepath.Join(agents, "alfred-ventas-prospectar.md"),
-		"name", "description", "model", "tools")
+		"name", "description", "model", "tools", "hooks")
 	// bareModel runs first and takes the vendor prefix with it; everything after it is the
 	// injection, and all of it has to be inside the one scalar.
 	if want, value := bareModel(injected), scalar(t, got, "model"); value != want {
@@ -1108,7 +1118,7 @@ func TestASubagentsFrontmatterIsOneKeyPerLineWhateverTheValuesHold(t *testing.T)
 
 	// The fourth key, on the one phase the profile assigns an effort to.
 	review := subagentKeys(t, filepath.Join(agents, "alfred-review.md"),
-		"name", "description", "model", "effort", "tools")
+		"name", "description", "model", "effort", "tools", "hooks")
 	if value := scalar(t, review, "effort"); value != "high" {
 		t.Errorf("effort = %q, want %q", value, "high")
 	}

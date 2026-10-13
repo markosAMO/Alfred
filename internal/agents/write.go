@@ -539,8 +539,36 @@ func claudeSubagent(subagent Subagent) string {
 		"model: " + yamlScalar(bareModel(subagent.Model)) + "\n" +
 		effort +
 		"tools: " + strings.Join(subagent.Tools, ", ") + "\n" +
+		claudeHooks(subagent.Guard, subagent.Check) +
 		"---\n\n" +
 		subagent.Prompt + "\n"
+}
+
+// writeTools are the Claude Code tools that write a file, which the guard hook is matched on.
+const writeTools = "Write|Edit|MultiEdit|NotebookEdit"
+
+// claudeHooks renders the frontmatter block that runs the guard before every file write and
+// the check when the phase ends, or nothing for an agent with neither. Claude Code runs a
+// subagent's hooks only while it is active, and runs its Stop hook as SubagentStop.
+func claudeHooks(guard, check string) string {
+	if guard == "" && check == "" {
+		return ""
+	}
+	block := "hooks:\n"
+	if guard != "" {
+		block += "  PreToolUse:\n" +
+			"    - matcher: " + yamlScalar(writeTools) + "\n" +
+			"      hooks:\n" +
+			"        - type: command\n" +
+			"          command: " + yamlScalar(guard) + "\n"
+	}
+	if check != "" {
+		block += "  Stop:\n" +
+			"    - hooks:\n" +
+			"        - type: command\n" +
+			"          command: " + yamlScalar(check) + "\n"
+	}
+	return block
 }
 
 // asBooleans renders a tool list as OpenCode's per-tool flags. Every known tool is listed,

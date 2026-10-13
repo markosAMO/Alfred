@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/markosAMO/alfred/internal/contract"
 )
 
 // SkillFile is the file that defines a phase inside its skill directory.
@@ -42,6 +44,10 @@ type Resolved struct {
 	// Tools is the set a workflow or repository phase declares; empty means the default
 	// set. It is always empty for a shared phase.
 	Tools []string
+
+	// Contract is what the phase's contract.json declares, read here so that nothing reads
+	// it during a run; nil when the skill has none.
+	Contract *contract.Contract
 }
 
 // Resolve locates every phase of a workflow in its skill roots and returns the first reason
@@ -85,15 +91,31 @@ func resolve(phase Phase, roots SkillRoots, installed map[string]string) (Resolv
 		if err != nil {
 			return Resolved{}, err
 		}
+		declared, err := phaseContract(filepath.Dir(skill), candidate.origin, phase.Name, roots)
+		if err != nil {
+			return Resolved{}, fmt.Errorf("phase %q has an invalid contract: %w", phase.Name, err)
+		}
 		return Resolved{
-			Name:   phase.Name,
-			Skill:  skill,
-			Origin: candidate.origin,
-			Model:  assigned,
-			Tools:  granted,
+			Name:     phase.Name,
+			Skill:    skill,
+			Origin:   candidate.origin,
+			Model:    assigned,
+			Tools:    granted,
+			Contract: declared,
 		}, nil
 	}
 	return Resolved{}, unresolved(phase.Name, roots)
+}
+
+// phaseContract reads the contract next to the skill a phase resolved to. A repository
+// override with no contract.json inherits the shared skill's, so overriding the prose never
+// lifts a rule by omission; an override that means to drop the rules says so with {}.
+func phaseContract(dir string, origin Origin, phase string, roots SkillRoots) (*contract.Contract, error) {
+	declared, err := contract.Load(dir)
+	if err != nil || declared != nil || origin != FromRepository || roots.Shared == "" {
+		return declared, err
+	}
+	return contract.Load(filepath.Join(roots.Shared, phase))
 }
 
 // model returns the phase's model: the installation's for a shared phase, the definition's

@@ -281,3 +281,55 @@ func TestResolveReportsTheFirstPhaseThatResolvesNowhere(t *testing.T) {
 		}
 	}
 }
+
+// The contract is read with the skill it sits next to: a local override brings its own
+// rules, inherits the shared skill's when it has none, drops them only with {}, and an
+// invalid one refuses the workflow at registration rather than mid-run.
+func TestAPhaseCarriesTheContractOfTheSkillItResolvedTo(t *testing.T) {
+	home, repo := t.TempDir(), t.TempDir()
+	roots := projectSkills(home, repo, "soporte")
+	local := filepath.Dir(writeSkill(t, roots.Repository, "review"))
+	writeSkill(t, roots.Shared, "review")
+	writeContract(t, filepath.Join(home, "skills", "review"), `{"permissions":{"filesystem":{"write":["shared/**"]}}}`)
+	writeContract(t, local, `{"permissions":{"filesystem":{"write":["local/**"]}}}`)
+
+	got, err := Resolve(definitionOf(Phase{Name: "review", Model: "vendor/model"}), roots, nil)
+	if err != nil {
+		t.Fatalf("Resolve = %v", err)
+	}
+	if got[0].Contract == nil || got[0].Contract.Permissions.Filesystem.Write[0] != "local/**" {
+		t.Fatalf("contract = %+v, want the repository override's", got[0].Contract)
+	}
+
+	if err := os.Remove(filepath.Join(local, "contract.json")); err != nil {
+		t.Fatal(err)
+	}
+	got, err = Resolve(definitionOf(Phase{Name: "review", Model: "vendor/model"}), roots, nil)
+	if err != nil {
+		t.Fatalf("Resolve = %v", err)
+	}
+	if got[0].Contract == nil || got[0].Contract.Permissions.Filesystem.Write[0] != "shared/**" {
+		t.Fatalf("contract = %+v, want the shared skill's inherited", got[0].Contract)
+	}
+
+	writeContract(t, local, `{}`)
+	got, err = Resolve(definitionOf(Phase{Name: "review", Model: "vendor/model"}), roots, nil)
+	if err != nil {
+		t.Fatalf("Resolve = %v", err)
+	}
+	if got[0].Contract == nil || len(got[0].Contract.Permissions.Filesystem.Write) != 0 {
+		t.Fatalf("contract = %+v, want the empty one the override declared", got[0].Contract)
+	}
+
+	writeContract(t, local, `{"permissions":{"filesystem":{"writes":["local/**"]}}}`)
+	if _, err := Resolve(definitionOf(Phase{Name: "review", Model: "vendor/model"}), roots, nil); err == nil {
+		t.Fatal("Resolve accepted a contract with a misspelt key")
+	}
+}
+
+func writeContract(t *testing.T, dir, body string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "contract.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
