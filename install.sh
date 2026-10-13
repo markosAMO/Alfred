@@ -66,10 +66,36 @@ $BUILD_ERROR"
   HELPER="$SOURCE/.build/alfred"
 }
 
-# Every command but doctor stops without a helper: it is the thing that does the work.
-# doctor reports instead, because reporting is what doctor is for.
+# require_runtime builds the helper from source or stops the run. Only install and update
+# reach it first; every other command has already pointed HELPER at the installed one.
 require_runtime() {
   setup_runtime || die "$BUILD_ERROR"
+}
+
+# use_installed_helper points HELPER at the helper the last install or update left, so a
+# command that installs nothing runs the same code as register.sh rather than whatever the
+# clone holds after a pull. Returns 1 when there is no installed helper.
+use_installed_helper() {
+  [ -x "$ALFRED_HOME/bin/alfred" ] || return 1
+  HELPER="$ALFRED_HOME/bin/alfred"
+}
+
+# require_installed_helper is use_installed_helper, stopping the run when there is none.
+require_installed_helper() {
+  use_installed_helper || die "no helper at $ALFRED_HOME/bin/alfred; run: $0 update"
+}
+
+# warn_if_unreleased_source warns when the clone is not a clean checkout of main, because
+# install and update put on the machine whatever that checkout holds.
+warn_if_unreleased_source() {
+  command -v git >/dev/null 2>&1 || return 0
+  git -C "$SOURCE" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+
+  local branch
+  branch="$(git -C "$SOURCE" branch --show-current)"
+  [ "$branch" = "main" ] || warn "installing from ${branch:-a detached HEAD}, not main"
+  [ -z "$(git -C "$SOURCE" status --porcelain --untracked-files=no)" ] ||
+    warn "installing a checkout with uncommitted changes"
 }
 
 # Agents are detected rather than asked about: an agent that is not installed has nowhere
@@ -384,6 +410,7 @@ cmd_install() {
   # Before anything is copied: a run that installs the payload and then discovers it
   # cannot generate the agents leaves a half-installed directory behind.
   require_runtime
+  warn_if_unreleased_source
 
   info "Alfred $VERSION"
   install_payload
@@ -400,6 +427,7 @@ cmd_install() {
 cmd_update() {
   require_runtime
   [ -d "$ALFRED_HOME" ] || die "not installed; run: $0 install"
+  warn_if_unreleased_source
 
   local report
   local payload; payload="$(IFS=,; printf '%s' "${PAYLOAD[*]}")"
@@ -425,6 +453,7 @@ cmd_update() {
 
 cmd_workflows() {
   [ -d "$ALFRED_HOME" ] || die "not installed; run: $0 install"
+  require_installed_helper
   register_workflows
 }
 
@@ -468,7 +497,7 @@ no_command_outlives_its_workflow() {
 }
 
 cmd_doctor() {
-  setup_runtime || true
+  use_installed_helper || true
   local failures=0
 
   check() {
@@ -482,8 +511,7 @@ cmd_doctor() {
   }
 
   info "Alfred doctor"
-  check "installer helper built" "[ -n '$HELPER' ]" "install go, then run: $0 install"
-  check "installed"              "[ -d '$ALFRED_HOME/skills' ]" "run: $0 install"
+  check "installed"            "[ -d '$ALFRED_HOME/skills' ]" "run: $0 install"
   check "model profile set"      "[ -s '$ALFRED_HOME/profile.json' ]" "run: $0 models"
   check "state recorded"         "[ -f '$ALFRED_HOME/state.json' ]"   "run: $0 update"
   check "an agent is registered" "[ -f '$HOME/.config/opencode/opencode.json' ] || [ -f '$HOME/.claude/commands/alfred.md' ]" \
@@ -536,7 +564,7 @@ cmd_doctor() {
 
 cmd_status() {
   [ -d "$ALFRED_HOME" ] || die "not installed; run: $0 install"
-  require_runtime
+  require_installed_helper
   info "home      $ALFRED_HOME"
   info "version   $("$HELPER" json-get "$ALFRED_HOME/state.json" version 2>/dev/null || echo unknown)"
   info "skills    $(find "$ALFRED_HOME/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
@@ -547,7 +575,7 @@ cmd_status() {
 case "${1:-install}" in
   install) cmd_install ;;
   update)  cmd_update ;;
-  models)  setup_profile --force; register_workflows; register_memory ;;
+  models)  require_installed_helper; setup_profile --force; register_workflows; register_memory ;;
   workflows) cmd_workflows ;;
   doctor)  cmd_doctor ;;
   status)  cmd_status ;;
